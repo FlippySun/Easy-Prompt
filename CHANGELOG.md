@@ -9,20 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ Added
 
+- **智能增强（Ctrl+Alt+I）**：一键智能增强，按优先级自动选择内容源 — 选中文本 → 当前文件（≤50 行/2000 字符）→ 剪贴板（≤10000 字符）；多来源时弹出选择列表
 - **Ctrl+Alt+H 快捷键**：随时打开使用教程引导页
 - **状态栏常驻入口**：底部状态栏显示 ✨ Easy Prompt，点击打开快捷菜单
 - **场景使用频率排序**：场景列表按命中次数降序排列，显示 🔥 命中计数
-- **状态栏快捷菜单**：6 项快速操作（输入增强/选中增强/指定场景/浏览场景/使用教程/API 配置）
+- **状态栏快捷菜单**：6 项快速操作（智能增强/选中增强/指定场景/浏览场景/使用教程/API 配置）
 
 ### 🔄 Changed
 
-- Welcome 引导页新增 Ctrl+Alt+H 快捷键说明和状态栏使用提示
+- **增强选中文本无选区时自动 fallback 到智能增强**，不再提示"请先选中文本"
+- **`handleCommandError()` 集中错误处理**：统一重试/配置/取消操作按钮，根据错误类型智能提供操作建议
+- Welcome 引导页新增 Ctrl+Alt+I / Ctrl+Alt+H 快捷键说明和状态栏使用提示
 - 场景浏览和指定场景增强均按使用频率智能排序
+- IntelliJ WelcomeDialog 场景分类扩展至全部 38 个场景（6 个分类，与 VSCode 端完全对齐）
 
 ### 🐛 Fixed
 
-- IntelliJ 端从状态栏菜单触发"增强选中文本"时，无编辑器会显示提示而非静默失败
-- IntelliJ StatusBarWidget DataContext 改用 CommonDataKeys 规范引用
+- **5 轮深度审计（20 处修复）**：覆盖逻辑正确性、安全加固、多平台一致性、架构优化、边界条件处理
+- IntelliJ: `LightVirtualFile` → `ScratchRootType` — 临时文件改为 Scratch 文件，支持语法高亮和正确的文件管理
+- IntelliJ: 智能增强竞态条件修复 — 选区偏移量提前保存 + 文档切换检查，避免替换错误位置
+- IntelliJ: `runWriteAction` → `WriteCommandAction` — 文档写入操作支持 Ctrl+Z 撤销
+- IntelliJ: 模态对话框 → `NotificationGroupManager` 非阻塞气泡通知，不再打断用户操作
+- IntelliJ: 状态栏菜单无编辑器时显示友好提示而非静默失败
+- IntelliJ: StatusBarWidget DataContext 改用 `CommonDataKeys` + `FileEditorManager.selectedTextEditor` 规范引用
 
 ---
 

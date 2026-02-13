@@ -1,9 +1,9 @@
 {
-  "name": "easy-prompt",
+  "name": "easy-prompt-ai",
   "displayName": "Easy Prompt — AI 智能 Prompt 增强器",
   "description": "Two-step AI intent recognition with 38 specialized scenes for professional prompt generation",
   "version": "3.2.0",
-  "publisher": "easy-prompt",
+  "publisher": "FlippySun",
   "license": "MIT",
   "engines": {
     "vscode": "^1.85.0"
@@ -24,6 +24,7 @@
     "type": "git",
     "url": "https://github.com/FlippySun/Easy-Prompt"
   },
+  "icon": "assets/images/logo-vscode@128x128.png",
   "activationEvents": [
     "onStartupFinished"
   ],

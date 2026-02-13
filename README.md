@@ -238,31 +238,44 @@ easy-prompt/
 
 ## 📚 文档
 
-- **[API_CONFIG.md](./API_CONFIG.md)** - 各 API 提供商详细配置指南（OpenAI / Azure / Gemini / DeepSeek / Ollama）
-- **[FAQ.md](./FAQ.md)** - 常见问题与故障排查
-- **[CHANGELOG.md](./CHANGELOG.md)** - 版本更新日志
-- **[RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md)** - 发布前检查清单
+- **[API_CONFIG.md](./API_CONFIG.md)** — 各 API 提供商详细配置指南（OpenAI / Azure / Gemini / DeepSeek / Ollama）
+- **[FAQ.md](./FAQ.md)** — 常见问题与故障排查
+- **[CHANGELOG.md](./CHANGELOG.md)** — 版本更新日志
+- **[RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md)** — 发布前检查清单
+- **[CLAUDE.md](./CLAUDE.md)** — Claude Code 项目规范
 
 ## ❓ 故障排查
 
 ### 常见问题
 
 **Q: 提示 "请先配置 API Key"？**
-A: 在设置中填写 API Key（参考 [API_CONFIG.md](./API_CONFIG.md)）
+A: Easy Prompt 开箱即用，无需配置。如需自定义 API，通过 `Easy Prompt: 配置自定义 API` 命令配置（支持一键测试验证）。
 
-**Q: 提示 "未找到 curl 命令"？**
+**Q: 提示 "未找到 curl 命令"？（VSCode 端）**
 A:
 
 - Windows: 确保 Windows 10+ 自带的 curl 在 PATH 中
 - macOS/Linux: 系统自带，检查 PATH 环境变量
 
 **Q: API 调用超时？**
-A: 检查网络连接、Base URL 配置、API Key 是否有效
+A: 检查网络连接、Base URL 配置、API Key 是否有效。系统内置自动重试机制（最多 4 次，指数退避）。
 
 **Q: AI 识别的场景不对？**
-A: 使用「指定场景增强」功能（Ctrl+Alt+M）手动选择场景
+A: 使用「指定场景增强」功能（`Ctrl+Alt+M`）手动选择场景
+
+**Q: IntelliJ 构建失败？**
+A: 确保安装了 JDK 17：`brew install openjdk@17`，然后 `JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ./gradlew buildPlugin`
 
 更多问题请查看 **[FAQ.md](./FAQ.md)**
+
+## 🛡️ 安全特性
+
+- **内置凭证加密**：AES-256-CBC + 多层混淆（分散存储 + 打乱索引 + charCode 构造）
+- **响应体限制**：2MB 最大响应大小，防止 OOM
+- **输入长度限制**：最大 10000 字符
+- **curl 进程安全**：超时 + 10 秒强制 Kill Timer
+- **竞态保护**：文档替换前验证选区偏移量 + 文档切换检查
+- **Base URL 规范化**：自动去除尾部斜杠，验证 `/v1` 后缀
 
 ## 🔧 开发与测试
 
@@ -276,13 +289,27 @@ node test.js
 
 ```bash
 code .  # 在项目根目录按 F5 启动调试
+
+# 语法检查
+node --check extension.js && node --check welcomeView.js && node --check core/index.js
+
+# 打包
+npx @vscode/vsce package --allow-missing-repository
 ```
 
 ### IntelliJ 插件开发
 
 ```bash
 cd intellij
-./gradlew runIde
+
+# 编译验证（需 JDK 17）
+JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ./gradlew compileKotlin
+
+# 构建插件
+JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ./gradlew buildPlugin
+
+# 启动调试 IDE
+JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ./gradlew runIde
 ```
 
 ## 🤝 贡献

@@ -27,7 +27,8 @@
 - `core/scenes.js` — 38 个场景定义（~40KB），修改需保持数据结构一致
 - `core/router.js` — 意图识别逻辑，`parseRouterResult()` 有 fallback 机制
 - `core/composer.js` — 两步路由编排，smartRoute() 是核心入口
-- `core/api.js` — API 调用层使用 curl（非 Node.js HTTP）
+- `core/api.js` — API 调用层使用 curl（非 Node.js HTTP），含重试/响应限制/Kill Timer
+- `core/defaults.js` — 内置默认配置（AES-256-CBC 加密），对应 IntelliJ 的 `BuiltinDefaults.kt`
 
 ### 规则 4：多端同步协议（Multi-Platform Sync Protocol）🔴 最高优先级
 
@@ -108,17 +109,18 @@ easy-prompt/
 │   ├── scenes.js            # 38 个场景（含 painPoint + example）
 │   ├── router.js            # 意图路由 + Prompt 构建
 │   ├── composer.js          # 两步路由编排
-│   └── api.js               # curl subprocess API 调用
-├── extension.js             # VSCode 扩展入口（命令注册 + 核心逻辑）
+│   ├── api.js               # curl subprocess API 调用（含重试/响应限制/Kill Timer）
+│   └── defaults.js          # 内置默认配置（AES-256-CBC 加密）
+├── extension.js             # VSCode 扩展入口（8 命令注册 + 核心逻辑 + handleCommandError）
 ├── welcomeView.js           # Welcome Webview
-├── package.json             # VSCode 扩展清单（6 命令 + 4 快捷键）
+├── package.json             # VSCode 扩展清单（8 命令 + 6 快捷键）
 ├── intellij/                # IntelliJ IDEA 插件（Kotlin）
 │   ├── build.gradle.kts
 │   └── src/main/kotlin/com/easyprompt/
-│       ├── actions/         # 5 个 Action
-│       ├── core/            # 路由 + API + 场景
-│       ├── settings/        # 配置页
-│       └── ui/              # Welcome 对话框
+│       ├── actions/         # 7 个 Action（智能增强/增强选中/输入/场景/指定/教程/菜单）
+│       ├── core/            # 路由 + API + 场景 + 内置默认配置
+│       ├── settings/        # 配置页（测试并保存）
+│       └── ui/              # Welcome 对话框 + 状态栏 Widget
 ├── README.md
 ├── CLAUDE.md
 └── .github/
@@ -160,11 +162,16 @@ easy-prompt/
 
 ## ⚠️ 关键注意事项
 
-1. **API 层使用 curl:** Node.js 内置 HTTP 模块会被 Cloudflare 拦截，因此使用 `child_process.execSync('curl ...')` 方式
-2. **VSCode 加载路径:** 扩展安装在 `~/.vscode-extensions/easy-prompt/`，core 在 `~/.vscode-extensions/core/`
-3. **Node.js v25 限制:** 避免在 `node -e` 中使用复杂语法
+1. **API 层使用 curl:** Node.js 内置 HTTP 模块会被 Cloudflare 拦截，因此使用 `child_process.spawn('curl', ...)` 方式
+2. **VSCode 文件布局:** `extension.js`、`welcomeView.js`、`package.json` 在项目根目录（非 vscode/ 子目录）
+3. **IntelliJ 构建需 JDK 17:** macOS 下用 `JAVA_HOME=/opt/homebrew/opt/openjdk@17/... ./gradlew buildPlugin`
 4. **场景数据完整性:** 每个场景必须包含: id, name, keywords, description, painPoint, example.before/after, prompt
 5. **optimize 场景特殊:** 单独使用时不包裹 meta-wrapper，直接使用其原始 prompt
+6. **安全限制:** 响应体最大 2MB、输入最大 10000 字符、curl 进程有 Kill Timer
+7. **竞态保护:** 文档替换前必须验证选区偏移量和文档切换
+8. **内置默认配置:** `core/defaults.js`（Node.js）和 `BuiltinDefaults.kt`（Kotlin）使用 AES-256-CBC 加密
+9. **错误处理:** VSCode 端使用 `handleCommandError()` 统一处理（重试/配置/取消），IntelliJ 端各 Action 独立处理
+10. **Base URL 规范化:** `getConfig()` 和 `testApiConfig()` 自动去除尾部斜杠
 
 ---
 
@@ -174,14 +181,17 @@ easy-prompt/
 # 验证场景完整性
 node -e "const { SCENES } = require('./core'); console.log(Object.keys(SCENES).length + ' scenes');"
 
-# 语法检查
+# VSCode 语法检查
 node --check extension.js && node --check welcomeView.js && node --check core/index.js
 
 # 打包 VSCode 插件
 npx @vscode/vsce package --allow-missing-repository
 
-# IntelliJ 构建
-cd intellij && ./gradlew buildPlugin
+# IntelliJ 编译验证（需 JDK 17）
+cd intellij && JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ./gradlew compileKotlin
+
+# IntelliJ 构建插件
+cd intellij && JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ./gradlew buildPlugin
 ```
 
 ---
@@ -197,14 +207,16 @@ cd intellij && ./gradlew buildPlugin
 
 ## 🔍 排错指南
 
-| 问题              | 排查方向                                          |
-| ----------------- | ------------------------------------------------- |
-| 意图识别错误      | 检查 router.js 中的场景关键词匹配 + API 返回解析  |
-| API 调用失败      | 检查 curl 命令拼装、API Key 有效性、endpoint URL  |
-| 复合模式质量差    | 检查 buildCompositePrompt() 中的子任务拆分逻辑    |
-| VSCode 扩展无响应 | 检查 extension.js 中 CancellationToken 处理       |
-| IntelliJ 编译失败 | 检查 Kotlin 版本兼容性 + Gradle 配置              |
-| 多端行为不一致    | 按规则 4 检查「平台注册表」，逐端核对变更是否同步 |
+| 问题               | 排查方向                                            |
+| ------------------ | --------------------------------------------------- |
+| 意图识别错误       | 检查 router.js 中的场景关键词匹配 + API 返回解析    |
+| API 调用失败       | 检查 curl 命令拼装、API Key 有效性、endpoint URL    |
+| 复合模式质量差     | 检查 buildCompositePrompt() 中的子任务拆分逻辑      |
+| VSCode 扩展无响应  | 检查 extension.js 中 CancellationToken 处理         |
+| IntelliJ 编译失败  | 确保 JDK 17、检查 Kotlin 版本兼容性 + Gradle 配置   |
+| 多端行为不一致     | 按规则 4 检查「平台注册表」，逐端核对变更是否同步   |
+| 状态栏菜单无响应   | 检查 StatusBarWidgetFactory 注册 + DataContext 传递 |
+| 竞态条件导致替换错 | 检查 savedSelStart/End 是否在捕获时保存             |
 
 ---
 
