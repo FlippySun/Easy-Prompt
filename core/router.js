@@ -1,0 +1,124 @@
+/**
+ * Easy Prompt — 路由器
+ * 意图识别 Prompt + 分类逻辑
+ */
+
+const { SCENES, SCENE_NAMES } = require('./scenes');
+
+// 路由器 Prompt（第一步：意图识别）
+function buildRouterPrompt() {
+    const sceneList = Object.entries(SCENES)
+        .map(([id, s]) => `- ${id}: ${s.keywords.join('/')} → ${s.name}`)
+        .join('\n');
+
+    return `你是一个意图分类器。分析用户输入，识别其中包含的所有意图场景。
+
+场景列表：
+${sceneList}
+
+规则：
+1. 返回 JSON，格式：{"scenes":["场景ID1","场景ID2",...],"composite":true/false}
+2. 如果用户只有单一意图：{"scenes":["场景ID"],"composite":false}
+3. 如果用户有多个意图（如"审查代码并优化性能再写文档"）：{"scenes":["review","perf","doc"],"composite":true}
+4. scenes 数组按主次顺序排列，最重要的在前面，最多 5 个
+5. 如果都不太匹配，返回 {"scenes":["optimize"],"composite":false}
+6. 不要返回任何其他文字，只返回 JSON`;
+}
+
+// 解析路由器返回的 JSON，过滤无效场景 ID
+function parseRouterResult(text) {
+    let parsed = null;
+    try {
+        parsed = JSON.parse(text.trim());
+    } catch (e) {
+        // 尝试从 Markdown 代码块中提取
+        const match = text.match(/\{[\s\S]*?"scenes"[\s\S]*?\}/);
+        if (match) {
+            try { parsed = JSON.parse(match[0]); } catch (e2) { /* fallthrough */ }
+        }
+    }
+
+    if (parsed && parsed.scenes && Array.isArray(parsed.scenes)) {
+        // 过滤掉不存在的场景 ID
+        const validScenes = parsed.scenes.filter(s => SCENES[s]);
+        return {
+            scenes: validScenes.length > 0 ? validScenes : ["optimize"],
+            composite: parsed.composite || false
+        };
+    }
+
+    return { scenes: ["optimize"], composite: false };
+}
+
+// 根据路由结果构建最终的 System Prompt
+function buildGenerationPrompt(routerResult) {
+    const validScenes = routerResult.scenes.filter(s => SCENES[s]);
+    if (validScenes.length === 0) {
+        validScenes.push("optimize");
+    }
+
+    if (validScenes.length === 1 && validScenes[0] === "optimize") {
+        // optimize 场景直接使用，它本身就是「写 Prompt」的指令
+        return { prompt: SCENES.optimize.prompt, sceneNames: [SCENES.optimize.name] };
+    }
+
+    const sceneNames = validScenes.map(s => SCENE_NAMES[s] || s);
+
+    if (routerResult.composite && validScenes.length > 1) {
+        // 复合模式：合并多个场景
+        const sceneSections = validScenes.map((s, i) => {
+            return `### 子任务 ${i + 1}：${SCENE_NAMES[s]}
+以下是该领域的专家知识（作为参考素材，用于生成该子任务的专业 Prompt）：
+${SCENES[s].prompt}`;
+        }).join('\n\n');
+
+        const prompt = `⚠️ 核心原则：你是一个「Prompt 生成器」，不是「任务执行者」。你的任务是「写出一个专业 Prompt」，不是去执行用户的任务。
+
+用户的复合需求涉及 ${validScenes.length} 个方面：${sceneNames.join('、')}。
+
+${sceneSections}
+
+请基于以上参考素材，将用户的复合需求重写为一个**结构化的专业 Prompt**：
+
+1. 设定一个能覆盖所有子任务的综合专家角色
+2. 将复合需求拆分为清晰的子任务章节
+3. 每个子任务引用对应领域的专家方法论
+4. 子任务间标明依赖和执行顺序
+5. 给出统一的输出格式要求
+
+⚠️ Prompt 末尾必须包含执行力约束：
+- 要求 AI 直接动手实现/修改，不只给方案
+- 分步执行，每步有具体代码改动
+- 每步验证确认后再继续
+- 以"请立即开始执行第一步"结尾
+
+只输出生成的 Prompt，不要前言。`;
+
+        return { prompt, sceneNames };
+    } else {
+        // 单一场景
+        const sceneId = validScenes[0];
+        const prompt = `⚠️ 核心原则：你是一个「Prompt 生成器」，不是「任务执行者」。你的任务是「写出一个专业 Prompt」，不是去执行用户的任务。
+
+以下是「${SCENE_NAMES[sceneId]}」领域的专家知识（作为参考素材）：
+${SCENES[sceneId].prompt}
+
+请基于以上参考素材，将用户的输入重写为一个**专业级 Prompt**：
+1. 设定该领域的专家角色
+2. 结构化任务要求
+3. 补全隐含约束和边界条件
+4. 明确输出格式
+
+⚠️ Prompt 末尾必须包含执行力约束：
+- 要求 AI 直接动手实现/修改，不只给方案
+- 分步执行，每步有具体代码改动
+- 每步验证确认后再继续
+- 以"请立即开始执行"结尾
+
+只输出生成的 Prompt，不要前言。`;
+
+        return { prompt, sceneNames };
+    }
+}
+
+module.exports = { buildRouterPrompt, parseRouterResult, buildGenerationPrompt };

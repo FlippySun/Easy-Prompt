@@ -1,0 +1,97 @@
+{
+  "name": "easy-prompt",
+  "displayName": "Easy Prompt — AI 智能 Prompt 增强器",
+  "description": "Two-step AI intent recognition with 38 specialized scenes for professional prompt generation",
+  "version": "3.0.0",
+  "publisher": "easy-prompt",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Machine Learning"
+  ],
+  "keywords": [
+    "prompt",
+    "ai",
+    "copilot",
+    "gpt",
+    "gemini",
+    "prompt engineering"
+  ],
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FlippySun/Easy-Prompt"
+  },
+  "activationEvents": [],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "easy-prompt.enhanceSelected",
+        "title": "Easy Prompt: 增强选中文本",
+        "category": "Easy Prompt"
+      },
+      {
+        "command": "easy-prompt.enhanceInput",
+        "title": "Easy Prompt: 快速输入增强",
+        "category": "Easy Prompt"
+      },
+      {
+        "command": "easy-prompt.showScenes",
+        "title": "Easy Prompt: 浏览场景列表",
+        "category": "Easy Prompt"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "easy-prompt.enhanceSelected",
+        "key": "ctrl+alt+p",
+        "mac": "ctrl+alt+p",
+        "when": "editorHasSelection"
+      },
+      {
+        "command": "easy-prompt.enhanceInput",
+        "key": "ctrl+alt+o",
+        "mac": "ctrl+alt+o"
+      },
+      {
+        "command": "easy-prompt.showScenes",
+        "key": "ctrl+alt+l",
+        "mac": "ctrl+alt+l"
+      }
+    ],
+    "configuration": {
+      "title": "Easy Prompt",
+      "properties": {
+        "easyPrompt.apiBaseUrl": {
+          "type": "string",
+          "default": "https://api.openai.com/v1",
+          "description": "API Base URL (OpenAI 兼容格式，必须以 /v1 结尾)",
+          "order": 1
+        },
+        "easyPrompt.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API Key",
+          "order": 2
+        },
+        "easyPrompt.model": {
+          "type": "string",
+          "default": "gpt-4o",
+          "description": "模型名称（如 gpt-4o, gemini-3-pro-preview, deepseek-chat）",
+          "order": 3
+        },
+        "easyPrompt.language": {
+          "type": "string",
+          "enum": ["zh-CN", "en"],
+          "default": "zh-CN",
+          "description": "界面语言",
+          "order": 4
+        }
+      }
+    }
+  }
+}

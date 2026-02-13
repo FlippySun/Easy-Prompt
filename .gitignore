@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+.gradle/
+build/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.vsix
+*.zip
+*.jar
+out/
+
+# Secrets
+.env
+*.key

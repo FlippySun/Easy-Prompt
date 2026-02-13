@@ -1,0 +1,11 @@
+{
+  "name": "easy-prompt",
+  "version": "1.0.0",
+  "description": "Two-step AI-powered intent recognition and professional prompt generation",
+  "private": true,
+  "scripts": {
+    "vscode:package": "cd vscode && vsce package",
+    "vscode:install": "cd vscode && code --install-extension easy-prompt-*.vsix"
+  },
+  "license": "MIT"
+}

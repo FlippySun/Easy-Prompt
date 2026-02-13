@@ -1,0 +1,68 @@
+plugins {
+    id("java")
+    id("org.jetbrains.kotlin.jvm") version "1.9.25"
+    id("org.jetbrains.intellij.platform") version "2.3.0"
+}
+
+group = "com.easyprompt"
+version = "3.0.0"
+
+repositories {
+    mavenCentral()
+    intellijPlatform {
+        defaultRepositories()
+    }
+}
+
+dependencies {
+    intellijPlatform {
+        intellijIdeaCommunity("2024.1")
+        bundledPlugin("com.intellij.java")
+        instrumentationTools()
+    }
+    implementation("com.google.code.gson:gson:2.11.0")
+}
+
+kotlin {
+    jvmToolchain(17)
+}
+
+intellijPlatform {
+    pluginConfiguration {
+        id = "com.easyprompt.intellij"
+        name = "Easy Prompt"
+        version = project.version.toString()
+        description = """
+            <h2>Easy Prompt — AI 智能 Prompt 增强器</h2>
+            <p>两步 AI 意图识别 + 38 个专业场景，将简单描述扩写为大师级 Prompt。</p>
+            <ul>
+                <li>🧠 智能路由：自动识别意图，匹配最佳场景</li>
+                <li>🔀 复合支持：一句话包含多个意图也能精准处理</li>
+                <li>⚡ 快捷操作：选中文本 Ctrl+Alt+P 一键增强</li>
+                <li>📦 38 个场景：覆盖开发全流程</li>
+            </ul>
+        """.trimIndent()
+        vendor {
+            name = "Easy Prompt"
+            url = "https://github.com/FlippySun/Easy-Prompt"
+        }
+        ideaVersion {
+            sinceBuild = "241"
+            untilBuild = "252.*"
+        }
+        changeNotes = """
+            <h3>v3.0.0</h3>
+            <ul>
+                <li>初始版本：两步 AI 路由 + 38 场景</li>
+                <li>支持复合意图识别</li>
+                <li>配置化 API Key / Base URL / Model</li>
+            </ul>
+        """.trimIndent()
+    }
+}
+
+tasks {
+    buildSearchableOptions {
+        enabled = false
+    }
+}
