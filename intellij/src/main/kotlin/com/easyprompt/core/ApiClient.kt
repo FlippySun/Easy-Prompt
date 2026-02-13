@@ -94,7 +94,7 @@ object ApiClient {
      * 两步智能路由
      */
     fun smartRoute(userInput: String, onProgress: ((String) -> Unit)? = null): SmartRouteResult {
-        onProgress?.invoke("正在识别意图...")
+        onProgress?.invoke("🔍 正在识别意图...")
 
         // 第一步：意图识别
         val routerPrompt = Router.buildRouterPrompt()
@@ -103,7 +103,7 @@ object ApiClient {
 
         val sceneLabels = routerResult.scenes.map { Scenes.nameMap[it] ?: it }
         val label = if (routerResult.composite) "复合：${sceneLabels.joinToString(" + ")}" else sceneLabels.first()
-        onProgress?.invoke("意图识别完成 → $label，正在生成...")
+        onProgress?.invoke("✍️ 意图识别完成 → $label，正在生成...")
 
         // 第二步：生成
         val genPrompt = Router.buildGenerationPrompt(routerResult)
@@ -111,5 +111,17 @@ object ApiClient {
         val result = callApi(genPrompt, userInput, maxTokens = maxTokens, timeout = 120000)
 
         return SmartRouteResult(result, routerResult.scenes, routerResult.composite)
+    }
+
+    /**
+     * 指定场景直接生成（跳过路由）
+     */
+    fun directGenerate(userInput: String, sceneId: String, onProgress: ((String) -> Unit)? = null): String {
+        val sceneName = Scenes.nameMap[sceneId] ?: sceneId
+        onProgress?.invoke("✍️ 使用「${sceneName}」场景生成 Prompt...")
+
+        val routerResult = RouterResult(listOf(sceneId), false)
+        val genPrompt = Router.buildGenerationPrompt(routerResult)
+        return callApi(genPrompt, userInput, maxTokens = 4096, timeout = 120000)
     }
 }

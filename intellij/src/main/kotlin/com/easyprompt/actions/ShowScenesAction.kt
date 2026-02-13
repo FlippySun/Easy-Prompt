@@ -31,20 +31,27 @@ class ShowScenesAction : AnAction() {
                 if (selectedIndex >= 0) {
                     val entry = Scenes.all.entries.toList()[selectedIndex]
                     val scene = entry.value
-                    val content = """# ${scene.name} (${entry.key})
-
-> ${scene.description}
-
-## System Prompt
-
-```
-${scene.prompt}
-```
-
-## 关键词
-
-${scene.keywords.joinToString(", ")}
-"""
+                    val content = buildString {
+                        appendLine("# ${scene.name} (${entry.key})")
+                        appendLine()
+                        appendLine("> ${scene.description}")
+                        appendLine()
+                        if (scene.painPoint.isNotBlank()) {
+                            appendLine("## 💡 痛点")
+                            appendLine()
+                            appendLine(scene.painPoint)
+                            appendLine()
+                        }
+                        appendLine("## System Prompt")
+                        appendLine()
+                        appendLine("```")
+                        appendLine(scene.prompt)
+                        appendLine("```")
+                        appendLine()
+                        appendLine("## 关键词")
+                        appendLine()
+                        appendLine(scene.keywords.joinToString(", "))
+                    }
                     ApplicationManager.getApplication().invokeLater {
                         val file = LightVirtualFile("Scene-${entry.key}.md", content)
                         FileEditorManager.getInstance(project).openFile(file, true)

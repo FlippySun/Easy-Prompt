@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.easyprompt"
-version = "3.0.0"
+version = "3.1.0"
 
 repositories {
     mavenCentral()
@@ -51,6 +51,14 @@ intellijPlatform {
             untilBuild = "252.*"
         }
         changeNotes = """
+            <h3>v3.1.0</h3>
+            <ul>
+                <li>新增：首次安装 Welcome 引导页</li>
+                <li>新增：指定场景增强（Ctrl+Alt+M）</li>
+                <li>新增：查看使用教程命令</li>
+                <li>优化：增强状态进度通知</li>
+                <li>优化：38 个场景添加痛点描述和示例</li>
+            </ul>
             <h3>v3.0.0</h3>
             <ul>
                 <li>初始版本：两步 AI 路由 + 38 场景</li>

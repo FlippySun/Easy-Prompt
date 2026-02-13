@@ -16,6 +16,8 @@
         <notificationGroup id="Easy Prompt"
                            displayType="BALLOON"
                            isLogByDefault="true"/>
+        <postStartupActivity
+                implementation="com.easyprompt.ui.WelcomeStartupActivity"/>
     </extensions>
 
     <actions>
@@ -41,6 +43,19 @@
                     text="浏览场景列表"
                     description="查看所有可用的 Prompt 增强场景">
                 <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt L"/>
+            </action>
+
+            <action id="EasyPrompt.EnhanceWithScene"
+                    class="com.easyprompt.actions.EnhanceWithSceneAction"
+                    text="指定场景增强"
+                    description="手动选择场景进行精准定向 Prompt 增强">
+                <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt M"/>
+            </action>
+
+            <action id="EasyPrompt.ShowWelcome"
+                    class="com.easyprompt.actions.ShowWelcomeAction"
+                    text="查看使用教程"
+                    description="显示 Easy Prompt 使用教程和场景列表">
             </action>
         </group>
     </actions>

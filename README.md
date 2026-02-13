@@ -60,9 +60,10 @@ Settings → Tools → Easy Prompt
 
 | 快捷键 | 功能 | 说明 |
 |--------|------|------|
-| `Ctrl+Alt+P` | 增强选中文本 | 选中文本 → AI 分析意图 → 原地替换为专业 Prompt |
-| `Ctrl+Alt+O` | 快速输入增强 | 弹出输入框 → 输入描述 → 新标签页显示结果 |
-| `Ctrl+Alt+L` | 浏览场景列表 | 查看所有 38 个可用场景 |
+| `Ctrl+Alt+P` | 智能增强 | 选中文本 → AI 自动识别意图 → 原地替换为专业 Prompt |
+| `Ctrl+Alt+O` | 快速输入 | 弹出输入框 → 输入描述 → 新标签页显示结果 |
+| `Ctrl+Alt+L` | 浏览场景 | 查看所有 38 个可用场景详情（含痛点和示例） |
+| `Ctrl+Alt+M` | 指定场景 | 手动选择场景 → 跳过意图识别 → 精准定向增强 |
 
 ### 使用流程
 
@@ -191,16 +192,22 @@ Settings → Tools → Easy Prompt
 easy-prompt/
 ├── core/                    # 共享核心逻辑（平台无关）
 │   ├── index.js             # 入口
-│   ├── scenes.js            # 38 个场景定义
+│   ├── scenes.js            # 38 个场景定义（含痛点和示例）
 │   ├── router.js            # 意图识别路由器
-│   ├── composer.js           # Prompt 合成器
+│   ├── composer.js          # Prompt 合成器
 │   └── api.js               # API 调用层
 ├── vscode/                  # VSCode 扩展
-│   ├── package.json         # 扩展清单
-│   └── extension.js         # 扩展入口
+│   ├── package.json         # 扩展清单（5 命令 + 4 快捷键）
+│   ├── extension.js         # 扩展入口
+│   └── welcomeView.js       # Welcome 引导页（Webview）
 ├── intellij/                # IntelliJ IDEA 插件
 │   ├── build.gradle.kts     # Gradle 构建
 │   └── src/main/kotlin/     # Kotlin 源码
+│       └── com/easyprompt/
+│           ├── actions/     # 5 个 Action（增强/输入/场景/指定/教程）
+│           ├── core/        # 路由 + API + 场景定义
+│           ├── settings/    # 配置管理
+│           └── ui/          # Welcome 对话框 + 启动检测
 └── README.md
 ```
 

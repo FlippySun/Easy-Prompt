@@ -9,6 +9,7 @@ data class Scene(
     val nameEn: String,
     val keywords: List<String>,
     val description: String,
+    val painPoint: String = "",
     val prompt: String
 )
 

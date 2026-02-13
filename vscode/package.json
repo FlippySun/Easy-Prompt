@@ -2,7 +2,7 @@
   "name": "easy-prompt",
   "displayName": "Easy Prompt — AI 智能 Prompt 增强器",
   "description": "Two-step AI intent recognition with 38 specialized scenes for professional prompt generation",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "publisher": "easy-prompt",
   "license": "MIT",
   "engines": {
@@ -43,6 +43,16 @@
         "command": "easy-prompt.showScenes",
         "title": "Easy Prompt: 浏览场景列表",
         "category": "Easy Prompt"
+      },
+      {
+        "command": "easy-prompt.enhanceWithScene",
+        "title": "Easy Prompt: 指定场景增强",
+        "category": "Easy Prompt"
+      },
+      {
+        "command": "easy-prompt.showWelcome",
+        "title": "Easy Prompt: 查看使用教程",
+        "category": "Easy Prompt"
       }
     ],
     "keybindings": [
@@ -61,6 +71,11 @@
         "command": "easy-prompt.showScenes",
         "key": "ctrl+alt+l",
         "mac": "ctrl+alt+l"
+      },
+      {
+        "command": "easy-prompt.enhanceWithScene",
+        "key": "ctrl+alt+m",
+        "mac": "ctrl+alt+m"
       }
     ],
     "configuration": {
