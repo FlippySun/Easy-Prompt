@@ -3,83 +3,128 @@
  * 首次安装引导页，简约现代风格
  */
 
-const vscode = require('vscode');
-const { SCENES, SCENE_NAMES } = require('../core');
+const vscode = require("vscode");
+const { SCENES, SCENE_NAMES } = require("./core");
 
-const WELCOME_STATE_KEY = 'easyPrompt.welcomed.v3';
+const WELCOME_STATE_KEY = "easyPrompt.welcomed.v3.2";
 
 /**
  * 检查是否需要显示 Welcome 页面（首次安装/大版本升级时触发）
  */
 function checkAndShowWelcome(context) {
-    const welcomed = context.globalState.get(WELCOME_STATE_KEY, false);
-    if (!welcomed) {
-        showWelcomePage(context);
-        context.globalState.update(WELCOME_STATE_KEY, true);
-    }
+  const welcomed = context.globalState.get(WELCOME_STATE_KEY, false);
+  if (!welcomed) {
+    showWelcomePage(context);
+    context.globalState.update(WELCOME_STATE_KEY, true);
+  }
 }
 
 /**
  * 显示 Welcome 引导页
  */
 function showWelcomePage(context) {
-    const panel = vscode.window.createWebviewPanel(
-        'easyPromptWelcome',
-        'Welcome to Easy Prompt',
-        vscode.ViewColumn.One,
-        { enableScripts: true, retainContextWhenHidden: false }
-    );
+  const panel = vscode.window.createWebviewPanel(
+    "easyPromptWelcome",
+    "Welcome to Easy Prompt",
+    vscode.ViewColumn.One,
+    { enableScripts: true, retainContextWhenHidden: false },
+  );
 
-    panel.webview.html = getWelcomeHtml();
+  panel.webview.html = getWelcomeHtml();
 
-    // 接收 Webview 消息
-    panel.webview.onDidReceiveMessage(msg => {
-        switch (msg.command) {
-            case 'openSettings':
-                vscode.commands.executeCommand('workbench.action.openSettings', 'easyPrompt');
-                break;
-            case 'showScenes':
-                vscode.commands.executeCommand('easy-prompt.showScenes');
-                break;
-            case 'tryEnhance':
-                vscode.commands.executeCommand('easy-prompt.enhanceInput');
-                break;
-            case 'selectScene':
-                vscode.commands.executeCommand('easy-prompt.enhanceWithScene');
-                break;
-        }
-    }, undefined, context.subscriptions);
+  // 接收 Webview 消息
+  panel.webview.onDidReceiveMessage(
+    (msg) => {
+      switch (msg.command) {
+        case "openSettings":
+          vscode.commands.executeCommand(
+            "workbench.action.openSettings",
+            "easyPrompt",
+          );
+          break;
+        case "configureApi":
+          vscode.commands.executeCommand("easy-prompt.configureApi");
+          break;
+        case "showScenes":
+          vscode.commands.executeCommand("easy-prompt.showScenes");
+          break;
+        case "tryEnhance":
+          vscode.commands.executeCommand("easy-prompt.enhanceInput");
+          break;
+        case "selectScene":
+          vscode.commands.executeCommand("easy-prompt.enhanceWithScene");
+          break;
+      }
+    },
+    undefined,
+    context.subscriptions,
+  );
 }
 
 function getWelcomeHtml() {
-    // 构建场景分类
-    const categories = {
-        '🚀 需求 & 规划': ['optimize', 'split-task', 'techstack', 'proposal'],
-        '💻 编码 & 开发': ['api-design', 'refactor', 'regex', 'sql', 'convert', 'typescript', 'css', 'state', 'component', 'form', 'async', 'schema', 'script', 'algo'],
-        '🔍 调试 & 质量': ['debug', 'error', 'perf', 'review', 'test', 'security', 'incident'],
-        '📝 文档 & 协作': ['comment', 'doc', 'commit', 'changelog', 'translate', 'present', 'mock'],
-        '🛠️ 运维 & 环境': ['devops', 'env', 'deps', 'git'],
-        '💡 学习 & 纠偏': ['explain', 'followup']
-    };
+  // 构建场景分类
+  const categories = {
+    "🚀 需求 & 规划": ["optimize", "split-task", "techstack", "proposal"],
+    "💻 编码 & 开发": [
+      "api-design",
+      "refactor",
+      "regex",
+      "sql",
+      "convert",
+      "typescript",
+      "css",
+      "state",
+      "component",
+      "form",
+      "async",
+      "schema",
+      "script",
+      "algo",
+    ],
+    "🔍 调试 & 质量": [
+      "debug",
+      "error",
+      "perf",
+      "review",
+      "test",
+      "security",
+      "incident",
+    ],
+    "📝 文档 & 协作": [
+      "comment",
+      "doc",
+      "commit",
+      "changelog",
+      "translate",
+      "present",
+      "mock",
+    ],
+    "🛠️ 运维 & 环境": ["devops", "env", "deps", "git"],
+    "💡 学习 & 纠偏": ["explain", "followup"],
+  };
 
-    const sceneSections = Object.entries(categories).map(([cat, ids]) => {
-        const cards = ids.map(id => {
-            const s = SCENES[id];
-            if (!s) return '';
-            const pp = (s.painPoint || '').split('—')[0].trim();
-            return `<div class="scene-card" data-id="${id}">
+  const sceneSections = Object.entries(categories)
+    .map(([cat, ids]) => {
+      const cards = ids
+        .map((id) => {
+          const s = SCENES[id];
+          if (!s) return "";
+          const pp = (s.painPoint || "").split("—")[0].trim();
+          return `<div class="scene-card" data-id="${id}">
                 <div class="scene-name">${s.name}</div>
                 <div class="scene-tag">${id}</div>
                 <div class="scene-pain">${pp}</div>
             </div>`;
-        }).join('');
-        return `<div class="category">
+        })
+        .join("");
+      return `<div class="category">
             <h3>${cat}</h3>
             <div class="scene-grid">${cards}</div>
         </div>`;
-    }).join('');
+    })
+    .join("");
 
-    return `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -355,7 +400,7 @@ kbd {
 <div class="container">
     <!-- Hero -->
     <div class="hero">
-        <div class="version-badge">v3.1.0</div>
+        <div class="version-badge">v3.2.0</div>
         <h1>Welcome to <span>Easy Prompt</span></h1>
         <p>AI 驱动的智能 Prompt 工程工具包 — 写一句大白话，生成专业级 Prompt，38 个场景覆盖你的全部开发痛点</p>
     </div>
@@ -366,8 +411,8 @@ kbd {
         <div class="steps">
             <div class="step">
                 <div class="step-num">1</div>
-                <h4>配置 API Key</h4>
-                <p>打开设置，填入你的 OpenAI 兼容 API Key（支持 GPT/Gemini/DeepSeek 等）</p>
+                <h4>开箱即用</h4>
+                <p>内置 AI 服务，无需配置即可使用。也可以在设置中填入自己的 API Key（支持 OpenAI/Gemini/DeepSeek 等）</p>
             </div>
             <div class="step">
                 <div class="step-num">2</div>
@@ -381,8 +426,8 @@ kbd {
             </div>
         </div>
         <div class="btn-group">
-            <button class="btn btn-primary" onclick="send('openSettings')">⚙️ 配置 API Key</button>
-            <button class="btn btn-secondary" onclick="send('tryEnhance')">🚀 立即体验</button>
+            <button class="btn btn-primary" onclick="send('tryEnhance')">🚀 立即体验</button>
+            <button class="btn btn-secondary" onclick="send('configureApi')">⚙️ 自定义 API Key</button>
         </div>
     </div>
 
@@ -391,8 +436,12 @@ kbd {
         <h2>⌨️ 快捷键</h2>
         <table class="shortcut-table">
             <tr>
+                <td><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>I</kbd></td>
+                <td><strong>智能增强</strong><br><span class="shortcut-desc">自动判断增强选中/文件/剪贴板内容，多来源时弹窗选择</span></td>
+            </tr>
+            <tr>
                 <td><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>P</kbd></td>
-                <td><strong>智能增强</strong><br><span class="shortcut-desc">选中文本 → AI 自动识别意图 → 原地替换为专业 Prompt</span></td>
+                <td><strong>增强选中</strong><br><span class="shortcut-desc">选中文本 → AI 自动识别意图 → 原地替换为专业 Prompt</span></td>
             </tr>
             <tr>
                 <td><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>O</kbd></td>
@@ -405,6 +454,10 @@ kbd {
             <tr>
                 <td><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>M</kbd></td>
                 <td><strong>指定场景</strong><br><span class="shortcut-desc">手动选择场景 → 精准定向增强（跳过 AI 意图识别）</span></td>
+            </tr>
+            <tr>
+                <td><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>H</kbd></td>
+                <td><strong>使用教程</strong><br><span class="shortcut-desc">随时打开本引导页 · 也可通过状态栏 ✨ 图标访问</span></td>
             </tr>
         </table>
     </div>
@@ -440,24 +493,25 @@ kbd {
     <!-- Scenes -->
     <div class="section">
         <h2>🎯 38 个专业场景</h2>
-        <p style="color:var(--text-dim);font-size:13px;margin-bottom:16px;">点击任意场景卡片可查看详情 · 也可使用 <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>M</kbd> 指定场景增强</p>
+        <p style="color:var(--text-dim);font-size:13px;margin-bottom:16px;">点击任意场景卡片可查看详情 · 使用 <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>M</kbd> 指定场景增强 · 场景按使用频率 🔥 智能排序</p>
         ${sceneSections}
     </div>
 
     <!-- CTA -->
     <div class="section" style="text-align:center;">
         <h2 style="justify-content:center;">🎉 准备好了吗？</h2>
-        <p style="color:var(--text-dim);margin-bottom:20px;">配置好 API Key，随便写一句话试试看</p>
+        <p style="color:var(--text-dim);margin-bottom:20px;">开箱即用，随便写一句话试试看</p>
         <div class="btn-group" style="justify-content:center;">
-            <button class="btn btn-primary" onclick="send('openSettings')">⚙️ 配置 API Key</button>
-            <button class="btn btn-secondary" onclick="send('tryEnhance')">🚀 快速体验</button>
+            <button class="btn btn-primary" onclick="send('tryEnhance')">🚀 立即体验</button>
+            <button class="btn btn-secondary" onclick="send('configureApi')">⚙️ 自定义 API Key</button>
             <button class="btn btn-secondary" onclick="send('selectScene')">🎯 指定场景增强</button>
         </div>
     </div>
 
     <!-- Footer -->
     <div class="footer">
-        <p>Easy Prompt v3.1.0 · Made with ❤️ · <a href="https://github.com/FlippySun/Easy-Prompt">GitHub</a></p>
+        <p>Easy Prompt v3.2.0 · Made with ❤️ · <a href="https://github.com/FlippySun/Easy-Prompt">GitHub</a></p>
+        <p style="margin-top:8px;">💡 状态栏右侧 ✨ 图标可随时打开快捷菜单</p>
     </div>
 </div>
 

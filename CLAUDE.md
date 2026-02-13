@@ -55,6 +55,7 @@ This document provides project context and development guidance for Claude Code 
 - **Output Language:** Always use Simplified Chinese (简体中文)
 - **Response Style:** Concise and focused, provide solutions directly
 - **Modification Warning:** Exercise extra caution when modifying core modules (scenes.js, router.js, composer.js) and extension entry points
+- **Multi-Platform Sync (CRITICAL):** Any change to core logic, bug fixes, or feature additions MUST be synced to ALL registered platforms (see Platform Registry in copilot-instructions.md Rule 4). After completing changes, output a 「多端同步报告」 listing sync status for every platform. Forgetting to sync = incomplete task.
 
 ---
 
@@ -94,21 +95,21 @@ easy-prompt/
 
 ### Key Components
 
-| File | Purpose |
-|------|---------|
-| `core/scenes.js` | 38 个场景定义，含 name/keywords/description/painPoint/example/prompt |
-| `core/router.js` | 意图识别 Prompt + 解析 + 生成 Prompt 构建（单一/复合模式） |
-| `core/composer.js` | smartRoute() — 编排两步路由流程 |
-| `core/api.js` | callApi/callRouterApi/callGenerationApi — curl 调用 OpenAI 兼容 API |
-| `vscode/extension.js` | 5 个命令：enhanceSelected/enhanceInput/showScenes/enhanceWithScene/showWelcome |
-| `vscode/welcomeView.js` | Webview HTML 生成 — 首次安装引导页 |
+| File               | Purpose                                                                        |
+| ------------------ | ------------------------------------------------------------------------------ |
+| `core/scenes.js`   | 38 个场景定义，含 name/keywords/description/painPoint/example/prompt           |
+| `core/router.js`   | 意图识别 Prompt + 解析 + 生成 Prompt 构建（单一/复合模式）                     |
+| `core/composer.js` | smartRoute() — 编排两步路由流程                                                |
+| `core/api.js`      | callApi/callRouterApi/callGenerationApi — curl 调用 OpenAI 兼容 API            |
+| `extension.js`     | 5 个命令：enhanceSelected/enhanceInput/showScenes/enhanceWithScene/showWelcome |
+| `welcomeView.js`   | Webview HTML 生成 — 首次安装引导页                                             |
 
 ### Two-Step AI Routing
 
-| Step | Temperature | Max Tokens | Purpose |
-|------|-------------|------------|---------|
-| Router | 0.1 | 150 | 意图识别 → 返回 `{"scenes":["id1","id2"],"composite":true/false}` |
-| Generator | 0.7 | 4096/8192 | 基于场景的 System Prompt 生成专业 Prompt |
+| Step      | Temperature | Max Tokens | Purpose                                                           |
+| --------- | ----------- | ---------- | ----------------------------------------------------------------- |
+| Router    | 0.1         | 150        | 意图识别 → 返回 `{"scenes":["id1","id2"],"composite":true/false}` |
+| Generator | 0.7         | 4096/8192  | 基于场景的 System Prompt 生成专业 Prompt                          |
 
 ---
 
@@ -119,7 +120,7 @@ easy-prompt/
 - **复合模式:** 最多 5 个场景，按主次排列，合并为结构化子任务
 - **API 层使用 curl:** 因为 Node.js 内置 HTTP 会被 Cloudflare 拦截
 - **VSCode 扩展加载路径:** `~/.vscode-extensions/easy-prompt/` 和 `~/.vscode/extensions/easy-prompt/`
-- **core 模块引用:** VSCode 扩展使用 `require('../core')` 引用 core 目录
+- **core 模块引用:** VSCode 扩展使用 `require('./core')` 引用 core 目录（同层级）
 - **Node.js v25 注意:** 内联 `-e` 脚本有语法限制，需使用文件方式执行
 
 ---
@@ -131,10 +132,10 @@ easy-prompt/
 node -e "const { SCENES } = require('./core'); console.log(Object.keys(SCENES).length + ' scenes loaded');"
 
 # 语法检查
-node --check vscode/extension.js && node --check vscode/welcomeView.js
+node --check extension.js && node --check welcomeView.js
 
-# 同步到 VSCode 扩展安装路径
-cp vscode/*.js ~/.vscode-extensions/easy-prompt/ && cp core/*.js ~/.vscode-extensions/core/
+# 打包 VSCode 插件
+npx @vscode/vsce package --allow-missing-repository
 ```
 
 ---

@@ -1,0 +1,1323 @@
+const vscode = require("vscode");
+const {
+  smartRoute,
+  SCENES,
+  SCENE_NAMES,
+  getBuiltinDefaults,
+  testApiConfig,
+} = require("./core");
+const { checkAndShowWelcome, showWelcomePage } = require("./welcomeView");
+
+// ============ 场景命中计数 ============
+
+const SCENE_STATS_KEY = "easyPrompt.sceneStats";
+
+/** 全局上下文引用，在 activate 中赋值 */
+let _context = null;
+
+/**
+ * 获取场景命中统计 { [sceneId]: number }
+ */
+function getSceneStats() {
+  if (!_context) return {};
+  return _context.globalState.get(SCENE_STATS_KEY, {});
+}
+
+/**
+ * 增加场景命中计数（支持传入多个场景 ID）
+ */
+function incrementSceneHits(sceneIds) {
+  if (!_context || !sceneIds || sceneIds.length === 0) return;
+  const stats = getSceneStats();
+  for (const id of sceneIds) {
+    stats[id] = (stats[id] || 0) + 1;
+  }
+  _context.globalState.update(SCENE_STATS_KEY, stats);
+}
+
+/**
+ * 构建带命中计数的场景列表项（用于 QuickPick），按命中次数降序排列
+ * @param {Object} options - { showDetail: boolean }
+ */
+function buildSceneItems(options = {}) {
+  const stats = getSceneStats();
+  const { showDetail = true } = options;
+
+  const items = Object.entries(SCENES).map(([id, scene]) => {
+    const hits = stats[id] || 0;
+    const fireLabel = hits > 0 ? ` 🔥${hits}` : "";
+    return {
+      label: `$(symbol-method) ${scene.name}${fireLabel}`,
+      description: id,
+      detail: showDetail
+        ? `${scene.description}${scene.painPoint ? " · 💡 " + scene.painPoint.split("—")[0].trim() : ""}`
+        : scene.painPoint
+          ? scene.painPoint.split("—")[0].trim()
+          : scene.description,
+      sceneId: id,
+      hits,
+    };
+  });
+
+  // 按命中次数降序排列，次数相同则保持原始顺序
+  items.sort((a, b) => b.hits - a.hits);
+
+  return items;
+}
+
+/**
+ * 公共错误处理：分析错误类型，展示友好消息和操作按钮
+ * @param {Error} err - 错误对象
+ * @param {Function} retryFn - 点击重试时执行的函数
+ */
+function handleCommandError(err, retryFn) {
+  let errorMsg = err.message;
+  let actions = ["重试"];
+
+  if (
+    errorMsg.includes("API Key") ||
+    errorMsg.includes("认证") ||
+    errorMsg.includes("Unauthorized") ||
+    errorMsg.includes("🔑")
+  ) {
+    actions.push("配置 API Key");
+  } else if (
+    errorMsg.includes("Base URL") ||
+    errorMsg.includes("格式错误") ||
+    errorMsg.includes("📋")
+  ) {
+    actions.push("检查设置");
+  } else if (
+    errorMsg.includes("繁忙") ||
+    errorMsg.includes("过载") ||
+    errorMsg.includes("超限") ||
+    errorMsg.includes("⚡") ||
+    errorMsg.includes("⏳")
+  ) {
+    actions = ["稍后重试"];
+  }
+
+  vscode.window
+    .showErrorMessage(`❌ ${errorMsg}`, ...actions)
+    .then((action) => {
+      if (action === "重试" || action === "稍后重试") {
+        retryFn();
+      } else if (action === "配置 API Key" || action === "检查设置") {
+        vscode.commands.executeCommand("easy-prompt.configureApi");
+      }
+    });
+}
+
+// 从 VSCode Settings 读取配置，未配置时使用内置默认值
+function getConfig() {
+  const cfg = vscode.workspace.getConfiguration("easyPrompt");
+  const userApiKey = cfg.get("apiKey", "");
+  const userBaseUrl = cfg.get("apiBaseUrl", "");
+  const userModel = cfg.get("model", "");
+
+  // 用户配置了自定义 API Key → 使用用户的全套配置
+  if (userApiKey && userApiKey.trim() !== "") {
+    const baseUrl = (
+      (userBaseUrl && userBaseUrl.trim()) ||
+      "https://api.openai.com/v1"
+    ).replace(/\/+$/, "");
+    const model = (userModel && userModel.trim()) || "gpt-4o";
+
+    // 验证 Base URL 格式
+    if (!baseUrl.match(/^https?:\/\//)) {
+      throw new Error("API Base URL 格式错误：必须以 http:// 或 https:// 开头");
+    }
+    if (!baseUrl.endsWith("/v1")) {
+      throw new Error(
+        "API Base URL 格式错误：必须以 /v1 结尾（例如：https://api.openai.com/v1）",
+      );
+    }
+
+    return {
+      baseUrl: baseUrl.trim(),
+      apiKey: userApiKey.trim(),
+      model: model.trim(),
+    };
+  }
+
+  // 用户未配置 → 使用内置默认配置
+  const defaults = getBuiltinDefaults();
+  return {
+    baseUrl: defaults.baseUrl,
+    apiKey: defaults.apiKey,
+    model: defaults.model,
+  };
+}
+
+/**
+ * 使用 smartRoute 增强文本（公共逻辑）
+ */
+async function runSmartRoute(config, text, progress) {
+  const startTime = Date.now();
+  progress.report({ message: "🔍 正在识别意图..." });
+
+  const result = await smartRoute(config, text, (stage, detail) => {
+    if (stage === "routing") {
+      progress.report({ message: "🔍 正在识别意图..." });
+    } else if (stage === "generating") {
+      progress.report({ message: `✍️ ${detail}` });
+    } else if (stage === "retrying") {
+      progress.report({ message: `🔄 ${detail}` });
+    }
+  });
+
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+  const label = result.composite
+    ? `复合：${result.scenes.map((s) => SCENE_NAMES[s] || s).join(" + ")}`
+    : SCENE_NAMES[result.scenes[0]] || result.scenes[0];
+
+  return { ...result, label, elapsed };
+}
+
+/**
+ * 使用指定场景直接生成（跳过路由）
+ */
+async function runWithScene(config, text, sceneId, progress) {
+  const { buildGenerationPrompt } = require("./core");
+  const { callGenerationApi } = require("./core");
+
+  const startTime = Date.now();
+  const sceneName = SCENE_NAMES[sceneId] || sceneId;
+  progress.report({ message: `✍️ 使用「${sceneName}」场景生成 Prompt...` });
+
+  // 重试时更新进度
+  const onRetry = (attempt, maxRetries, delayMs) => {
+    progress.report({
+      message: `🔄 服务器繁忙，正在第 ${attempt}/${maxRetries} 次重试（${delayMs / 1000}s 后）...`,
+    });
+  };
+
+  const routerResult = { scenes: [sceneId], composite: false };
+  const { prompt: genPrompt } = buildGenerationPrompt(routerResult);
+  const result = await callGenerationApi(
+    config,
+    genPrompt,
+    text,
+    false,
+    onRetry,
+  );
+
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+  return {
+    result,
+    scenes: [sceneId],
+    composite: false,
+    label: sceneName,
+    elapsed,
+  };
+}
+
+/**
+ * 命令 1：增强选中文本（Ctrl+Alt+P）
+ * 无选中文本时自动转发到智能增强
+ */
+async function enhanceSelected() {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    vscode.window.showWarningMessage("$(warning) 请先打开一个编辑器");
+    return;
+  }
+
+  // 提前保存选区和文档引用，防止 API 调用期间用户切换文件导致竞态
+  const savedSelection = editor.selection;
+  const savedDocUri = editor.document.uri.toString();
+  const text = editor.document.getText(savedSelection);
+  if (!text.trim()) {
+    // 没有选中文本 → 自动转发到智能增强（处理文件/剪贴板）
+    return smartEnhance();
+  }
+
+  let config;
+  try {
+    config = getConfig();
+  } catch (e) {
+    vscode.window.showErrorMessage(e.message);
+    return;
+  }
+
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: "Easy Prompt",
+      cancellable: true,
+    },
+    async (progress, token) => {
+      try {
+        const res = await runSmartRoute(config, text, progress);
+
+        if (token.isCancellationRequested) {
+          vscode.window.showInformationMessage("$(info) 操作已取消");
+          return;
+        }
+
+        // 竞态保护：验证当前编辑器和文档未被用户切换
+        const currentEditor = vscode.window.activeTextEditor;
+        if (
+          !currentEditor ||
+          currentEditor.document.uri.toString() !== savedDocUri
+        ) {
+          // 文档已切换，改为新标签页显示 + 复制到剪贴板
+          const doc = await vscode.workspace.openTextDocument({
+            content: res.result,
+            language: "markdown",
+          });
+          await vscode.window.showTextDocument(doc, { preview: false });
+          await vscode.env.clipboard.writeText(res.result);
+          vscode.window.showWarningMessage(
+            "⚠️ 原文档已关闭或切换，结果已在新标签页显示并复制到剪贴板",
+          );
+          incrementSceneHits(res.scenes);
+          return;
+        }
+
+        await editor.edit((editBuilder) => {
+          editBuilder.replace(savedSelection, res.result);
+        });
+
+        // 记录场景命中
+        incrementSceneHits(res.scenes);
+
+        vscode.window
+          .showInformationMessage(
+            `✅ 增强完成 [${res.label}] · ${res.elapsed}s`,
+            "复制结果",
+            "撤销 (Cmd+Z)",
+          )
+          .then((action) => {
+            if (action === "复制结果") {
+              vscode.env.clipboard.writeText(res.result);
+              vscode.window.showInformationMessage("$(check) 已复制到剪贴板");
+            } else if (action && action.includes("撤销")) {
+              vscode.commands.executeCommand("undo");
+            }
+          });
+      } catch (err) {
+        if (token.isCancellationRequested) {
+          vscode.window.showInformationMessage("$(info) 操作已取消");
+          return;
+        }
+
+        // 友好化错误提示（错误消息已在 api.js 中预处理为中文）
+        handleCommandError(err, enhanceSelected);
+      }
+    },
+  );
+}
+
+/**
+ * 命令 1.5：智能增强（自动判断增强选中/文件/剪贴板内容）
+ */
+async function smartEnhance() {
+  const editor = vscode.window.activeTextEditor;
+  const MAX_FILE_LINES = 50;
+  const MAX_FILE_CHARS = 2000;
+  const MAX_INPUT_LENGTH = 10000;
+
+  // 收集可用的增强源
+  const sources = [];
+
+  // 源 1: 选中文本（优先级最高）
+  if (editor && editor.selection && !editor.selection.isEmpty) {
+    const selectedText = editor.document.getText(editor.selection);
+    if (selectedText.trim()) {
+      sources.push({
+        type: "selection",
+        label: "$(selection) 选中的文本",
+        description: `${selectedText.length} 字符`,
+        detail:
+          selectedText.substring(0, 100) +
+          (selectedText.length > 100 ? "..." : ""),
+        text: selectedText,
+        selection: editor.selection,
+      });
+    }
+  }
+
+  // 源 2: 活动编辑器的完整内容（仅当内容不多时）
+  if (editor) {
+    const docText = editor.document.getText();
+    const lineCount = editor.document.lineCount;
+    const charCount = docText.length;
+
+    if (
+      docText.trim() &&
+      lineCount <= MAX_FILE_LINES &&
+      charCount <= MAX_FILE_CHARS
+    ) {
+      // 排除与选中文本内容完全相同的情况（避免重复）
+      const isDupOfSelection = sources.some(
+        (s) => s.type === "selection" && s.text === docText,
+      );
+      if (!isDupOfSelection) {
+        sources.push({
+          type: "file",
+          label: "$(file-text) 当前文件内容",
+          description: `${lineCount} 行，${charCount} 字符`,
+          detail:
+            docText.substring(0, 100) + (docText.length > 100 ? "..." : ""),
+          text: docText,
+        });
+      }
+    } else if (
+      docText.trim() &&
+      (lineCount > MAX_FILE_LINES || charCount > MAX_FILE_CHARS)
+    ) {
+      // 文件太大，记录但不作为可选源
+      sources.push({
+        type: "file-too-large",
+        label: "$(warning) 当前文件内容过多",
+        description: `${lineCount} 行，${charCount} 字符`,
+        detail: `文件内容超过限制（最多 ${MAX_FILE_LINES} 行或 ${MAX_FILE_CHARS} 字符）。请选中具体片段，或使用"快速输入增强"功能。`,
+        text: null,
+      });
+    }
+  }
+
+  // 源 3: 剪贴板内容
+  try {
+    const clipboardText = await vscode.env.clipboard.readText();
+    if (clipboardText && clipboardText.trim()) {
+      if (clipboardText.length <= MAX_INPUT_LENGTH) {
+        // 排除与已有源重复的内容
+        const isDuplicate = sources.some((s) => s.text === clipboardText);
+        if (!isDuplicate) {
+          sources.push({
+            type: "clipboard",
+            label: "$(clippy) 剪贴板内容",
+            description: `${clipboardText.length} 字符`,
+            detail:
+              clipboardText.substring(0, 100) +
+              (clipboardText.length > 100 ? "..." : ""),
+            text: clipboardText,
+          });
+        }
+      } else {
+        sources.push({
+          type: "clipboard-too-large",
+          label: "$(warning) 剪贴板内容过长",
+          description: `${clipboardText.length} 字符`,
+          detail: `剪贴板内容超过限制（最多 ${MAX_INPUT_LENGTH} 字符）。请缩短内容后重试。`,
+          text: null,
+        });
+      }
+    }
+  } catch (e) {
+    // 读取剪贴板失败，静默跳过
+  }
+
+  // 过滤掉无效源（text 为 null 的）
+  const validSources = sources.filter((s) => s.text !== null);
+
+  // 情况 1: 无任何可用源
+  if (validSources.length === 0) {
+    const invalidReasons = sources
+      .filter((s) => s.text === null)
+      .map((s) => s.detail);
+    let message = "未找到可增强的内容。";
+    if (invalidReasons.length > 0) {
+      message +=
+        "\n\n原因：\n" + invalidReasons.map((r) => "• " + r).join("\n");
+    } else {
+      message +=
+        '\n\n请尝试：\n• 选中要增强的文本\n• 在编辑器中打开要增强的内容（≤50行）\n• 复制要增强的文本到剪贴板\n• 使用"快速输入增强"功能手动输入';
+    }
+    vscode.window.showWarningMessage(message);
+    return;
+  }
+
+  // 情况 2: 只有一个可用源 → 直接使用
+  let selectedSource = null;
+  if (validSources.length === 1) {
+    selectedSource = validSources[0];
+  } else {
+    // 情况 3: 多个可用源 → 弹框让用户选择
+    const quickPickItems = validSources.map((s) => ({
+      label: s.label,
+      description: s.description,
+      detail: s.detail,
+      source: s,
+    }));
+
+    const picked = await vscode.window.showQuickPick(quickPickItems, {
+      placeHolder: "检测到多个可增强的内容，请选择要增强的内容",
+      matchOnDescription: false,
+      matchOnDetail: false,
+    });
+
+    if (!picked) return; // 用户取消
+    selectedSource = picked.source;
+  }
+
+  // 执行增强
+  let config;
+  try {
+    config = getConfig();
+  } catch (e) {
+    vscode.window.showErrorMessage(e.message);
+    return;
+  }
+
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: "Easy Prompt",
+      cancellable: true,
+    },
+    async (progress, token) => {
+      try {
+        const res = await runSmartRoute(config, selectedSource.text, progress);
+
+        if (token.isCancellationRequested) return;
+
+        // 记录场景命中
+        incrementSceneHits(res.scenes);
+
+        // 结果处理：根据源类型决定回显方式
+        if (
+          selectedSource.type === "selection" &&
+          editor &&
+          selectedSource.selection
+        ) {
+          // 竞态保护：验证编辑器和文档未被切换
+          const currentEditor = vscode.window.activeTextEditor;
+          if (
+            !currentEditor ||
+            currentEditor.document.uri.toString() !==
+              editor.document.uri.toString()
+          ) {
+            const doc = await vscode.workspace.openTextDocument({
+              content: res.result,
+              language: "markdown",
+            });
+            await vscode.window.showTextDocument(doc, { preview: false });
+            await vscode.env.clipboard.writeText(res.result);
+            vscode.window.showWarningMessage(
+              "⚠️ 原文档已关闭或切换，结果已在新标签页显示并复制到剪贴板",
+            );
+            incrementSceneHits(res.scenes);
+            return;
+          }
+
+          // 选中文本 → 原地替换
+          await editor.edit((editBuilder) => {
+            editBuilder.replace(selectedSource.selection, res.result);
+          });
+          vscode.window
+            .showInformationMessage(
+              `✅ 增强完成 [${res.label}] · ${res.elapsed}s`,
+              "复制结果",
+              "撤销 (Cmd+Z)",
+            )
+            .then((action) => {
+              if (action === "复制结果") {
+                vscode.env.clipboard.writeText(res.result);
+                vscode.window.showInformationMessage("$(check) 已复制到剪贴板");
+              } else if (action && action.includes("撤销")) {
+                vscode.commands.executeCommand("undo");
+              }
+            });
+        } else {
+          // 文件内容 / 剪贴板内容 → 新标签页显示 + 复制到剪贴板
+          const doc = await vscode.workspace.openTextDocument({
+            content: res.result,
+            language: "markdown",
+          });
+          await vscode.window.showTextDocument(doc, { preview: false });
+          await vscode.env.clipboard.writeText(res.result);
+
+          vscode.window.showInformationMessage(
+            `✅ 增强完成 [${res.label}] · ${res.elapsed}s · 已复制到剪贴板`,
+          );
+        }
+      } catch (err) {
+        if (token.isCancellationRequested) {
+          vscode.window.showInformationMessage("$(info) 操作已取消");
+          return;
+        }
+
+        handleCommandError(err, smartEnhance);
+      }
+    },
+  );
+}
+
+/**
+ * 命令 2：快速输入增强（Ctrl+Alt+O）
+ */
+async function enhanceInput() {
+  const input = await vscode.window.showInputBox({
+    prompt: "输入要优化的 Prompt / 需求描述",
+    placeHolder: "例如：帮我写个登录页面、优化这段代码、分析性能问题...",
+    ignoreFocusOut: true,
+  });
+
+  if (!input?.trim()) return;
+
+  let config;
+  try {
+    config = getConfig();
+  } catch (e) {
+    vscode.window.showErrorMessage(e.message);
+    return;
+  }
+
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: "Easy Prompt",
+      cancellable: true,
+    },
+    async (progress, token) => {
+      try {
+        const res = await runSmartRoute(config, input, progress);
+
+        if (token.isCancellationRequested) return;
+
+        const doc = await vscode.workspace.openTextDocument({
+          content: res.result,
+          language: "markdown",
+        });
+        await vscode.window.showTextDocument(doc, { preview: false });
+
+        // 记录场景命中
+        incrementSceneHits(res.scenes);
+
+        vscode.window
+          .showInformationMessage(
+            `✅ 增强完成 [${res.label}] · ${res.elapsed}s`,
+            "复制结果",
+          )
+          .then((action) => {
+            if (action === "复制结果") {
+              vscode.env.clipboard.writeText(res.result);
+              vscode.window.showInformationMessage("已复制到剪贴板");
+            }
+          });
+      } catch (err) {
+        if (token.isCancellationRequested) {
+          vscode.window.showInformationMessage("$(info) 操作已取消");
+          return;
+        }
+
+        handleCommandError(err, enhanceInput);
+      }
+    },
+  );
+}
+
+/**
+ * 命令 3：浏览场景列表（Ctrl+Alt+L）
+ */
+async function showScenes() {
+  const items = buildSceneItems({ showDetail: true });
+
+  const selected = await vscode.window.showQuickPick(items, {
+    placeHolder: "选择场景查看详情 · 按命中次数排序 · 按 Esc 取消",
+    matchOnDescription: true,
+    matchOnDetail: true,
+  });
+
+  if (selected) {
+    const scene = SCENES[selected.sceneId];
+    let content = `# ${scene.name} (${selected.sceneId})\n\n> ${scene.description}\n\n`;
+
+    if (scene.painPoint) {
+      content += `## 💡 痛点\n\n${scene.painPoint}\n\n`;
+    }
+    if (scene.example) {
+      content += `## ✨ 示例\n\n**❌ 用户原始输入：**\n> ${scene.example.before}\n\n**✅ 增强后效果：**\n> ${scene.example.after}\n\n`;
+    }
+    content += `## 🔑 关键词\n\n${scene.keywords.join(", ")}\n\n`;
+    content += `## 📋 System Prompt\n\n\`\`\`\n${scene.prompt}\n\`\`\``;
+
+    const doc = await vscode.workspace.openTextDocument({
+      content,
+      language: "markdown",
+    });
+    await vscode.window.showTextDocument(doc, { preview: true });
+  }
+}
+
+/**
+ * 命令 4：指定场景增强（Ctrl+Alt+M）
+ * 让用户手动选择场景，跳过 AI 意图识别，精准定向增强
+ */
+async function enhanceWithScene() {
+  // Step 1: 选择场景（按命中次数排序）
+  const items = buildSceneItems({ showDetail: false });
+
+  const selected = await vscode.window.showQuickPick(items, {
+    placeHolder: "🎯 选择一个场景来定向增强 Prompt · 按命中次数排序",
+    matchOnDescription: true,
+    matchOnDetail: true,
+  });
+
+  if (!selected) return;
+
+  // Step 2: 获取输入文本（优先用选中文本，否则弹输入框）
+  const editor = vscode.window.activeTextEditor;
+  let text = "";
+
+  // 提前捕获选区和文档引用，避免 API 调用期间用户切换导致竞态
+  const savedSelection = editor ? editor.selection : null;
+  const savedDocUri = editor ? editor.document.uri.toString() : null;
+  if (editor && savedSelection && !savedSelection.isEmpty) {
+    text = editor.document.getText(savedSelection);
+  }
+
+  if (!text.trim()) {
+    const scene = SCENES[selected.sceneId];
+    text =
+      (await vscode.window.showInputBox({
+        prompt: `使用「${scene.name}」场景增强 — 输入你的描述`,
+        placeHolder: scene.example
+          ? `例如：${scene.example.before}`
+          : "输入要增强的内容...",
+        ignoreFocusOut: true,
+      })) || "";
+  }
+
+  if (!text.trim()) return;
+
+  let config;
+  try {
+    config = getConfig();
+  } catch (e) {
+    vscode.window.showErrorMessage(e.message);
+    return;
+  }
+
+  // Step 3: 直接使用指定场景生成
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: "Easy Prompt",
+      cancellable: true,
+    },
+    async (progress, token) => {
+      try {
+        const res = await runWithScene(
+          config,
+          text,
+          selected.sceneId,
+          progress,
+        );
+
+        if (token.isCancellationRequested) return;
+
+        // 如果有选中文本 → 替换；否则 → 新标签页
+        if (editor && savedSelection && !savedSelection.isEmpty) {
+          // 竞态保护：验证编辑器和文档未被切换
+          const currentEditor = vscode.window.activeTextEditor;
+          if (
+            !currentEditor ||
+            currentEditor.document.uri.toString() !== savedDocUri
+          ) {
+            const doc = await vscode.workspace.openTextDocument({
+              content: res.result,
+              language: "markdown",
+            });
+            await vscode.window.showTextDocument(doc, { preview: false });
+            await vscode.env.clipboard.writeText(res.result);
+            vscode.window.showWarningMessage(
+              "⚠️ 原文档已关闭或切换，结果已在新标签页显示并复制到剪贴板",
+            );
+            incrementSceneHits(res.scenes);
+            return;
+          }
+
+          await editor.edit((editBuilder) => {
+            editBuilder.replace(savedSelection, res.result);
+          });
+        } else {
+          const doc = await vscode.workspace.openTextDocument({
+            content: res.result,
+            language: "markdown",
+          });
+          await vscode.window.showTextDocument(doc, { preview: false });
+        }
+
+        // 记录场景命中
+        incrementSceneHits(res.scenes);
+
+        vscode.window
+          .showInformationMessage(
+            `✅ 定向增强完成 [${res.label}] · ${res.elapsed}s`,
+            "复制结果",
+          )
+          .then((action) => {
+            if (action === "复制结果") {
+              vscode.env.clipboard.writeText(res.result);
+              vscode.window.showInformationMessage("已复制到剪贴板");
+            }
+          });
+      } catch (err) {
+        if (token.isCancellationRequested) {
+          vscode.window.showInformationMessage("$(info) 操作已取消");
+          return;
+        }
+
+        handleCommandError(err, enhanceWithScene);
+      }
+    },
+  );
+}
+
+/**
+ * 命令 5：显示 Welcome 页面
+ */
+function showWelcome(context) {
+  return () => showWelcomePage(context);
+}
+
+/**
+ * 命令 6：配置自定义 API（带测试 + 保存）
+ */
+function configureApi(context) {
+  return async () => {
+    const panel = vscode.window.createWebviewPanel(
+      "easyPromptConfig",
+      "Easy Prompt — 自定义 API 配置",
+      vscode.ViewColumn.One,
+      { enableScripts: true, retainContextWhenHidden: true },
+    );
+
+    // 读取当前用户已保存的自定义配置（不暴露内置默认值）
+    const cfg = vscode.workspace.getConfiguration("easyPrompt");
+    const savedBaseUrl = cfg.get("apiBaseUrl", "") || "";
+    const savedApiKey = cfg.get("apiKey", "") || "";
+    const savedModel = cfg.get("model", "") || "";
+
+    panel.webview.html = getConfigHtml(savedBaseUrl, savedApiKey, savedModel);
+
+    panel.webview.onDidReceiveMessage(
+      async (msg) => {
+        switch (msg.command) {
+          case "test": {
+            const config = {
+              baseUrl: (msg.baseUrl || "").trim(),
+              apiKey: (msg.apiKey || "").trim(),
+              model: (msg.model || "").trim(),
+            };
+
+            // 全部为空 → 使用内置默认，无需测试
+            if (!config.baseUrl && !config.apiKey && !config.model) {
+              panel.webview.postMessage({
+                type: "testResult",
+                ok: true,
+                message: "当前为内置默认配置，无需测试，开箱即用 🎉",
+              });
+              return;
+            }
+
+            // 部分为空 → 提示填完整
+            if (!config.baseUrl || !config.apiKey || !config.model) {
+              panel.webview.postMessage({
+                type: "testResult",
+                ok: false,
+                message:
+                  "请填写完整的 API Base URL、API Key 和模型名称（或全部清空使用内置默认服务）",
+              });
+              return;
+            }
+
+            panel.webview.postMessage({
+              type: "testing",
+              message: "正在测试连接...",
+            });
+
+            try {
+              const result = await testApiConfig(config);
+              if (!panel.visible) return;
+              panel.webview.postMessage({
+                type: "testResult",
+                ok: result.ok,
+                message: result.message,
+                latency: result.latency,
+              });
+            } catch (e) {
+              if (!panel.visible) return;
+              panel.webview.postMessage({
+                type: "testResult",
+                ok: false,
+                message: `测试出错: ${e.message}`,
+              });
+            }
+            break;
+          }
+
+          case "save": {
+            const config = {
+              baseUrl: (msg.baseUrl || "").trim(),
+              apiKey: (msg.apiKey || "").trim(),
+              model: (msg.model || "").trim(),
+            };
+
+            // 全部为空 → 清除自定义配置，恢复使用内置默认
+            if (!config.baseUrl && !config.apiKey && !config.model) {
+              try {
+                const target = vscode.ConfigurationTarget.Global;
+                const cfgNow = vscode.workspace.getConfiguration("easyPrompt");
+                await cfgNow.update("apiBaseUrl", undefined, target);
+                await cfgNow.update("apiKey", undefined, target);
+                await cfgNow.update("model", undefined, target);
+                if (!panel.visible) return;
+                panel.webview.postMessage({
+                  type: "saveResult",
+                  ok: true,
+                  message: "✅ 已保存 — 当前使用内置免费服务",
+                });
+                panel.webview.postMessage({ type: "switchToDefault" });
+              } catch (e) {
+                if (!panel.visible) return;
+                panel.webview.postMessage({
+                  type: "saveResult",
+                  ok: false,
+                  message: `保存失败: ${e.message}`,
+                });
+              }
+              return;
+            }
+
+            // 部分为空 → 提示填完整
+            if (!config.baseUrl || !config.apiKey || !config.model) {
+              panel.webview.postMessage({
+                type: "saveResult",
+                ok: false,
+                message: "请填写完整的配置信息（或全部清空使用内置默认服务）",
+              });
+              return;
+            }
+
+            // 先测试再保存
+            panel.webview.postMessage({
+              type: "testing",
+              message: "保存前验证中...",
+            });
+
+            try {
+              const result = await testApiConfig(config);
+              if (!panel.visible) return;
+              if (!result.ok) {
+                panel.webview.postMessage({
+                  type: "saveResult",
+                  ok: false,
+                  message: `验证失败，未保存：${result.message}`,
+                });
+                return;
+              }
+
+              // 测试通过，写入配置
+              const target = vscode.ConfigurationTarget.Global;
+              const cfgNow = vscode.workspace.getConfiguration("easyPrompt");
+              await cfgNow.update("apiBaseUrl", config.baseUrl, target);
+              await cfgNow.update("apiKey", config.apiKey, target);
+              await cfgNow.update("model", config.model, target);
+
+              if (!panel.visible) return;
+              panel.webview.postMessage({
+                type: "saveResult",
+                ok: true,
+                message: `✅ 配置已保存并生效 · 响应耗时 ${result.latency}ms`,
+              });
+            } catch (e) {
+              if (!panel.visible) return;
+              panel.webview.postMessage({
+                type: "saveResult",
+                ok: false,
+                message: `保存失败: ${e.message}`,
+              });
+            }
+            break;
+          }
+
+          case "reset": {
+            // 清除用户自定义配置，恢复使用内置默认
+            try {
+              const target = vscode.ConfigurationTarget.Global;
+              const cfgNow = vscode.workspace.getConfiguration("easyPrompt");
+              await cfgNow.update("apiBaseUrl", undefined, target);
+              await cfgNow.update("apiKey", undefined, target);
+              await cfgNow.update("model", undefined, target);
+
+              if (!panel.visible) return;
+              panel.webview.postMessage({
+                type: "resetResult",
+                message: "已恢复使用内置默认服务",
+              });
+            } catch (e) {
+              if (!panel.visible) return;
+              panel.webview.postMessage({
+                type: "resetResult",
+                message: `重置失败: ${e.message}`,
+              });
+            }
+            break;
+          }
+        }
+      },
+      undefined,
+      context.subscriptions,
+    );
+  };
+}
+
+/**
+ * 生成配置面板 Webview HTML
+ */
+function getConfigHtml(baseUrl, apiKey, model) {
+  // HTML 实体转义（防 XSS）
+  const esc = (s) =>
+    String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+:root {
+  --bg: #1e1e1e; --card: #252526; --border: #3e3e42;
+  --text: #cccccc; --text-dim: #858585; --accent: #0078d4;
+  --accent-light: #1a8cff; --success: #4ec9b0; --error: #f48771;
+  --warn: #dcdcaa;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg); color: var(--text); padding: 40px 32px;
+  max-width: 680px; margin: 0 auto;
+}
+h1 { font-size: 24px; color: #fff; margin-bottom: 8px; }
+.subtitle { color: var(--text-dim); font-size: 14px; margin-bottom: 32px; }
+
+.status-bar {
+  background: #1a2a3a; border-left: 3px solid var(--accent);
+  padding: 12px 16px; border-radius: 0 6px 6px 0;
+  font-size: 13px; margin-bottom: 28px; display: flex;
+  align-items: center; gap: 8px;
+}
+.status-bar.using-default { border-left-color: var(--success); }
+.status-bar.using-custom { border-left-color: var(--warn); }
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--success); flex-shrink: 0;
+}
+.status-bar.using-custom .status-dot { background: var(--warn); }
+
+.form-group { margin-bottom: 20px; }
+.form-group label {
+  display: block; font-size: 13px; font-weight: 500;
+  color: #fff; margin-bottom: 6px;
+}
+.form-group .hint {
+  font-size: 12px; color: var(--text-dim); margin-bottom: 6px;
+}
+input[type="text"], input[type="password"] {
+  width: 100%; padding: 10px 12px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--card);
+  color: var(--text); font-size: 14px; font-family: inherit;
+  outline: none; transition: border-color 0.2s;
+}
+input:focus { border-color: var(--accent); }
+input::placeholder { color: #555; }
+
+.btn-row {
+  display: flex; gap: 12px; margin-top: 28px; flex-wrap: wrap;
+}
+.btn {
+  padding: 10px 24px; border-radius: 6px; font-size: 14px;
+  font-weight: 500; cursor: pointer; border: none;
+  transition: background 0.2s, transform 0.1s;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn:active { transform: translateY(0); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--accent-light); }
+.btn-test { background: #2d4a2d; color: var(--success); }
+.btn-test:hover:not(:disabled) { background: #355a35; }
+.btn-reset {
+  background: transparent; color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+.btn-reset:hover { background: var(--card); color: var(--error); border-color: var(--error); }
+
+.result-box {
+  margin-top: 16px; padding: 12px 16px; border-radius: 6px;
+  font-size: 13px; display: none; line-height: 1.5;
+}
+.result-box.success { background: #1e3a1e; color: var(--success); display: block; }
+.result-box.error { background: #3a2020; color: var(--error); display: block; }
+.result-box.info { background: #1a2a3a; color: var(--accent-light); display: block; }
+
+.toggle-btn {
+  background: none; border: none; color: var(--accent-light);
+  cursor: pointer; font-size: 12px; padding: 2px 6px;
+  margin-left: 8px;
+}
+
+.divider {
+  border: none; border-top: 1px solid var(--border);
+  margin: 28px 0;
+}
+</style>
+</head>
+<body>
+  <h1>⚙️ 自定义 API 配置</h1>
+  <p class="subtitle">配置你自己的 API Key，支持 OpenAI / Gemini / DeepSeek 等 OpenAI 兼容格式</p>
+
+  <div class="status-bar ${apiKey ? "using-custom" : "using-default"}" id="statusBar">
+    <span class="status-dot"></span>
+    <span id="statusText">${apiKey ? "当前使用：自定义 API 配置" : "当前使用：内置免费服务（无需任何配置）"}</span>
+  </div>
+
+  <div class="form-group">
+    <label>API Base URL</label>
+    <div class="hint">OpenAI 兼容格式，必须以 /v1 结尾（如 https://api.openai.com/v1）</div>
+    <input type="text" id="baseUrl" value="${esc(baseUrl)}" placeholder="留空 = 使用内置免费服务" />
+  </div>
+
+  <div class="form-group">
+    <label>API Key <button class="toggle-btn" id="toggleKey" onclick="toggleKeyVisibility()">显示</button></label>
+    <div class="hint">你的 API Key，保存后不会在设置页面明文展示</div>
+    <input type="password" id="apiKey" value="${esc(apiKey)}" placeholder="${apiKey ? "已配置（点击显示查看）" : "留空 = 使用内置免费服务"}" />
+  </div>
+
+  <div class="form-group">
+    <label>模型名称</label>
+    <div class="hint">如 gpt-4o、deepseek-chat、gemini-2.0-flash 等</div>
+    <input type="text" id="model" value="${esc(model)}" placeholder="留空 = 使用内置免费服务" />
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-test" id="btnTest" onclick="doTest()">🔍 测试连接</button>
+    <button class="btn btn-primary" id="btnSave" onclick="doSave()">💾 测试并保存</button>
+    <button class="btn btn-reset" onclick="doReset()">🗑️ 恢复默认</button>
+  </div>
+
+  <div class="result-box" id="resultBox"></div>
+
+  <hr class="divider" />
+  <p style="color:var(--text-dim);font-size:12px;">
+    💡 <strong>提示：</strong>「测试连接」仅验证配置能否连通，不消耗额度。
+    「测试并保存」会在测试通过后才写入配置。
+    「恢复默认」会清除自定义配置，恢复使用内置免费服务。
+  </p>
+
+<script>
+const vscode = acquireVsCodeApi();
+
+function getValues() {
+  return {
+    baseUrl: document.getElementById('baseUrl').value,
+    apiKey: document.getElementById('apiKey').value,
+    model: document.getElementById('model').value,
+  };
+}
+
+function doTest() {
+  const vals = getValues();
+  setButtons(true);
+  vscode.postMessage({ command: 'test', ...vals });
+}
+
+function doSave() {
+  const vals = getValues();
+  setButtons(true);
+  vscode.postMessage({ command: 'save', ...vals });
+}
+
+function doReset() {
+  vscode.postMessage({ command: 'reset' });
+}
+
+function setButtons(disabled) {
+  document.getElementById('btnTest').disabled = disabled;
+  document.getElementById('btnSave').disabled = disabled;
+}
+
+function showResult(cls, msg) {
+  const box = document.getElementById('resultBox');
+  box.className = 'result-box ' + cls;
+  box.textContent = msg;
+  box.style.display = 'block';
+}
+
+function toggleKeyVisibility() {
+  const input = document.getElementById('apiKey');
+  const btn = document.getElementById('toggleKey');
+  if (input.type === 'password') {
+    input.type = 'text';
+    btn.textContent = '隐藏';
+  } else {
+    input.type = 'password';
+    btn.textContent = '显示';
+  }
+}
+
+window.addEventListener('message', e => {
+  const msg = e.data;
+  setButtons(false);
+  switch (msg.type) {
+    case 'testing':
+      showResult('info', '⏳ ' + msg.message);
+      setButtons(true);
+      break;
+    case 'testResult':
+      showResult(msg.ok ? 'success' : 'error', (msg.ok ? '✅ ' : '❌ ') + msg.message);
+      break;
+    case 'saveResult':
+      showResult(msg.ok ? 'success' : 'error', msg.message);
+      if (msg.ok) {
+        const bar = document.getElementById('statusBar');
+        bar.className = 'status-bar using-custom';
+        document.getElementById('statusText').textContent = '当前使用：自定义 API 配置';
+      }
+      break;
+    case 'resetResult':
+      showResult('success', '✅ ' + msg.message);
+      document.getElementById('baseUrl').value = '';
+      document.getElementById('baseUrl').placeholder = '留空 = 使用内置免费服务';
+      document.getElementById('apiKey').value = '';
+      document.getElementById('apiKey').placeholder = '留空 = 使用内置免费服务';
+      document.getElementById('apiKey').type = 'password';
+      document.getElementById('toggleKey').textContent = '显示';
+      document.getElementById('model').value = '';
+      document.getElementById('model').placeholder = '留空 = 使用内置免费服务';
+      const bar = document.getElementById('statusBar');
+      bar.className = 'status-bar using-default';
+      document.getElementById('statusText').textContent = '当前使用：内置免费服务（无需任何配置）';
+      break;
+    case 'switchToDefault':
+      document.getElementById('statusBar').className = 'status-bar using-default';
+      document.getElementById('statusText').textContent = '当前使用：内置免费服务（无需任何配置）';
+      break;
+  }
+});
+</script>
+</body>
+</html>`;
+}
+
+function activate(context) {
+  // 保存全局上下文引用（用于场景命中计数）
+  _context = context;
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "easy-prompt.enhanceSelected",
+      enhanceSelected,
+    ),
+    vscode.commands.registerCommand("easy-prompt.smartEnhance", smartEnhance),
+    vscode.commands.registerCommand("easy-prompt.enhanceInput", enhanceInput),
+    vscode.commands.registerCommand("easy-prompt.showScenes", showScenes),
+    vscode.commands.registerCommand(
+      "easy-prompt.enhanceWithScene",
+      enhanceWithScene,
+    ),
+    vscode.commands.registerCommand(
+      "easy-prompt.showWelcome",
+      showWelcome(context),
+    ),
+    vscode.commands.registerCommand(
+      "easy-prompt.configureApi",
+      configureApi(context),
+    ),
+    vscode.commands.registerCommand(
+      "easy-prompt.statusBarMenu",
+      showStatusBarMenu(context),
+    ),
+  );
+
+  // 状态栏常驻入口
+  const statusBarItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Right,
+    100,
+  );
+  statusBarItem.text = "$(sparkle) Easy Prompt";
+  statusBarItem.tooltip = "Easy Prompt — 点击打开快捷菜单";
+  statusBarItem.command = "easy-prompt.statusBarMenu";
+  statusBarItem.show();
+  context.subscriptions.push(statusBarItem);
+
+  // 首次安装检测 → 弹出 Welcome 引导页
+  checkAndShowWelcome(context);
+}
+
+/**
+ * 状态栏菜单：简洁的快捷入口
+ */
+function showStatusBarMenu(context) {
+  return async () => {
+    const menuItems = [
+      {
+        label: "$(zap) 智能增强",
+        description: "Ctrl+Alt+I",
+        detail: "自动判断增强选中/文件/粘贴板内容，无需手动选择",
+        command: "easy-prompt.smartEnhance",
+      },
+      {
+        label: "$(edit) 快速输入增强",
+        description: "Ctrl+Alt+O",
+        detail: "输入一句描述，AI 自动识别意图并生成专业 Prompt",
+        command: "easy-prompt.enhanceInput",
+      },
+      {
+        label: "$(selection) 增强选中文本",
+        description: "Ctrl+Alt+P",
+        detail: "选中编辑器中的文本，原地替换为增强后的 Prompt",
+        command: "easy-prompt.enhanceSelected",
+      },
+      {
+        label: "$(symbol-method) 指定场景增强",
+        description: "Ctrl+Alt+M",
+        detail: "手动选择场景，跳过 AI 识别，精准定向增强",
+        command: "easy-prompt.enhanceWithScene",
+      },
+      {
+        label: "$(list-unordered) 浏览场景大全",
+        description: "Ctrl+Alt+L",
+        detail: "查看 38 个场景的详情和 System Prompt",
+        command: "easy-prompt.showScenes",
+      },
+      {
+        label: "$(book) 使用教程",
+        description: "Ctrl+Alt+H",
+        detail: "查看快速入门、快捷键和场景预览",
+        command: "easy-prompt.showWelcome",
+      },
+      {
+        label: "$(gear) API 配置",
+        description: "",
+        detail: "配置自定义 API Key（OpenAI/Gemini/DeepSeek 等）",
+        command: "easy-prompt.configureApi",
+      },
+    ];
+
+    const selected = await vscode.window.showQuickPick(menuItems, {
+      placeHolder: "Easy Prompt — 选择操作",
+      matchOnDescription: false,
+      matchOnDetail: true,
+    });
+
+    if (selected) {
+      vscode.commands.executeCommand(selected.command);
+    }
+  };
+}
+
+function deactivate() {}
+
+module.exports = { activate, deactivate };
