@@ -29,6 +29,10 @@ CONTRIBUTING.md
 .gitignore
 .yarnrc
 .mcp.json
+
+# 多余的图标文件（仅保留 VSCode 使用的 128x128 图标）
+assets/images/logo-mac.png
+assets/images/logo-vscode.png
 webpack.config.js
 **/.DS_Store
 **/*.map

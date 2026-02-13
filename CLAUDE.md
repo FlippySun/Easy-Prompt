@@ -64,7 +64,9 @@ This document provides project context and development guidance for Claude Code 
 - **Core Logic:** Node.js (CommonJS), platform-agnostic
 - **VSCode Extension:** VSCode Extension API, Webview
 - **IntelliJ Plugin:** Kotlin, Gradle, IntelliJ Platform SDK 2.3.0
-- **API Layer:** curl subprocess (避免 Cloudflare 拦截)
+- **API Layer (VSCode):** curl subprocess（避免 Cloudflare 拦截）, 含重试/响应限制/Kill Timer
+- **API Layer (IntelliJ):** HttpURLConnection, 含重试/响应限制
+- **Security:** AES-256-CBC 加密内置凭证（core/defaults.js + BuiltinDefaults.kt）
 - **Package Manager:** npm
 
 ---
@@ -77,51 +79,57 @@ easy-prompt/
 │   ├── index.js             # 入口 — 导出所有模块
 │   ├── scenes.js            # 38 个场景定义（含痛点和示例）
 │   ├── router.js            # 意图识别路由器 + Prompt 构建
-│   ├── composer.js          # 两步路由编排器
-│   └── api.js               # API 调用层（curl subprocess）
-├── vscode/                  # VSCode 扩展
-│   ├── package.json         # 扩展清单（5 命令 + 4 快捷键）
-│   ├── extension.js         # 扩展入口（5 命令注册）
-│   └── welcomeView.js       # Welcome 引导页（Webview）
+│   ├── composer.js          # 两步路由编排器（smartRoute）
+│   ├── api.js               # API 调用层（curl subprocess + 重试 + 安全限制）
+│   └── defaults.js          # 内置默认配置（AES-256-CBC 加密）
+├── extension.js             # VSCode 扩展入口（8 命令注册 + handleCommandError）
+├── welcomeView.js           # Welcome 引导页（Webview）
+├── package.json             # VSCode 扩展清单（8 命令 + 6 快捷键）
 ├── intellij/                # IntelliJ IDEA 插件
 │   ├── build.gradle.kts     # Gradle 构建配置
 │   └── src/main/kotlin/com/easyprompt/
-│       ├── actions/         # 5 个 Action
-│       ├── core/            # 路由 + API + 场景
-│       ├── settings/        # 配置管理
-│       └── ui/              # Welcome 对话框
+│       ├── actions/         # 7 个 Action（智能增强/增强选中/输入/场景/指定/教程/菜单）
+│       ├── core/            # 路由 + API + 场景 + 内置默认配置
+│       ├── settings/        # 配置管理（测试并保存）
+│       └── ui/              # Welcome 对话框 + 状态栏 Widget + 启动检测
 └── README.md
 ```
 
 ### Key Components
 
-| File               | Purpose                                                                        |
-| ------------------ | ------------------------------------------------------------------------------ |
-| `core/scenes.js`   | 38 个场景定义，含 name/keywords/description/painPoint/example/prompt           |
-| `core/router.js`   | 意图识别 Prompt + 解析 + 生成 Prompt 构建（单一/复合模式）                     |
-| `core/composer.js` | smartRoute() — 编排两步路由流程                                                |
-| `core/api.js`      | callApi/callRouterApi/callGenerationApi — curl 调用 OpenAI 兼容 API            |
-| `extension.js`     | 5 个命令：enhanceSelected/enhanceInput/showScenes/enhanceWithScene/showWelcome |
-| `welcomeView.js`   | Webview HTML 生成 — 首次安装引导页                                             |
+| File               | Purpose                                                                                                                |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `core/scenes.js`   | 38 个场景定义，含 name/keywords/description/painPoint/example/prompt                                                   |
+| `core/router.js`   | 意图识别 Prompt + 解析 + 生成 Prompt 构建（单一/复合模式）                                                             |
+| `core/composer.js` | smartRoute() — 编排两步路由流程                                                                                        |
+| `core/api.js`      | callApi — curl 调用 OpenAI 兼容 API（含重试/响应限制 2MB/Kill Timer/curl 缓存）                                        |
+| `core/defaults.js` | 内置默认 API 配置（AES-256-CBC 加密 + 多层混淆）                                                                       |
+| `extension.js`     | 8 个命令：enhanceSelected/smartEnhance/enhanceInput/showScenes/enhanceWithScene/showWelcome/configureApi/statusBarMenu |
+| `welcomeView.js`   | Webview HTML 生成 — 首次安装引导页，含 38 场景卡片                                                                     |
 
 ### Two-Step AI Routing
 
 | Step      | Temperature | Max Tokens | Purpose                                                           |
 | --------- | ----------- | ---------- | ----------------------------------------------------------------- |
-| Router    | 0.1         | 150        | 意图识别 → 返回 `{"scenes":["id1","id2"],"composite":true/false}` |
+| Router    | 0.1         | 500        | 意图识别 → 返回 `{"scenes":["id1","id2"],"composite":true/false}` |
 | Generator | 0.7         | 4096/8192  | 基于场景的 System Prompt 生成专业 Prompt                          |
 
 ---
 
 ## ⚠️ Critical Implementation Details
 
-- **两步路由核心逻辑:** router.js 中 `parseRouterResult()` 会过滤无效场景 ID，全无效时 fallback 到 "optimize"
+- **两步路由核心逻辑:** router.js 中 `parseRouterResult()` 会过滤无效场景 ID，全无效时 fallback 到 "optimize"，支持 3 种正则匹配模式
 - **optimize 场景特殊处理:** 单独使用时直接使用其 prompt，不包裹 meta-wrapper
 - **复合模式:** 最多 5 个场景，按主次排列，合并为结构化子任务
-- **API 层使用 curl:** 因为 Node.js 内置 HTTP 会被 Cloudflare 拦截
-- **VSCode 扩展加载路径:** `~/.vscode-extensions/easy-prompt/` 和 `~/.vscode/extensions/easy-prompt/`
+- **API 层使用 curl:** 因为 Node.js 内置 HTTP 会被 Cloudflare 拦截，使用 `child_process.spawn('curl', ...)`
+- **安全限制:** 响应体最大 2MB、输入最大 10000 字符、curl 进程有 Kill Timer（超时 + 10秒强制杀死）
+- **竞态保护:** 文档替换前验证选区偏移量和文档切换（savedSelStart/End + docUri 校验）
+- **错误处理:** VSCode 端 `handleCommandError()` 统一处理（重试/配置/取消），消除重复代码
+- **内置默认配置:** `core/defaults.js` 和 `BuiltinDefaults.kt` 使用 AES-256-CBC 加密 + 多层混淆
+- **Base URL 规范化:** `getConfig()` 和 `testApiConfig()` 自动去除尾部斜杠
+- **curl 可用性缓存:** 模块级 `_curlAvailable` 变量，避免重复检测
 - **core 模块引用:** VSCode 扩展使用 `require('./core')` 引用 core 目录（同层级）
-- **Node.js v25 注意:** 内联 `-e` 脚本有语法限制，需使用文件方式执行
+- **IntelliJ 独立实现:** IntelliJ 端用 Kotlin 独立实现了 core 逻辑（Scenes.kt, Router.kt, ApiClient.kt），不共享 Node.js core/
 
 ---
 
@@ -131,11 +139,17 @@ easy-prompt/
 # 运行核心模块测试
 node -e "const { SCENES } = require('./core'); console.log(Object.keys(SCENES).length + ' scenes loaded');"
 
-# 语法检查
-node --check extension.js && node --check welcomeView.js
+# VSCode 语法检查
+node --check extension.js && node --check welcomeView.js && node --check core/index.js
 
 # 打包 VSCode 插件
 npx @vscode/vsce package --allow-missing-repository
+
+# IntelliJ 编译验证（需 JDK 17）
+cd intellij && JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ./gradlew compileKotlin
+
+# IntelliJ 构建插件
+cd intellij && JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ./gradlew buildPlugin
 ```
 
 ---

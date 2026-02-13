@@ -4,16 +4,18 @@
 
 ## 📋 配置项说明
 
+> 💡 **开箱即用**：Easy Prompt 内置 AI 服务，安装后无需任何配置即可使用。以下配置仅在你希望使用自己的 API Key 时需要。
+
 所有配置项都在插件设置中：
 
 - **VSCode**: 设置（Cmd+,）→ 搜索 "Easy Prompt"
 - **IntelliJ**: Settings → Tools → Easy Prompt
 
-### 必填项
+### 配置项（全部可选）
 
-- `API Base URL`: API 服务地址（必须以 `/v1` 结尾）
-- `API Key`: 访问密钥
-- `Model`: 模型名称
+- `API Base URL`: API 服务地址（必须以 `/v1` 结尾）— 留空使用内置服务
+- `API Key`: 访问密钥 — 留空使用内置服务
+- `Model`: 模型名称 — 留空使用默认模型
 
 ---
 
