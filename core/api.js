@@ -137,7 +137,15 @@ function friendlyError(errorMsg, model) {
     msg.includes("billing") ||
     msg.includes("payment")
   ) {
-    return "💰 API 额度不足 · 请检查账户余额并充值";
+    // 尝试从错误消息中提取金额信息（如 "remain quota: $0.014000, need quota: $0.096000"）
+    const remainMatch = errorMsg.match(/remain[^$]*\$([0-9.]+)/i);
+    const needMatch = errorMsg.match(/need[^$]*\$([0-9.]+)/i);
+    if (remainMatch && needMatch) {
+      const remain = parseFloat(remainMatch[1]).toFixed(2);
+      const need = parseFloat(needMatch[1]).toFixed(2);
+      return `💰 API 额度不足（剩余 $${remain}，需要 $${need}）· 请在设置中配置您自己的 API Key，或为当前 Key 充值`;
+    }
+    return "💰 API 额度不足 · 请在设置中配置您自己的 API Key，或检查当前账户余额";
   }
 
   // === 网络连接问题 ===
