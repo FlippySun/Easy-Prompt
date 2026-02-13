@@ -76,46 +76,114 @@ Settings → Tools → Easy Prompt
 
 ## 📋 38 个场景
 
-| 场景 | ID | 说明 |
-|------|----|------|
-| 需求扩写 | `optimize` | 将简单描述扩写为专业 Prompt |
-| 任务拆解 | `split-task` | 大需求拆解为可执行的小任务 |
-| 技术选型 | `techstack` | 多维度技术方案对比 |
-| API 设计 | `api-design` | RESTful/GraphQL API 设计 |
-| 代码重构 | `refactor` | 识别坏味道、渐进式重构 |
-| 性能优化 | `perf` | 性能瓶颈定位和优化 |
-| 正则生成 | `regex` | 根据描述生成正则 |
-| SQL 生成 | `sql` | 根据描述生成 SQL |
-| 代码转换 | `convert` | 跨语言/框架代码迁移 |
-| TypeScript | `typescript` | TS 类型难题 |
-| CSS 方案 | `css` | 布局/动画/响应式 |
-| 状态管理 | `state` | Vue/React 状态架构 |
-| 组件设计 | `component` | 组件 API 设计 |
-| 表单方案 | `form` | 表单验证和错误处理 |
-| 异步方案 | `async` | 并发/重试/竞态 |
-| 数据库设计 | `schema` | ER 建模和建表 |
-| Bug 排查 | `debug` | 模糊 bug → 排查方案 |
-| 报错分析 | `error` | 报错翻译和修复 |
-| 追问纠偏 | `followup` | AI 答偏了怎么追问 |
-| 概念解释 | `explain` | 分层讲解技术概念 |
-| 代码审查 | `review` | 专业 Code Review |
-| 测试生成 | `test` | 全面测试方案 |
-| 安全审计 | `security` | 安全漏洞扫描 |
-| 代码注释 | `comment` | JSDoc/TSDoc 注释 |
-| 模拟数据 | `mock` | Mock 数据生成 |
-| 文档生成 | `doc` | README/API 文档 |
-| Commit | `commit` | Conventional Commits |
-| 技术方案 | `proposal` | 技术提案文档 |
-| 翻译 | `translate` | 技术中英翻译 |
-| 变更日志 | `changelog` | CHANGELOG 生成 |
-| 技术演示 | `present` | 演讲/PPT 大纲 |
-| DevOps | `devops` | CI/CD/Docker 配置 |
-| 环境排查 | `env` | 开发环境问题修复 |
-| 脚本生成 | `script` | 自动化脚本 |
-| 依赖管理 | `deps` | npm 依赖冲突 |
-| Git 操作 | `git` | 安全的 Git 操作 |
-| 线上排查 | `incident` | 生产事故排查 |
-| 算法题解 | `algo` | LeetCode 解题 |
+| 场景 | ID | 说明 | 痛点 |
+|------|----|------|------|
+| 需求扩写 | `optimize` | 将简单描述扩写为专业 Prompt | 需求描述混乱/词不达意 |
+| 任务拆解 | `split-task` | 大需求拆解为可执行的小任务 | 大需求不知从何下手 |
+| 技术选型 | `techstack` | 多维度技术方案对比 | 技术选型拍脑袋 |
+| API 设计 | `api-design` | RESTful/GraphQL API 设计 | API 设计不规范 |
+| 代码重构 | `refactor` | 识别坏味道、渐进式重构 | 想重构但怕改出 Bug |
+| 性能优化 | `perf` | 性能瓶颈定位和优化 | 页面卡但不知道卡在哪 |
+| 正则生成 | `regex` | 根据描述生成正则 | 正则完全看不懂 |
+| SQL 生成 | `sql` | 根据描述生成 SQL | 复杂 SQL 写不出来 |
+| 代码转换 | `convert` | 跨语言/框架代码迁移 | 迁移工作量巨大 |
+| TypeScript | `typescript` | TS 类型难题 | 类型体操太难了 |
+| CSS 方案 | `css` | 布局/动画/响应式 | CSS 调半天对不齐 |
+| 状态管理 | `state` | Vue/React 状态架构 | 状态乱成一锅粥 |
+| 组件设计 | `component` | 组件 API 设计 | 组件设计不合理 |
+| 表单方案 | `form` | 表单验证和错误处理 | 表单验证写到崩溃 |
+| 异步方案 | `async` | 并发/重试/竞态 | 异步 Bug 难复现 |
+| 数据库设计 | `schema` | ER 建模和建表 | 表结构改来改去 |
+| Bug 排查 | `debug` | 模糊 bug → 排查方案 | Bug 描述不清/无法复现 |
+| 报错分析 | `error` | 报错翻译和修复 | 报错信息看不懂 |
+| 追问纠偏 | `followup` | AI 答偏了怎么追问 | AI 答非所问 |
+| 概念解释 | `explain` | 分层讲解技术概念 | 文档看完还是不懂 |
+| 代码审查 | `review` | 专业 Code Review | Review 不知道看什么 |
+| 测试生成 | `test` | 全面测试方案 | 不知道测什么/怎么测 |
+| 安全审计 | `security` | 安全漏洞扫描 | 安全漏洞不自知 |
+| 代码注释 | `comment` | JSDoc/TSDoc 注释 | 懒得写/不会写注释 |
+| 模拟数据 | `mock` | Mock 数据生成 | 造数据又假又慢 |
+| 文档生成 | `doc` | README/API 文档 | 文档永远写不完 |
+| Commit | `commit` | Conventional Commits | 提交信息乱七八糟 |
+| 技术方案 | `proposal` | 技术提案文档 | 方案文档憋不出来 |
+| 翻译 | `translate` | 技术中英翻译 | 翻译不地道 |
+| 变更日志 | `changelog` | CHANGELOG 生成 | 历史变更无从查起 |
+| 技术演示 | `present` | 演讲/PPT 大纲 | 技术分享不会讲 |
+| DevOps | `devops` | CI/CD/Docker 配置 | 部署配置一头雾水 |
+| 环境排查 | `env` | 开发环境问题修复 | 环境问题搜不到答案 |
+| 脚本生成 | `script` | 自动化脚本 | 重复操作不会自动化 |
+| 依赖管理 | `deps` | npm 依赖冲突 | 依赖冲突解不了 |
+| Git 操作 | `git` | 安全的 Git 操作 | Git 操作怕丢代码 |
+| 线上排查 | `incident` | 生产事故排查 | 线上出事手忙脚乱 |
+| 算法题解 | `algo` | LeetCode 解题 | 算法题毫无思路 |
+
+### 💡 痛点示例：Before → After
+
+<details>
+<summary><b>🔴 痛点 1：需求描述混乱/词不达意（optimize）</b></summary>
+
+**❌ 用户原始输入：**
+> 帮我做个登录页面，要好看点，能记住密码，对了还要那个第三方登录
+
+**✅ Easy Prompt 增强后：**
+> 自动扩写为包含 Role/Task/Context/Output/Criteria 的结构化专业 Prompt，补全验证规则、安全要求、技术栈约束等 15+ 个隐含需求
+
+</details>
+
+<details>
+<summary><b>🔴 痛点 2：大需求不知从何下手（split-task）</b></summary>
+
+**❌ 用户原始输入：**
+> 老板让我做一个完整的电商后台管理系统
+
+**✅ Easy Prompt 增强后：**
+> 自动拆解为 Epic→Feature→Task 三级结构，含依赖关系图、开发顺序、技术栈建议，每个 Task 附验收标准和预估复杂度
+
+</details>
+
+<details>
+<summary><b>🔴 痛点 3：Bug 描述不清/无法复现（debug）</b></summary>
+
+**❌ 用户原始输入：**
+> 登录按钮点了没反应，不知道怎么回事
+
+**✅ Easy Prompt 增强后：**
+> 自动结构化：精确描述现象 → 推断预期行为 → 推断复现步骤和环境 → 按概率列出 5 个可能原因 → 每个方向附排查命令和修复代码
+
+</details>
+
+<details>
+<summary><b>🔴 痛点 4：性能优化没有方向（perf）</b></summary>
+
+**❌ 用户原始输入：**
+> 我的页面首屏加载要 5 秒，太慢了怎么优化
+
+**✅ Easy Prompt 增强后：**
+> 自动生成分层诊断方案：网络层→解析层→渲染层→JS执行层逐层排查，附 DevTools 操作步骤、优化方案按 ROI 排序、前后对比 LCP/FCP/TTI 基准
+
+</details>
+
+<details>
+<summary><b>🔴 痛点 5：报错信息完全看不懂（error）</b></summary>
+
+**❌ 用户原始输入：**
+> TypeError: Cannot read properties of undefined (reading 'map') 啥意思啊
+
+**✅ Easy Prompt 增强后：**
+> 自动翻译为人话 + 定位 5 种最常见成因 + 每种成因附修复代码片段 + 教你怎么加防御性检查避免下次再犯
+
+</details>
+
+<details>
+<summary><b>🔴 痛点 6：线上出事手忙脚乱（incident）</b></summary>
+
+**❌ 用户原始输入：**
+> 线上接口突然大量超时，怎么排查
+
+**✅ Easy Prompt 增强后：**
+> 自动生成 SRE 排查流程：严重程度判断 P0/P1/P2 → 影响范围 → 快速止血方案 → 根因分析时间线 → 修复方案 → 验证方法 → 复盘模板
+
+</details>
 
 ## 🏗️ 项目结构
 
