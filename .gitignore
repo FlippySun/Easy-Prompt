@@ -6,7 +6,6 @@ build/
 # IDE
 .idea/
 *.iml
-.vscode/
 *.code-workspace
 
 # OS
