@@ -500,7 +500,6 @@ async function smartEnhance() {
             vscode.window.showWarningMessage(
               "⚠️ 原文档已关闭或切换，结果已在新标签页显示并复制到剪贴板",
             );
-            incrementSceneHits(res.scenes);
             return;
           }
 
@@ -1188,6 +1187,10 @@ ${
         <div class="combo-option" data-value="deepseek-v3.2-chat"><span class="model-id">deepseek-v3.2-chat</span><span class="model-desc">V3.2 通用对话</span></div>
         <div class="combo-option" data-value="deepseek-v3.2-reasoner"><span class="model-id">deepseek-v3.2-reasoner</span><span class="model-desc">V3.2 深度推理</span></div>
         <div class="combo-option" data-value="deepseek-r1"><span class="model-id">deepseek-r1</span><span class="model-desc">R1 推理</span></div>
+${
+  apiKey
+    ? ""
+    : `
         <hr class="combo-separator" />
         <div class="combo-group">OpenAI</div>
         <div class="combo-option" data-value="gpt-5"><span class="model-id">gpt-5</span><span class="model-desc">GPT-5</span></div>
@@ -1197,10 +1200,6 @@ ${
         <div class="combo-option" data-value="gpt-4o"><span class="model-id">gpt-4o</span><span class="model-desc">灵活智能</span></div>
         <div class="combo-option" data-value="o3"><span class="model-id">o3</span><span class="model-desc">复杂推理</span></div>
         <div class="combo-option" data-value="o4-mini"><span class="model-id">o4-mini</span><span class="model-desc">快速推理</span></div>
-${
-  apiKey
-    ? ""
-    : `
         <hr class="combo-separator" />
         <div class="combo-group">xAI</div>
         <div class="combo-option" data-value="grok-4"><span class="model-id">grok-4</span><span class="model-desc">Grok 4</span></div>

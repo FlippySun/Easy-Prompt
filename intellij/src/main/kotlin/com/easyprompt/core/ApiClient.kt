@@ -75,8 +75,17 @@ object ApiClient {
             return "🤖 模型 \"$model\" 不可用 · 请在设置中检查模型名称是否正确"
 
         // 额度/配额
-        if (msg.contains("quota") || msg.contains("insufficient") || msg.contains("billing") || msg.contains("payment"))
-            return "💰 API 额度不足 · 请检查账户余额并充值"
+        if (msg.contains("quota") || msg.contains("insufficient") || msg.contains("billing") || msg.contains("payment")) {
+            // 尝试从错误消息中提取金额信息（如 "remain quota: $0.014000, need quota: $0.096000"）
+            val remainMatch = Regex("""remain[^$]*\$([0-9.]+)""", RegexOption.IGNORE_CASE).find(errorMsg)
+            val needMatch = Regex("""need[^$]*\$([0-9.]+)""", RegexOption.IGNORE_CASE).find(errorMsg)
+            if (remainMatch != null && needMatch != null) {
+                val remain = "%.2f".format(remainMatch.groupValues[1].toDoubleOrNull() ?: 0.0)
+                val need = "%.2f".format(needMatch.groupValues[1].toDoubleOrNull() ?: 0.0)
+                return "💰 API 额度不足（剩余 $$remain，需要 $$need）· 请在设置中配置您自己的 API Key，或为当前 Key 充值"
+            }
+            return "💰 API 额度不足 · 请在设置中配置您自己的 API Key，或检查当前账户余额"
+        }
 
         // 网络连接问题
         if (msg.contains("unknownhostexception") || msg.contains("could not resolve host") || msg.contains("dns"))
