@@ -21,3 +21,18 @@ out/
 # Secrets
 .env
 *.key
+
+# Local AI/MCP tool configs (not for repo)
+.mcp.json
+.mcp.json.*
+.vscode/mcp.json
+.vscode/mcp.json.*
+.vscode/settings.json
+.roo/
+.claude/
+.github/copilot-instructions.md
+.github/copilot-instructions.md.*
+.github/agents/
+.github/prompts/
+.github/skills/
+.github/settings.local.json

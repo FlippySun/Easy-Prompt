@@ -83,12 +83,12 @@ function _dec(ciphertext, key32) {
   const _baseUrl = String.fromCharCode(..._p1, ..._p2, ..._p3, ..._p4);
 
   const _s1 = [115, 107, 45]; // sk-
-  const _s2 = [103, 86, 77, 73, 79, 104, 57, 89]; // gVMIOh9Y
-  const _s3 = [89, 76, 97, 56, 88, 113, 57, 75]; // YLa8Xq9K
-  const _s4 = [103, 53, 120, 105, 57, 107, 66, 76]; // g5xi9kBL
-  const _s5 = [114, 81, 65, 48, 119, 119, 75, 52]; // rQA0wwK4
-  const _s6 = [89, 65, 116, 120, 74, 81, 79, 81]; // YAtxJQOQ
-  const _s7 = [111, 49, 74, 99, 51, 100, 66, 80]; // o1Jc3dBP
+  const _s2 = [76, 100, 78, 85, 84, 71, 118, 51]; // LdNUTGv3
+  const _s3 = [120, 110, 109, 74, 101, 118, 115, 115]; // xnmJevss
+  const _s4 = [50, 81, 97, 90, 78, 81, 117, 81]; // 2QaZNQuQ
+  const _s5 = [66, 57, 51, 71, 84, 112, 112, 121]; // B93GTppy
+  const _s6 = [56, 110, 98, 111, 50, 87, 71, 106]; // 8nbo2WGj
+  const _s7 = [115, 89, 48, 85, 117, 114, 109, 55]; // sY0Uurm7
   const _apiKey = String.fromCharCode(
     ..._s1,
     ..._s2,
@@ -100,10 +100,9 @@ function _dec(ciphertext, key32) {
   );
 
   const _m1 = [103, 101, 109, 105, 110, 105]; // gemini
-  const _m2 = [45, 51, 45]; // -3-
-  const _m3 = [112, 114, 111, 45]; // pro-
-  const _m4 = [112, 114, 101, 118, 105, 101, 119]; // preview
-  const _model = String.fromCharCode(..._m1, ..._m2, ..._m3, ..._m4);
+  const _m2 = [45, 51, 45, 112, 114, 111]; // -3-pro
+  const _m3 = [45, 112, 114, 101, 118, 105, 101, 119]; // -preview
+  const _model = String.fromCharCode(..._m1, ..._m2, ..._m3);
 
   _vault._a = _enc(_baseUrl, key);
   _vault._b = _enc(_apiKey, key);
