@@ -1072,6 +1072,49 @@ input::placeholder { color: #555; }
   border: none; border-top: 1px solid var(--border);
   margin: 28px 0;
 }
+
+/* Combo Box 可编辑下拉框 */
+.combo-box {
+  position: relative; width: 100%;
+}
+.combo-box input[type="text"] {
+  width: 100%; padding-right: 36px;
+}
+.combo-toggle {
+  position: absolute; right: 1px; top: 1px; bottom: 1px;
+  width: 34px; background: var(--card); border: none;
+  border-left: 1px solid var(--border); border-radius: 0 5px 5px 0;
+  color: var(--text-dim); cursor: pointer; font-size: 12px;
+  display: flex; align-items: center; justify-content: center;
+  transition: color 0.2s;
+}
+.combo-toggle:hover { color: var(--text); }
+.combo-dropdown {
+  display: none; position: absolute; top: calc(100% + 4px);
+  left: 0; right: 0; max-height: 260px; overflow-y: auto;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 6px; z-index: 100;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.combo-dropdown.open { display: block; }
+.combo-group {
+  padding: 6px 12px 2px; font-size: 11px; font-weight: 600;
+  color: var(--accent-light); text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.combo-option {
+  padding: 8px 12px; font-size: 13px; cursor: pointer;
+  display: flex; justify-content: space-between; align-items: center;
+  transition: background 0.1s;
+}
+.combo-option:hover { background: #2a2d2e; }
+.combo-option .model-id { color: var(--text); }
+.combo-option .model-desc { color: var(--text-dim); font-size: 11px; }
+.combo-option.active { background: #094771; }
+.combo-separator {
+  border: none; border-top: 1px solid var(--border);
+  margin: 4px 0;
+}
 </style>
 </head>
 <body>
@@ -1097,8 +1140,90 @@ input::placeholder { color: #555; }
 
   <div class="form-group">
     <label>模型名称</label>
-    <div class="hint">如 gpt-4o、deepseek-chat、gemini-2.0-flash 等</div>
-    <input type="text" id="model" value="${esc(model)}" placeholder="留空 = 使用内置免费服务" />
+    <div class="hint">${apiKey ? "从下拉列表选择常用模型，或手动输入其他模型名称" : "从下拉列表选择内置服务支持的模型，或手动输入模型名称"}</div>
+    <div class="combo-box" id="comboBox">
+      <input type="text" id="model" value="${esc(model)}" placeholder="留空 = 使用内置默认模型" autocomplete="off" />
+      <button type="button" class="combo-toggle" id="comboToggle" onclick="toggleDropdown()">▾</button>
+      <div class="combo-dropdown" id="comboDropdown">
+${
+  apiKey
+    ? `
+        <div class="combo-group">Anthropic</div>
+        <div class="combo-option" data-value="claude-opus-4-6"><span class="model-id">claude-opus-4-6</span><span class="model-desc">Opus 4.6 最智能</span></div>
+        <div class="combo-option" data-value="claude-sonnet-4-5"><span class="model-id">claude-sonnet-4-5</span><span class="model-desc">Sonnet 4.5 均衡</span></div>
+        <div class="combo-option" data-value="claude-haiku-4-5"><span class="model-id">claude-haiku-4-5</span><span class="model-desc">Haiku 4.5 最快</span></div>
+        <div class="combo-option" data-value="claude-opus-4-1"><span class="model-id">claude-opus-4-1</span><span class="model-desc">Opus 4.1</span></div>
+        <div class="combo-option" data-value="claude-sonnet-4"><span class="model-id">claude-sonnet-4</span><span class="model-desc">Sonnet 4</span></div>
+        <hr class="combo-separator" />
+        <div class="combo-group">OpenAI</div>
+        <div class="combo-option" data-value="gpt-5.2"><span class="model-id">gpt-5.2</span><span class="model-desc">最新旗舰</span></div>
+        <div class="combo-option" data-value="gpt-5.2-pro"><span class="model-id">gpt-5.2-pro</span><span class="model-desc">更智能更精准</span></div>
+        <div class="combo-option" data-value="gpt-5-mini"><span class="model-id">gpt-5-mini</span><span class="model-desc">快速高效</span></div>
+        <div class="combo-option" data-value="gpt-5-nano"><span class="model-id">gpt-5-nano</span><span class="model-desc">极致性价比</span></div>
+        <div class="combo-option" data-value="gpt-5"><span class="model-id">gpt-5</span><span class="model-desc">上一代推理</span></div>
+        <div class="combo-option" data-value="gpt-4.1"><span class="model-id">gpt-4.1</span><span class="model-desc">最强非推理</span></div>
+        <div class="combo-option" data-value="gpt-4.1-mini"><span class="model-id">gpt-4.1-mini</span><span class="model-desc">轻量快速</span></div>
+        <div class="combo-option" data-value="gpt-4o"><span class="model-id">gpt-4o</span><span class="model-desc">灵活智能</span></div>
+        <div class="combo-option" data-value="gpt-4o-mini"><span class="model-id">gpt-4o-mini</span><span class="model-desc">经济实惠</span></div>
+        <div class="combo-option" data-value="o3"><span class="model-id">o3</span><span class="model-desc">复杂推理</span></div>
+        <div class="combo-option" data-value="o4-mini"><span class="model-id">o4-mini</span><span class="model-desc">快速推理</span></div>
+        <hr class="combo-separator" />
+`
+    : ""
+}
+        <div class="combo-group">Google</div>
+        <div class="combo-option" data-value="gemini-3-pro-preview"><span class="model-id">gemini-3-pro-preview</span><span class="model-desc">最强多模态</span></div>
+        <div class="combo-option" data-value="gemini-3-flash-preview"><span class="model-id">gemini-3-flash-preview</span><span class="model-desc">速度与智能</span></div>
+        <div class="combo-option" data-value="gemini-3.0-pro"><span class="model-id">gemini-3.0-pro</span><span class="model-desc">Gemini 3.0</span></div>
+        <div class="combo-option" data-value="gemini-2.5-pro"><span class="model-id">gemini-2.5-pro</span><span class="model-desc">高级思维</span></div>
+${
+  apiKey
+    ? `
+        <div class="combo-option" data-value="gemini-2.5-flash"><span class="model-id">gemini-2.5-flash</span><span class="model-desc">高性价比</span></div>
+`
+    : ""
+}
+        <hr class="combo-separator" />
+        <div class="combo-group">DeepSeek</div>
+        <div class="combo-option" data-value="deepseek-v3.2-chat"><span class="model-id">deepseek-v3.2-chat</span><span class="model-desc">V3.2 通用对话</span></div>
+        <div class="combo-option" data-value="deepseek-v3.2-reasoner"><span class="model-id">deepseek-v3.2-reasoner</span><span class="model-desc">V3.2 深度推理</span></div>
+        <div class="combo-option" data-value="deepseek-r1"><span class="model-id">deepseek-r1</span><span class="model-desc">R1 推理</span></div>
+        <hr class="combo-separator" />
+        <div class="combo-group">OpenAI</div>
+        <div class="combo-option" data-value="gpt-5"><span class="model-id">gpt-5</span><span class="model-desc">GPT-5</span></div>
+        <div class="combo-option" data-value="gpt-5-mini"><span class="model-id">gpt-5-mini</span><span class="model-desc">快速高效</span></div>
+        <div class="combo-option" data-value="gpt-5-nano"><span class="model-id">gpt-5-nano</span><span class="model-desc">极致性价比</span></div>
+        <div class="combo-option" data-value="gpt-4.1"><span class="model-id">gpt-4.1</span><span class="model-desc">最强非推理</span></div>
+        <div class="combo-option" data-value="gpt-4o"><span class="model-id">gpt-4o</span><span class="model-desc">灵活智能</span></div>
+        <div class="combo-option" data-value="o3"><span class="model-id">o3</span><span class="model-desc">复杂推理</span></div>
+        <div class="combo-option" data-value="o4-mini"><span class="model-id">o4-mini</span><span class="model-desc">快速推理</span></div>
+${
+  apiKey
+    ? ""
+    : `
+        <hr class="combo-separator" />
+        <div class="combo-group">xAI</div>
+        <div class="combo-option" data-value="grok-4"><span class="model-id">grok-4</span><span class="model-desc">Grok 4</span></div>
+        <div class="combo-option" data-value="grok-3"><span class="model-id">grok-3</span><span class="model-desc">Grok 3</span></div>
+        <hr class="combo-separator" />
+        <div class="combo-group">智谱 GLM</div>
+        <div class="combo-option" data-value="glm-5"><span class="model-id">glm-5</span><span class="model-desc">GLM-5</span></div>
+        <div class="combo-option" data-value="glm-4.7"><span class="model-id">glm-4.7</span><span class="model-desc">GLM-4.7</span></div>
+        <hr class="combo-separator" />
+        <div class="combo-group">Kimi</div>
+        <div class="combo-option" data-value="kimi-k2.5"><span class="model-id">kimi-k2.5</span><span class="model-desc">K2.5</span></div>
+        <div class="combo-option" data-value="kimi-k2"><span class="model-id">kimi-k2</span><span class="model-desc">K2</span></div>
+        <hr class="combo-separator" />
+        <div class="combo-group">通义千问</div>
+        <div class="combo-option" data-value="qwen3-max"><span class="model-id">qwen3-max</span><span class="model-desc">Qwen3 Max</span></div>
+        <div class="combo-option" data-value="qwen3-235b"><span class="model-id">qwen3-235b</span><span class="model-desc">Qwen3 235B</span></div>
+        <hr class="combo-separator" />
+        <div class="combo-group">MiniMax</div>
+        <div class="combo-option" data-value="minimax-m2.5"><span class="model-id">minimax-m2.5</span><span class="model-desc">M2.5</span></div>
+`
+}
+      </div>
+    </div>
   </div>
 
   <div class="btn-row">
@@ -1118,6 +1243,104 @@ input::placeholder { color: #555; }
 
 <script>
 const vscode = acquireVsCodeApi();
+
+// ===== Combo Box 下拉框逻辑 =====
+const comboInput = document.getElementById('model');
+const comboDropdown = document.getElementById('comboDropdown');
+const allOptions = comboDropdown.querySelectorAll('.combo-option');
+
+function toggleDropdown() {
+  const isOpen = comboDropdown.classList.contains('open');
+  if (isOpen) { closeDropdown(); } else { openDropdown(); }
+}
+
+function openDropdown() {
+  // 显示所有选项
+  allOptions.forEach(o => o.style.display = '');
+  comboDropdown.querySelectorAll('.combo-group, .combo-separator').forEach(el => el.style.display = '');
+  comboDropdown.classList.add('open');
+  highlightActive();
+}
+
+function closeDropdown() {
+  comboDropdown.classList.remove('open');
+}
+
+function highlightActive() {
+  const val = comboInput.value;
+  allOptions.forEach(o => {
+    o.classList.toggle('active', o.getAttribute('data-value') === val);
+  });
+}
+
+// 点击选项
+comboDropdown.addEventListener('click', e => {
+  const opt = e.target.closest('.combo-option');
+  if (opt) {
+    comboInput.value = opt.getAttribute('data-value');
+    closeDropdown();
+    comboInput.focus();
+  }
+});
+
+// 输入过滤
+comboInput.addEventListener('input', () => {
+  const q = comboInput.value.toLowerCase();
+  if (!q) { openDropdown(); return; }
+  let anyVisible = false;
+  const groups = {};
+  allOptions.forEach(o => {
+    const val = o.getAttribute('data-value');
+    const desc = o.textContent.toLowerCase();
+    const match = val.toLowerCase().includes(q) || desc.includes(q);
+    o.style.display = match ? '' : 'none';
+    // 追踪分组可见性
+    const group = o.previousElementSibling;
+    if (match) anyVisible = true;
+  });
+  if (!comboDropdown.classList.contains('open') && anyVisible) {
+    comboDropdown.classList.add('open');
+  }
+});
+
+// 聚焦时打开
+comboInput.addEventListener('focus', () => {
+  if (!comboDropdown.classList.contains('open')) openDropdown();
+});
+
+// 点击外部关闭
+document.addEventListener('click', e => {
+  if (!document.getElementById('comboBox').contains(e.target)) {
+    closeDropdown();
+  }
+});
+
+// 键盘导航
+comboInput.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeDropdown(); return; }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (!comboDropdown.classList.contains('open')) { openDropdown(); return; }
+    const visible = [...allOptions].filter(o => o.style.display !== 'none');
+    if (!visible.length) return;
+    const curIdx = visible.findIndex(o => o.classList.contains('active'));
+    let nextIdx = e.key === 'ArrowDown' ? curIdx + 1 : curIdx - 1;
+    if (nextIdx >= visible.length) nextIdx = 0;
+    if (nextIdx < 0) nextIdx = visible.length - 1;
+    visible.forEach(o => o.classList.remove('active'));
+    visible[nextIdx].classList.add('active');
+    visible[nextIdx].scrollIntoView({ block: 'nearest' });
+  }
+  if (e.key === 'Enter') {
+    const active = comboDropdown.querySelector('.combo-option.active');
+    if (active && comboDropdown.classList.contains('open')) {
+      e.preventDefault();
+      comboInput.value = active.getAttribute('data-value');
+      closeDropdown();
+    }
+  }
+});
+// ===== End Combo Box =====
 
 function getValues() {
   return {

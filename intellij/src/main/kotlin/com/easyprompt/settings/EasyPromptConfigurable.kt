@@ -16,7 +16,7 @@ class EasyPromptConfigurable : Configurable {
     private var panel: JPanel? = null
     private var apiBaseUrlField: JTextField? = null
     private var apiKeyField: JPasswordField? = null
-    private var modelField: JTextField? = null
+    private var modelField: JComboBox<String>? = null
     private var statusLabel: JLabel? = null
     private var testPassed = false
 
@@ -57,8 +57,46 @@ class EasyPromptConfigurable : Configurable {
         apiKeyField = PlaceholderPasswordField("留空 = 使用内置免费服务", 40).apply {
             text = settings.state.apiKey
         }
-        modelField = PlaceholderTextField("留空 = 使用内置免费服务", 40).apply {
-            text = settings.state.model
+        // 内置服务支持的模型（无自定义 API Key 时显示）
+        val builtinModels = arrayOf(
+            "",
+            "gemini-3-pro-preview", "gemini-3-flash-preview", "gemini-3.0-pro", "gemini-2.5-pro",
+            "deepseek-v3.2-chat", "deepseek-v3.2-reasoner", "deepseek-r1",
+            "gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-4.1", "gpt-4o", "o3", "o4-mini",
+            "grok-4", "grok-3",
+            "glm-5", "glm-4.7",
+            "kimi-k2.5", "kimi-k2",
+            "qwen3-max", "qwen3-235b",
+            "minimax-m2.5"
+        )
+        // 全量模型（有自定义 API Key 时显示）
+        val fullModels = arrayOf(
+            "",
+            "claude-opus-4-6", "claude-sonnet-4-5", "claude-haiku-4-5", "claude-opus-4-1", "claude-sonnet-4",
+            "gpt-5.2", "gpt-5.2-pro", "gpt-5-mini", "gpt-5-nano", "gpt-5",
+            "gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini", "o3", "o4-mini",
+            "gemini-3-pro-preview", "gemini-3-flash-preview", "gemini-3.0-pro", "gemini-2.5-pro", "gemini-2.5-flash",
+            "deepseek-v3.2-chat", "deepseek-v3.2-reasoner", "deepseek-r1"
+        )
+        val hasCustomApiKey = settings.state.apiKey.isNotBlank()
+        val modelOptions = if (hasCustomApiKey) fullModels else builtinModels
+        modelField = JComboBox(modelOptions).apply {
+            isEditable = true
+            selectedItem = settings.state.model.ifBlank { "" }
+            // 自定义渲染：空值显示占位提示
+            renderer = object : DefaultListCellRenderer() {
+                override fun getListCellRendererComponent(
+                    list: javax.swing.JList<*>?, value: Any?, index: Int,
+                    isSelected: Boolean, cellHasFocus: Boolean
+                ): java.awt.Component {
+                    val comp = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
+                    if (value == null || value.toString().isBlank()) {
+                        text = "留空 = 使用内置免费服务"
+                        foreground = Color.GRAY
+                    }
+                    return comp
+                }
+            }
         }
 
         // 输入变化时重置测试状态
@@ -68,7 +106,10 @@ class EasyPromptConfigurable : Configurable {
         }
         apiBaseUrlField!!.document.addDocumentListener(SimpleDocListener(resetTestState))
         apiKeyField!!.document.addDocumentListener(SimpleDocListener(resetTestState))
-        modelField!!.document.addDocumentListener(SimpleDocListener(resetTestState))
+        // ComboBox 用 ActionListener 监听选择变化
+        modelField!!.addActionListener { resetTestState() }
+        (modelField!!.editor.editorComponent as? javax.swing.text.JTextComponent)?.document
+            ?.addDocumentListener(SimpleDocListener(resetTestState))
 
         panel!!.add(addField("API Base URL:", apiBaseUrlField!!))
         panel!!.add(Box.createVerticalStrut(8))
@@ -124,9 +165,7 @@ class EasyPromptConfigurable : Configurable {
     private fun doTest() {
         val baseUrl = apiBaseUrlField?.text?.trim() ?: ""
         val apiKey = String(apiKeyField?.password ?: charArrayOf()).trim()
-        val model = modelField?.text?.trim() ?: ""
-
-        // 全空 → 使用内置默认，无需测试
+        val model = (modelField?.selectedItem?.toString() ?: "").trim()
         if (baseUrl.isBlank() && apiKey.isBlank() && model.isBlank()) {
             statusLabel?.text = "当前为内置默认配置，无需测试，开箱即用 🎉"
             statusLabel?.foreground = Color(0x00, 0x88, 0x00)
@@ -168,9 +207,7 @@ class EasyPromptConfigurable : Configurable {
     private fun doSave() {
         val baseUrl = apiBaseUrlField?.text?.trim() ?: ""
         val apiKey = String(apiKeyField?.password ?: charArrayOf()).trim()
-        val model = modelField?.text?.trim() ?: ""
-
-        // 全空 → 清除配置，恢复内置默认
+        val model = (modelField?.selectedItem?.toString() ?: "").trim()
         if (baseUrl.isBlank() && apiKey.isBlank() && model.isBlank()) {
             val settings = EasyPromptSettings.getInstance()
             val currentStats = settings.state.sceneStats
@@ -228,9 +265,7 @@ class EasyPromptConfigurable : Configurable {
     private fun doReset() {
         apiBaseUrlField?.text = ""
         apiKeyField?.text = ""
-        modelField?.text = ""
-
-        // 清除持久化的配置
+        modelField?.selectedItem = ""
         val settings = EasyPromptSettings.getInstance()
         val currentStats = settings.state.sceneStats
         settings.loadState(EasyPromptSettings.State(sceneStats = currentStats))
@@ -269,7 +304,7 @@ class EasyPromptConfigurable : Configurable {
 
         apiBaseUrlField?.text = lastSavedBaseUrl
         apiKeyField?.text = lastSavedApiKey
-        modelField?.text = lastSavedModel
+        modelField?.selectedItem = lastSavedModel
         statusLabel?.text = ""
         testPassed = false
     }
