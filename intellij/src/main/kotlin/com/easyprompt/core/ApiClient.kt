@@ -20,22 +20,131 @@ data class SmartRouteResult(
 object ApiClient {
     private val gson = Gson()
 
+    // 输入长度限制（与 VSCode core/api.js 保持一致）
+    private const val MAX_INPUT_LENGTH = 10000
+
+    // 重试配置
+    private const val MAX_RETRIES = 3
+    private val RETRY_DELAYS = longArrayOf(2000, 4000, 8000) // 指数退避：2s, 4s, 8s
+
     /**
-     * 调用 OpenAI 兼容 API
+     * 判断错误是否值得重试
      */
-    fun callApi(
+    private fun isRetryableError(msg: String): Boolean {
+        val lower = msg.lowercase()
+        val patterns = listOf(
+            "cpu overloaded", "overloaded", "503", "529", "502",
+            "bad gateway", "service unavailable", "temporarily unavailable",
+            "server_error", "internal_error",
+            "econnreset", "etimedout", "socket hang up", "connection reset",
+            "请求超时", "rate limit", "rate_limit", "429", "too many requests"
+        )
+        return patterns.any { lower.contains(it) }
+    }
+
+    /**
+     * 友好化错误消息 — 将技术错误转换为用户可理解的中文提示
+     */
+    fun friendlyError(errorMsg: String, model: String = ""): String {
+        val msg = errorMsg.lowercase()
+
+        // 服务端过载/不可用
+        if (msg.contains("cpu overloaded") || msg.contains("overloaded"))
+            return "⚡ API 服务器繁忙（CPU 过载）· 当前使用人数过多，请等待 10-30 秒后重试"
+        if (msg.contains("503") || msg.contains("service unavailable") || msg.contains("temporarily unavailable"))
+            return "🔧 API 服务暂时不可用（503）· 服务器维护或临时故障，请等待几分钟后重试"
+        if (msg.contains("502") || msg.contains("bad gateway"))
+            return "🌐 API 网关错误（502）· 中转服务器连接问题，请稍后重试"
+        if (msg.contains("529"))
+            return "🔥 API 服务器过载（529）· 请求量过大，请等待 30 秒后重试"
+        if (msg.contains("server_error") || msg.contains("internal_error") || msg.contains("500") || msg.contains("internal server error"))
+            return "🛠️ API 服务器内部错误 · 服务端临时故障，请稍后重试"
+
+        // 认证/授权错误
+        if (msg.contains("401") || msg.contains("unauthorized") || msg.contains("incorrect api key") || msg.contains("invalid api key") || msg.contains("authentication"))
+            return "🔑 API Key 无效或已过期 · 请在设置中检查 API Key 是否正确"
+        if (msg.contains("403") || msg.contains("forbidden"))
+            return "🚫 API 访问被拒绝（403）· Key 权限不足或 IP 被限制，请检查配置"
+
+        // 频率限制
+        if (msg.contains("429") || msg.contains("rate limit") || msg.contains("too many requests"))
+            return "⏳ API 请求频率超限（429）· 请等待 30-60 秒后重试"
+
+        // 模型错误
+        if (msg.contains("model") && (msg.contains("does not exist") || msg.contains("not found") || msg.contains("not available")))
+            return "🤖 模型 \"$model\" 不可用 · 请在设置中检查模型名称是否正确"
+
+        // 额度/配额
+        if (msg.contains("quota") || msg.contains("insufficient") || msg.contains("billing") || msg.contains("payment"))
+            return "💰 API 额度不足 · 请检查账户余额并充值"
+
+        // 网络连接问题
+        if (msg.contains("unknownhostexception") || msg.contains("could not resolve host") || msg.contains("dns"))
+            return "🌐 无法连接到 API 服务器 · 请检查网络连接和 VPN/代理设置"
+        if (msg.contains("connection refused") || msg.contains("connectexception"))
+            return "🔌 连接被拒绝 · 请检查 API Base URL 是否正确"
+        if (msg.contains("timeout") || msg.contains("timed out") || msg.contains("sockettimeoutexception") || msg.contains("请求超时"))
+            return "⏱️ API 请求超时 · 请检查网络连接，或缩短输入文本后重试"
+        if (msg.contains("connection reset") || msg.contains("socket hang up"))
+            return "🔄 连接被重置 · 网络不稳定，请稍后重试"
+        if (msg.contains("ssl") || msg.contains("certificate") || msg.contains("cert"))
+            return "🔒 SSL/TLS 证书错误 · 请检查系统时间和代理证书配置"
+
+        // 响应解析错误
+        if (msg.contains("json") || msg.contains("解析"))
+            return "📋 API 返回格式错误 · 请检查 Base URL 是否正确（应以 /v1 结尾）"
+
+        // 输入相关
+        if (msg.contains("过长") || msg.contains("too long") || msg.contains("max"))
+            return "📏 输入文本过长 · 最大支持 $MAX_INPUT_LENGTH 字符，请缩短后重试"
+        if (msg.contains("返回为空") || msg.contains("empty"))
+            return "📭 API 返回结果为空 · 请修改输入内容后重试"
+
+        // 兜底
+        return "❌ API 调用出错: $errorMsg · 请检查网络和 API 配置后重试"
+    }
+
+    /**
+     * 获取有效配置（用户自定义优先，否则使用内置默认）
+     */
+    private fun getEffectiveConfig(): Triple<String, String, String> {
+        val settings = EasyPromptSettings.getInstance().state
+        return if (settings.apiKey.isNotBlank()) {
+            // 用户配置了自定义 Key，使用用户的全套配置
+            val baseUrl = settings.apiBaseUrl.ifBlank { "https://api.openai.com/v1" }.trimEnd('/')
+            val model = settings.model.ifBlank { "gpt-4o" }
+
+            // 格式验证（与 VSCode getConfig 一致）
+            if (!baseUrl.matches(Regex("^https?://.*"))) {
+                throw RuntimeException("API Base URL 格式错误：必须以 http:// 或 https:// 开头")
+            }
+            if (!baseUrl.endsWith("/v1")) {
+                throw RuntimeException("API Base URL 格式错误：必须以 /v1 结尾（例如：https://api.openai.com/v1）")
+            }
+
+            Triple(baseUrl, settings.apiKey, model)
+        } else {
+            // 使用内置默认配置
+            val defaults = BuiltinDefaults.getDefaults()
+            Triple(defaults.baseUrl.trimEnd('/'), defaults.apiKey, defaults.model)
+        }
+    }
+
+    /**
+     * 执行单次 API 调用（无重试）
+     */
+    private fun callApiOnce(
         systemPrompt: String,
         userMessage: String,
         temperature: Double = 0.7,
         maxTokens: Int = 4096,
         timeout: Int = 60000
     ): String {
-        val settings = EasyPromptSettings.getInstance().state
-        val baseUrl = settings.apiBaseUrl.trimEnd('/')
+        val (baseUrl, apiKey, model) = getEffectiveConfig()
         val url = URI("$baseUrl/chat/completions").toURL()
 
         val body = JsonObject().apply {
-            addProperty("model", settings.model)
+            addProperty("model", model)
             add("messages", gson.toJsonTree(listOf(
                 mapOf("role" to "system", "content" to systemPrompt),
                 mapOf("role" to "user", "content" to userMessage)
@@ -45,28 +154,83 @@ object ApiClient {
         }
 
         val conn = url.openConnection() as HttpURLConnection
-        conn.requestMethod = "POST"
-        conn.setRequestProperty("Content-Type", "application/json")
-        conn.setRequestProperty("Authorization", "Bearer ${settings.apiKey}")
-        conn.connectTimeout = timeout
-        conn.readTimeout = timeout
-        conn.doOutput = true
-        conn.outputStream.write(body.toString().toByteArray())
+        try {
+            conn.requestMethod = "POST"
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.setRequestProperty("Authorization", "Bearer $apiKey")
+            conn.connectTimeout = timeout
+            conn.readTimeout = timeout
+            conn.doOutput = true
+            conn.outputStream.write(body.toString().toByteArray())
 
-        val responseCode = conn.responseCode
-        val responseBody = if (responseCode in 200..299) {
-            conn.inputStream.bufferedReader().readText()
-        } else {
-            val errorBody = conn.errorStream?.bufferedReader()?.readText() ?: "Unknown error"
-            throw RuntimeException("API 错误 ($responseCode): $errorBody")
+            val responseCode = conn.responseCode
+            val responseBody = if (responseCode in 200..299) {
+                val body = conn.inputStream.bufferedReader().readText()
+                // 安全限制：响应体最大 2MB，防止 OOM
+                if (body.length > 2 * 1024 * 1024) {
+                    throw RuntimeException("响应体过大（超过 2MB），已中断")
+                }
+                body
+            } else {
+                val errorBody = conn.errorStream?.bufferedReader()?.readText() ?: "Unknown error"
+                throw RuntimeException("API 错误 ($responseCode): $errorBody")
+            }
+
+            val json = gson.fromJson(responseBody, JsonObject::class.java)
+            return json.getAsJsonArray("choices")
+                ?.get(0)?.asJsonObject
+                ?.getAsJsonObject("message")
+                ?.get("content")?.asString
+                ?: throw RuntimeException("API 返回为空")
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    /**
+     * 调用 OpenAI 兼容 API（带自动重试）
+     */
+    fun callApi(
+        systemPrompt: String,
+        userMessage: String,
+        temperature: Double = 0.7,
+        maxTokens: Int = 4096,
+        timeout: Int = 60000,
+        onRetry: ((Int, String) -> Unit)? = null
+    ): String {
+        // 输入长度检查
+        if (userMessage.length > MAX_INPUT_LENGTH) {
+            throw RuntimeException("输入文本过长（${userMessage.length} 字符），最大支持 $MAX_INPUT_LENGTH 字符")
         }
 
-        val json = gson.fromJson(responseBody, JsonObject::class.java)
-        return json.getAsJsonArray("choices")
-            ?.get(0)?.asJsonObject
-            ?.getAsJsonObject("message")
-            ?.get("content")?.asString
-            ?: throw RuntimeException("API 返回为空")
+        var lastError: Exception? = null
+        val (_, _, model) = getEffectiveConfig()
+
+        for (attempt in 0..MAX_RETRIES) {
+            try {
+                return callApiOnce(systemPrompt, userMessage, temperature, maxTokens, timeout)
+            } catch (e: Exception) {
+                lastError = e
+                val errorMsg = e.message ?: "Unknown error"
+
+                // 非重试类错误直接抛出（如 401, 403, 模型不存在等）
+                if (!isRetryableError(errorMsg)) {
+                    throw RuntimeException(friendlyError(errorMsg, model))
+                }
+
+                // 最后一次重试失败
+                if (attempt >= MAX_RETRIES) break
+
+                // 重试提示
+                val delayMs = RETRY_DELAYS.getOrElse(attempt) { 8000 }
+                onRetry?.invoke(attempt + 1, "⚠️ 遇到临时错误，${delayMs / 1000} 秒后第 ${attempt + 2} 次尝试...")
+
+                Thread.sleep(delayMs)
+            }
+        }
+
+        // 所有重试都失败
+        throw RuntimeException(friendlyError(lastError?.message ?: "Unknown error", model))
     }
 
     /**
@@ -78,13 +242,41 @@ object ApiClient {
             val jsonStr = if (clean.startsWith("{")) {
                 clean
             } else {
-                val regex = Regex("""\{[\s\S]*?"scenes"[\s\S]*?\}""")
-                regex.find(clean)?.value ?: """{"scenes":["optimize"],"composite":false}"""
+                // 与 VSCode router.js parseRouterResult 保持一致的 3 种 fallback 正则
+                val patterns = listOf(
+                    Regex("""```json\s*\n?([\s\S]*?)\s*\n?```"""),
+                    Regex("""```\s*\n?([\s\S]*?)\s*\n?```"""),
+                    Regex("""(\{\s*"scenes"\s*:[\s\S]*?\})""")
+                )
+                var extracted: String? = null
+                for (pattern in patterns) {
+                    val match = pattern.find(clean)
+                    if (match != null) {
+                        val candidate = match.groupValues[1].trim()
+                        try {
+                            gson.fromJson(candidate, JsonObject::class.java)
+                            extracted = candidate
+                            break
+                        } catch (_: Exception) {
+                            continue
+                        }
+                    }
+                }
+                extracted ?: """{"scenes":["optimize"],"composite":false}"""
             }
             val json = gson.fromJson(jsonStr, JsonObject::class.java)
             val scenes = json.getAsJsonArray("scenes")?.map { it.asString } ?: listOf("optimize")
-            val composite = json.get("composite")?.asBoolean ?: false
-            RouterResult(scenes.filter { Scenes.all.containsKey(it) }.ifEmpty { listOf("optimize") }, composite)
+            // 过滤无效场景、截断最多 5 个
+            val validScenes = scenes.filter { Scenes.all.containsKey(it) }.take(5).ifEmpty { listOf("optimize") }
+            // 规范化 composite：支持字符串 "true"/"false"，单场景时强制 false
+            val compositeRaw = json.get("composite")
+            val composite = when {
+                compositeRaw == null -> false
+                compositeRaw.isJsonPrimitive && compositeRaw.asJsonPrimitive.isBoolean -> compositeRaw.asBoolean
+                compositeRaw.isJsonPrimitive && compositeRaw.asJsonPrimitive.isString -> compositeRaw.asString.lowercase() == "true"
+                else -> false
+            }
+            RouterResult(validScenes, composite && validScenes.size > 1)
         } catch (e: Exception) {
             RouterResult(listOf("optimize"), false)
         }
@@ -96,9 +288,13 @@ object ApiClient {
     fun smartRoute(userInput: String, onProgress: ((String) -> Unit)? = null): SmartRouteResult {
         onProgress?.invoke("🔍 正在识别意图...")
 
+        val onRetry: ((Int, String) -> Unit)? = onProgress?.let { progress ->
+            { _: Int, msg: String -> progress(msg) }
+        }
+
         // 第一步：意图识别
         val routerPrompt = Router.buildRouterPrompt()
-        val routerText = callApi(routerPrompt, userInput, temperature = 0.1, maxTokens = 150, timeout = 30000)
+        val routerText = callApi(routerPrompt, userInput, temperature = 0.1, maxTokens = 500, timeout = 30000, onRetry = onRetry)
         val routerResult = parseRouterResult(routerText)
 
         val sceneLabels = routerResult.scenes.map { Scenes.nameMap[it] ?: it }
@@ -108,7 +304,7 @@ object ApiClient {
         // 第二步：生成
         val genPrompt = Router.buildGenerationPrompt(routerResult)
         val maxTokens = if (routerResult.composite) 8192 else 4096
-        val result = callApi(genPrompt, userInput, maxTokens = maxTokens, timeout = 120000)
+        val result = callApi(genPrompt, userInput, maxTokens = maxTokens, timeout = 120000, onRetry = onRetry)
 
         return SmartRouteResult(result, routerResult.scenes, routerResult.composite)
     }
@@ -120,8 +316,78 @@ object ApiClient {
         val sceneName = Scenes.nameMap[sceneId] ?: sceneId
         onProgress?.invoke("✍️ 使用「${sceneName}」场景生成 Prompt...")
 
+        val onRetry: ((Int, String) -> Unit)? = onProgress?.let { progress ->
+            { _: Int, msg: String -> progress(msg) }
+        }
+
         val routerResult = RouterResult(listOf(sceneId), false)
         val genPrompt = Router.buildGenerationPrompt(routerResult)
-        return callApi(genPrompt, userInput, maxTokens = 4096, timeout = 120000)
+        return callApi(genPrompt, userInput, maxTokens = 4096, timeout = 120000, onRetry = onRetry)
+    }
+
+    /**
+     * 测试 API 配置是否可用
+     * @return Triple(ok, message, latencyMs)
+     */
+    fun testApiConfig(baseUrl: String, apiKey: String, model: String): Triple<Boolean, String, Long> {
+        if (apiKey.isBlank()) {
+            return Triple(false, "API Key 不能为空", 0)
+        }
+        if (baseUrl.isBlank()) {
+            return Triple(false, "API Base URL 不能为空", 0)
+        }
+
+        val url = URI("${baseUrl.trimEnd('/')}/chat/completions").toURL()
+        val body = JsonObject().apply {
+            addProperty("model", model.ifBlank { "gpt-4o" })
+            add("messages", gson.toJsonTree(listOf(
+                mapOf("role" to "system", "content" to "Reply OK"),
+                mapOf("role" to "user", "content" to "test")
+            )))
+            addProperty("temperature", 0)
+            addProperty("max_tokens", 5)
+        }
+
+        val startTime = System.currentTimeMillis()
+        return try {
+            val conn = url.openConnection() as HttpURLConnection
+            try {
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.setRequestProperty("Authorization", "Bearer $apiKey")
+                conn.connectTimeout = 15000
+                conn.readTimeout = 15000
+                conn.doOutput = true
+                conn.outputStream.write(body.toString().toByteArray())
+
+                val responseCode = conn.responseCode
+                val latency = System.currentTimeMillis() - startTime
+
+                if (responseCode in 200..299) {
+                    Triple(true, "连接成功 · 延迟 ${latency}ms · 模型: ${model.ifBlank { "gpt-4o" }}", latency)
+                } else {
+                    val errorBody = conn.errorStream?.bufferedReader()?.readText() ?: "Unknown error"
+                    val msg = when (responseCode) {
+                        401 -> "API Key 无效 · 请检查你的 Key 是否正确"
+                        403 -> "访问被拒绝 · Key 可能没有权限"
+                        404 -> "接口地址不存在 · 请检查 Base URL 是否正确"
+                        429 -> "请求过于频繁 · 请稍后再试"
+                        in 500..599 -> "服务端错误 ($responseCode) · 请稍后再试"
+                        else -> "HTTP $responseCode · $errorBody"
+                    }
+                    Triple(false, msg, latency)
+                }
+            } finally {
+                conn.disconnect()
+            }
+        } catch (e: java.net.SocketTimeoutException) {
+            Triple(false, "连接超时 · 请检查网络或 Base URL 是否正确", System.currentTimeMillis() - startTime)
+        } catch (e: java.net.UnknownHostException) {
+            Triple(false, "域名解析失败 · 请检查 Base URL 是否正确", System.currentTimeMillis() - startTime)
+        } catch (e: java.net.ConnectException) {
+            Triple(false, "无法连接到服务器 · 请检查网络和 Base URL", System.currentTimeMillis() - startTime)
+        } catch (e: Exception) {
+            Triple(false, "测试失败: ${e.message}", System.currentTimeMillis() - startTime)
+        }
     }
 }

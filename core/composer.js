@@ -3,8 +3,13 @@
  * 编排完整的两步路由流程
  */
 
-const { buildRouterPrompt, parseRouterResult, buildGenerationPrompt } = require('./router');
-const { callRouterApi, callGenerationApi } = require('./api');
+const {
+  buildRouterPrompt,
+  parseRouterResult,
+  buildGenerationPrompt,
+} = require("./router");
+const { callRouterApi, callGenerationApi } = require("./api");
+const { SCENE_NAMES } = require("./scenes");
 
 /**
  * 执行两步智能路由
@@ -14,42 +19,52 @@ const { callRouterApi, callGenerationApi } = require('./api');
  * @returns {Promise<{result: string, scenes: string[], composite: boolean}>}
  */
 async function smartRoute(config, userInput, onProgress) {
-    // 第一步：意图识别
-    if (onProgress) onProgress('routing', '正在识别意图...');
-
-    const routerPrompt = buildRouterPrompt();
-    const routerText = await callRouterApi(config, routerPrompt, userInput);
-    const routerResult = parseRouterResult(routerText);
-
-    const sceneNames = routerResult.scenes
-        .map(s => {
-            try {
-                const { SCENE_NAMES } = require('./scenes');
-                return SCENE_NAMES[s] || s;
-            } catch { return s; }
-        });
-
+  // 重试回调 — 通过 onProgress 通知用户
+  const onRetry = (attempt, maxRetries, delayMs) => {
     if (onProgress) {
-        const label = routerResult.composite
-            ? `复合任务：${sceneNames.join(' + ')}`
-            : `场景：${sceneNames[0]}`;
-        onProgress('generating', `意图识别完成 → ${label}，正在生成 Prompt...`);
+      onProgress(
+        "retrying",
+        `服务器繁忙，正在第 ${attempt}/${maxRetries} 次重试（${delayMs / 1000}s 后）...`,
+      );
     }
+  };
 
-    // 第二步：生成专业 Prompt
-    const { prompt: genPrompt } = buildGenerationPrompt(routerResult);
-    const result = await callGenerationApi(
-        config,
-        genPrompt,
-        userInput,
-        routerResult.composite
-    );
+  // 第一步：意图识别
+  if (onProgress) onProgress("routing", "正在识别意图...");
 
-    return {
-        result,
-        scenes: routerResult.scenes,
-        composite: routerResult.composite || false
-    };
+  const routerPrompt = buildRouterPrompt();
+  const routerText = await callRouterApi(
+    config,
+    routerPrompt,
+    userInput,
+    onRetry,
+  );
+  const routerResult = parseRouterResult(routerText);
+
+  const sceneNames = routerResult.scenes.map((s) => SCENE_NAMES[s] || s);
+
+  if (onProgress) {
+    const label = routerResult.composite
+      ? `复合任务：${sceneNames.join(" + ")}`
+      : `场景：${sceneNames[0]}`;
+    onProgress("generating", `意图识别完成 → ${label}，正在生成 Prompt...`);
+  }
+
+  // 第二步：生成专业 Prompt
+  const { prompt: genPrompt } = buildGenerationPrompt(routerResult);
+  const result = await callGenerationApi(
+    config,
+    genPrompt,
+    userInput,
+    routerResult.composite,
+    onRetry,
+  );
+
+  return {
+    result,
+    scenes: routerResult.scenes,
+    composite: routerResult.composite || false,
+  };
 }
 
 module.exports = { smartRoute };

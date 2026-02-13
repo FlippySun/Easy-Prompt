@@ -2,6 +2,7 @@ package com.easyprompt.actions
 
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
@@ -17,21 +18,24 @@ import com.easyprompt.settings.EasyPromptSettings
 class EnhanceSelectedAction : AnAction() {
 
     override fun actionPerformed(e: AnActionEvent) {
-        val editor = e.getData(CommonDataKeys.EDITOR) ?: return
         val project = e.project ?: return
+        val editor = e.getData(CommonDataKeys.EDITOR)
+        if (editor == null) {
+            notify(project, "请先打开一个编辑器", NotificationType.WARNING)
+            return
+        }
         val selectionModel = editor.selectionModel
         val selectedText = selectionModel.selectedText
 
         if (selectedText.isNullOrBlank()) {
-            notify(project, "请先选中要优化的文本", NotificationType.WARNING)
+            // 没有选中文本 → 自动转发到智能增强（处理文件/剪贴板）
+            SmartEnhanceAction().actionPerformed(e)
             return
         }
 
-        val settings = EasyPromptSettings.getInstance().state
-        if (settings.apiKey.isBlank()) {
-            notify(project, "请先在 Settings → Tools → Easy Prompt 中配置 API Key", NotificationType.ERROR)
-            return
-        }
+        // 提前保存选区，防止后台任务期间选区变化（竞态修复）
+        val savedSelStart = selectionModel.selectionStart
+        val savedSelEnd = selectionModel.selectionEnd
 
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Easy Prompt", true) {
             override fun run(indicator: ProgressIndicator) {
@@ -40,11 +44,16 @@ class EnhanceSelectedAction : AnAction() {
                         indicator.text = msg
                     }
 
+                    if (indicator.isCanceled) return
+
+                    // 记录场景命中
+                    EasyPromptSettings.getInstance().incrementSceneHits(result.scenes)
+
                     ApplicationManager.getApplication().invokeLater {
                         WriteCommandAction.runWriteCommandAction(project) {
                             editor.document.replaceString(
-                                selectionModel.selectionStart,
-                                selectionModel.selectionEnd,
+                                savedSelStart,
+                                savedSelEnd,
                                 result.result
                             )
                         }
@@ -56,15 +65,20 @@ class EnhanceSelectedAction : AnAction() {
                         notify(project, "✅ Prompt 增强完成 [$label]", NotificationType.INFORMATION)
                     }
                 } catch (ex: Exception) {
-                    notify(project, "生成失败: ${ex.message}", NotificationType.ERROR)
+                    if (indicator.isCanceled) return
+                    notify(project, "❌ 生成失败: ${ex.message}", NotificationType.ERROR)
                 }
             }
         })
     }
 
     override fun update(e: AnActionEvent) {
-        val editor = e.getData(CommonDataKeys.EDITOR)
-        e.presentation.isEnabled = editor?.selectionModel?.hasSelection() == true
+        // 始终启用（无选中文本时会 fallback 到智能增强）
+        e.presentation.isEnabled = e.getData(CommonDataKeys.EDITOR) != null
+    }
+
+    override fun getActionUpdateThread(): ActionUpdateThread {
+        return ActionUpdateThread.BGT
     }
 
     private fun notify(project: com.intellij.openapi.project.Project, content: String, type: NotificationType) {

@@ -10,7 +10,8 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.ui.Messages
-import com.intellij.testFramework.LightVirtualFile
+import com.intellij.ide.scratch.ScratchRootType
+import com.intellij.lang.Language
 import com.easyprompt.core.ApiClient
 import com.easyprompt.core.Scenes
 import com.easyprompt.settings.EasyPromptSettings
@@ -19,15 +20,6 @@ class EnhanceInputAction : AnAction() {
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-
-        val settings = EasyPromptSettings.getInstance().state
-        if (settings.apiKey.isBlank()) {
-            NotificationGroupManager.getInstance()
-                .getNotificationGroup("Easy Prompt")
-                .createNotification("请先配置 API Key", NotificationType.ERROR)
-                .notify(project)
-            return
-        }
 
         val input = Messages.showInputDialog(
             project,
@@ -45,9 +37,25 @@ class EnhanceInputAction : AnAction() {
                         indicator.text = msg
                     }
 
+                    if (indicator.isCanceled) return
+
+                    // 记录场景命中
+                    EasyPromptSettings.getInstance().incrementSceneHits(result.scenes)
+
                     ApplicationManager.getApplication().invokeLater {
-                        val file = LightVirtualFile("Easy-Prompt-Result.md", result.result)
-                        FileEditorManager.getInstance(project).openFile(file, true)
+                        val scratchFile = ScratchRootType.getInstance().createScratchFile(
+                            project,
+                            "Easy-Prompt-Result.md",
+                            Language.findLanguageByID("Markdown"),
+                            result.result
+                        )
+                        if (scratchFile != null) {
+                            FileEditorManager.getInstance(project).openFile(scratchFile, true)
+                        }
+
+                        // 复制到剪贴板
+                        val transferable = java.awt.datatransfer.StringSelection(result.result)
+                        com.intellij.openapi.ide.CopyPasteManager.getInstance().setContents(transferable)
 
                         val label = if (result.composite) {
                             "复合：${result.scenes.map { Scenes.nameMap[it] ?: it }.joinToString(" + ")}"
@@ -60,9 +68,10 @@ class EnhanceInputAction : AnAction() {
                             .notify(project)
                     }
                 } catch (ex: Exception) {
+                    if (indicator.isCanceled) return
                     NotificationGroupManager.getInstance()
                         .getNotificationGroup("Easy Prompt")
-                        .createNotification("生成失败: ${ex.message}", NotificationType.ERROR)
+                        .createNotification("❌ 生成失败: ${ex.message}", NotificationType.ERROR)
                         .notify(project)
                 }
             }

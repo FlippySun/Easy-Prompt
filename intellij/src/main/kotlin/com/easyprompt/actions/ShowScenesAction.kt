@@ -5,7 +5,8 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.ui.popup.JBPopupFactory
-import com.intellij.testFramework.LightVirtualFile
+import com.intellij.ide.scratch.ScratchRootType
+import com.intellij.lang.Language
 import com.easyprompt.core.Scenes
 import com.easyprompt.settings.EasyPromptSettings
 import javax.swing.DefaultListModel
@@ -65,8 +66,15 @@ class ShowScenesAction : AnAction() {
                         appendLine(scene.keywords.joinToString(", "))
                     }
                     ApplicationManager.getApplication().invokeLater {
-                        val file = LightVirtualFile("Scene-${entry.key}.md", content)
-                        FileEditorManager.getInstance(project).openFile(file, true)
+                        val scratchFile = ScratchRootType.getInstance().createScratchFile(
+                            project,
+                            "Scene-${entry.key}.md",
+                            Language.findLanguageByID("Markdown"),
+                            content
+                        )
+                        if (scratchFile != null) {
+                            FileEditorManager.getInstance(project).openFile(scratchFile, true)
+                        }
                     }
                 }
             })

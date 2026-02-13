@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.easyprompt"
-version = "3.1.0"
+version = "3.2.0"
 
 repositories {
     mavenCentral()
@@ -51,6 +51,14 @@ intellijPlatform {
             untilBuild = "252.*"
         }
         changeNotes = """
+            <h3>v3.2.0</h3>
+            <ul>
+                <li>新增：Ctrl+Alt+H 快捷键快速打开使用教程</li>
+                <li>新增：状态栏常驻入口 ✨ Easy Prompt，点击打开快捷菜单</li>
+                <li>新增：场景列表按使用频率动态排序，显示 🔥 命中次数</li>
+                <li>新增：状态栏快捷菜单（6 项快速操作）</li>
+                <li>优化：Welcome 引导页更新快捷键和状态栏提示</li>
+            </ul>
             <h3>v3.1.0</h3>
             <ul>
                 <li>新增：首次安装 Welcome 引导页</li>

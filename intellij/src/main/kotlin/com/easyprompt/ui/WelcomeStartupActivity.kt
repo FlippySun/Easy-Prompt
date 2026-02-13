@@ -18,6 +18,6 @@ class WelcomeStartupActivity : ProjectActivity {
     }
 
     companion object {
-        private const val WELCOME_KEY = "easyPrompt.welcomed.v3"
+        private const val WELCOME_KEY = "easyPrompt.welcomed.v3.2"
     }
 }

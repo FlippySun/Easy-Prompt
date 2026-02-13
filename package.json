@@ -1,11 +1,144 @@
 {
   "name": "easy-prompt",
-  "version": "1.0.0",
-  "description": "Two-step AI-powered intent recognition and professional prompt generation",
-  "private": true,
-  "scripts": {
-    "vscode:package": "cd vscode && vsce package",
-    "vscode:install": "cd vscode && code --install-extension easy-prompt-*.vsix"
+  "displayName": "Easy Prompt — AI 智能 Prompt 增强器",
+  "description": "Two-step AI intent recognition with 38 specialized scenes for professional prompt generation",
+  "version": "3.2.0",
+  "publisher": "easy-prompt",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
   },
-  "license": "MIT"
+  "categories": [
+    "Other",
+    "Machine Learning"
+  ],
+  "keywords": [
+    "prompt",
+    "ai",
+    "copilot",
+    "gpt",
+    "gemini",
+    "prompt engineering"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FlippySun/Easy-Prompt"
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "easy-prompt.enhanceSelected",
+        "title": "Easy Prompt: 增强选中文本",
+        "category": "Easy Prompt"
+      },
+      {
+        "command": "easy-prompt.smartEnhance",
+        "title": "Easy Prompt: 智能增强",
+        "category": "Easy Prompt"
+      },
+      {
+        "command": "easy-prompt.enhanceInput",
+        "title": "Easy Prompt: 快速输入增强",
+        "category": "Easy Prompt"
+      },
+      {
+        "command": "easy-prompt.showScenes",
+        "title": "Easy Prompt: 浏览场景列表",
+        "category": "Easy Prompt"
+      },
+      {
+        "command": "easy-prompt.enhanceWithScene",
+        "title": "Easy Prompt: 指定场景增强",
+        "category": "Easy Prompt"
+      },
+      {
+        "command": "easy-prompt.showWelcome",
+        "title": "Easy Prompt: 查看使用教程",
+        "category": "Easy Prompt"
+      },
+      {
+        "command": "easy-prompt.configureApi",
+        "title": "Easy Prompt: 配置自定义 API",
+        "category": "Easy Prompt"
+      },
+      {
+        "command": "easy-prompt.statusBarMenu",
+        "title": "Easy Prompt: 打开快捷菜单",
+        "category": "Easy Prompt"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "easy-prompt.enhanceSelected",
+        "key": "ctrl+alt+p",
+        "mac": "ctrl+alt+p"
+      },
+      {
+        "command": "easy-prompt.smartEnhance",
+        "key": "ctrl+alt+i",
+        "mac": "ctrl+alt+i"
+      },
+      {
+        "command": "easy-prompt.enhanceInput",
+        "key": "ctrl+alt+o",
+        "mac": "ctrl+alt+o"
+      },
+      {
+        "command": "easy-prompt.showScenes",
+        "key": "ctrl+alt+l",
+        "mac": "ctrl+alt+l"
+      },
+      {
+        "command": "easy-prompt.enhanceWithScene",
+        "key": "ctrl+alt+m",
+        "mac": "ctrl+alt+m"
+      },
+      {
+        "command": "easy-prompt.showWelcome",
+        "key": "ctrl+alt+h",
+        "mac": "ctrl+alt+h"
+      }
+    ],
+    "configuration": {
+      "title": "Easy Prompt",
+      "properties": {
+        "easyPrompt.apiBaseUrl": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "自定义 API Base URL（OpenAI 兼容格式，以 `/v1` 结尾）。\n\n**留空 = 使用内置免费服务**。建议通过命令面板 `Easy Prompt: 配置自定义 API` 来配置，支持一键测试。",
+          "order": 1
+        },
+        "easyPrompt.apiKey": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "自定义 API Key。\n\n**留空 = 使用内置免费服务**，无需任何配置。如需自定义，建议通过命令面板 `Easy Prompt: 配置自定义 API` 来配置，支持测试验证后再保存。",
+          "order": 2
+        },
+        "easyPrompt.model": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "自定义模型名称（如 `gpt-4o`、`deepseek-chat`、`gemini-2.0-flash`）。\n\n**留空 = 使用内置默认模型**。",
+          "order": 3
+        },
+        "easyPrompt.language": {
+          "type": "string",
+          "enum": [
+            "zh-CN",
+            "en"
+          ],
+          "default": "zh-CN",
+          "description": "界面语言",
+          "order": 4
+        }
+      }
+    }
+  },
+  "scripts": {
+    "package": "vsce package",
+    "install-ext": "code --install-extension easy-prompt-*.vsix"
+  }
 }

@@ -11,10 +11,12 @@ import com.intellij.openapi.components.Storage
 class EasyPromptSettings : PersistentStateComponent<EasyPromptSettings.State> {
 
     data class State(
-        var apiBaseUrl: String = "https://api.openai.com/v1",
+        var apiBaseUrl: String = "",
         var apiKey: String = "",
-        var model: String = "gpt-4o",
-        var language: String = "zh-CN"
+        var model: String = "",
+        var language: String = "zh-CN",
+        /** 场景命中统计：JSON 格式 {"sceneId": count, ...} */
+        var sceneStats: String = "{}"
     )
 
     private var myState = State()
@@ -23,6 +25,29 @@ class EasyPromptSettings : PersistentStateComponent<EasyPromptSettings.State> {
 
     override fun loadState(state: State) {
         myState = state
+    }
+
+    /**
+     * 获取场景命中统计
+     */
+    fun getSceneStats(): Map<String, Int> {
+        return try {
+            val json = com.google.gson.Gson().fromJson(myState.sceneStats, Map::class.java)
+            json?.mapKeys { it.key.toString() }?.mapValues { (it.value as? Number)?.toInt() ?: 0 } ?: emptyMap()
+        } catch (_: Exception) {
+            emptyMap()
+        }
+    }
+
+    /**
+     * 增加场景命中计数
+     */
+    fun incrementSceneHits(sceneIds: List<String>) {
+        val stats = getSceneStats().toMutableMap()
+        for (id in sceneIds) {
+            stats[id] = (stats[id] ?: 0) + 1
+        }
+        myState.sceneStats = com.google.gson.Gson().toJson(stats)
     }
 
     companion object {

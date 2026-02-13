@@ -1,41 +1,54 @@
 {
   "mcpServers": {
     "openspec": {
-      "command": "npx",
+      "command": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin/npx",
       "args": ["-y", "openspec-mcp"],
       "disabled": false,
       "alwaysAllow": [],
-      "autoApprove": ["read_openapi_spec", "list_api_endpoints"]
+      "autoApprove": ["read_openapi_spec", "list_api_endpoints"],
+      "env": {
+        "PATH": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin:/usr/local/bin:/usr/bin:/bin"
+      }
     },
     "sequential-thinking": {
-      "command": "npx",
+      "command": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin/npx",
       "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
       "disabled": false,
-      "alwaysAllow": ["sequentialthinking"]
+      "alwaysAllow": ["sequentialthinking"],
+      "env": {
+        "PATH": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin:/usr/local/bin:/usr/bin:/bin"
+      }
     },
     "tavily": {
-      "command": "npx",
+      "command": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin/npx",
       "args": ["-y", "tavily-mcp"],
       "disabled": false,
       "alwaysAllow": [],
       "env": {
-        "TAVILY_API_KEY": "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"
+        "TAVILY_API_KEY": "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",
+        "PATH": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin:/usr/local/bin:/usr/bin:/bin"
       }
     },
     "context7": {
-      "command": "npx",
+      "command": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin/npx",
       "args": ["-y", "@upstash/context7-mcp@latest"],
       "disabled": false,
-      "alwaysAllow": ["resolve-library-id", "get-library-docs"]
+      "alwaysAllow": ["resolve-library-id", "get-library-docs"],
+      "env": {
+        "PATH": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin:/usr/local/bin:/usr/bin:/bin"
+      }
     },
     "playwright": {
-      "command": "npx",
+      "command": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin/npx",
       "args": ["-y", "@playwright/mcp"],
       "disabled": false,
-      "alwaysAllow": []
+      "alwaysAllow": [],
+      "env": {
+        "PATH": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin:/usr/local/bin:/usr/bin:/bin"
+      }
     },
     "filesystem": {
-      "command": "npx",
+      "command": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin/npx",
       "args": [
         "-y",
         "@modelcontextprotocol/server-filesystem",
@@ -55,15 +68,19 @@
         "list_allowed_directories",
         "read_multiple_files",
         "directory_tree"
-      ]
+      ],
+      "env": {
+        "PATH": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin:/usr/local/bin:/usr/bin:/bin"
+      }
     },
     "exa": {
-      "command": "npx",
+      "command": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin/npx",
       "args": ["-y", "exa-mcp-server"],
       "disabled": false,
       "alwaysAllow": [],
       "env": {
-        "EXA_API_KEY": "92bfad15-fba1-490d-8c06-da2a7d3a72b1"
+        "EXA_API_KEY": "92bfad15-fba1-490d-8c06-da2a7d3a72b1",
+        "PATH": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin:/usr/local/bin:/usr/bin:/bin"
       }
     }
   }

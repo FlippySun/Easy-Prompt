@@ -18,6 +18,10 @@
                            isLogByDefault="true"/>
         <postStartupActivity
                 implementation="com.easyprompt.ui.WelcomeStartupActivity"/>
+        <statusBarWidgetFactory
+                id="EasyPrompt.StatusBar"
+                implementation="com.easyprompt.ui.EasyPromptStatusBarWidgetFactory"
+                order="after encodingWidget"/>
     </extensions>
 
     <actions>
@@ -29,6 +33,13 @@
                     text="增强选中文本"
                     description="将选中文本通过 AI 智能增强为专业 Prompt">
                 <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt P"/>
+            </action>
+
+            <action id="EasyPrompt.SmartEnhance"
+                    class="com.easyprompt.actions.SmartEnhanceAction"
+                    text="智能增强"
+                    description="自动判断增强选中/文件/剪贴板内容，无需手动选择">
+                <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt I"/>
             </action>
 
             <action id="EasyPrompt.EnhanceInput"
@@ -56,7 +67,13 @@
                     class="com.easyprompt.actions.ShowWelcomeAction"
                     text="查看使用教程"
                     description="显示 Easy Prompt 使用教程和场景列表">
+                <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt H"/>
             </action>
+
+            <action id="EasyPrompt.StatusBarMenu"
+                    class="com.easyprompt.actions.StatusBarMenuAction"
+                    text="打开快捷菜单"
+                    description="显示 Easy Prompt 快捷操作菜单"/>
         </group>
     </actions>
 </idea-plugin>

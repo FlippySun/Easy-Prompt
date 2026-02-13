@@ -1,36 +1,54 @@
 {
   "servers": {
+    "feedback": {
+      "type": "stdio",
+      "command": "/Users/flippysun/.nvm/versions/node/v18.20.8/bin/node",
+      "args": ["/Users/flippysun/mcp-tools/easy-feedback/index.js"]
+    },
     "openspec": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "openspec-mcp"]
+      "command": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin/npx",
+      "args": ["-y", "openspec-mcp"],
+      "env": {
+        "PATH": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin:/usr/local/bin:/usr/bin:/bin"
+      }
     },
     "sequential-thinking": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+      "command": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin/npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "env": {
+        "PATH": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin:/usr/local/bin:/usr/bin:/bin"
+      }
     },
     "tavily": {
       "type": "stdio",
-      "command": "npx",
+      "command": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin/npx",
       "args": ["-y", "tavily-mcp"],
       "env": {
-        "TAVILY_API_KEY": "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"
+        "TAVILY_API_KEY": "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",
+        "PATH": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin:/usr/local/bin:/usr/bin:/bin"
       }
     },
     "context7": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp@latest"]
+      "command": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin/npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"],
+      "env": {
+        "PATH": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin:/usr/local/bin:/usr/bin:/bin"
+      }
     },
     "playwright": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@playwright/mcp"]
+      "command": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin/npx",
+      "args": ["-y", "@playwright/mcp"],
+      "env": {
+        "PATH": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin:/usr/local/bin:/usr/bin:/bin"
+      }
     },
     "filesystem": {
       "type": "stdio",
-      "command": "npx",
+      "command": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin/npx",
       "args": [
         "-y",
         "@modelcontextprotocol/server-filesystem",
@@ -38,14 +56,18 @@
         "/Users/flippysun/Desktop",
         "/Users/flippysun/Downloads",
         "/Users/flippysun/Documents"
-      ]
+      ],
+      "env": {
+        "PATH": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin:/usr/local/bin:/usr/bin:/bin"
+      }
     },
     "exa": {
       "type": "stdio",
-      "command": "npx",
+      "command": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin/npx",
       "args": ["-y", "exa-mcp-server"],
       "env": {
-        "EXA_API_KEY": "92bfad15-fba1-490d-8c06-da2a7d3a72b1"
+        "EXA_API_KEY": "92bfad15-fba1-490d-8c06-da2a7d3a72b1",
+        "PATH": "/Users/flippysun/.nvm/versions/node/v20.19.0/bin:/usr/local/bin:/usr/bin:/bin"
       }
     }
   }

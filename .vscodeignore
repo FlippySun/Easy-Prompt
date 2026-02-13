@@ -1,0 +1,35 @@
+# IntelliJ 插件目录（不属于 VSCode 插件）
+intellij/**
+
+# 旧的 VSCode 子目录（已迁移到根目录）
+vscode/**
+
+# 开发和配置文件
+.vscode/**
+.vscode-test/**
+.github/**
+.claude/**
+.roo/**
+node_modules/**
+
+# 测试文件
+test.js
+test-full.js
+test-api.js
+
+# 文档（不需要打包进插件）
+AUDIT_REPORT.md
+RELEASE_CHECKLIST.md
+API_CONFIG.md
+FAQ.md
+CLAUDE.md
+CONTRIBUTING.md
+
+# 开发配置
+.gitignore
+.yarnrc
+.mcp.json
+webpack.config.js
+**/.DS_Store
+**/*.map
+**/*.vsix

@@ -3,15 +3,22 @@
  * 意图识别 Prompt + 分类逻辑
  */
 
-const { SCENES, SCENE_NAMES } = require('./scenes');
+const { SCENES, SCENE_NAMES } = require("./scenes");
+
+// 缓存路由器 Prompt（场景不变时可复用）
+let cachedRouterPrompt = null;
 
 // 路由器 Prompt（第一步：意图识别）
 function buildRouterPrompt() {
-    const sceneList = Object.entries(SCENES)
-        .map(([id, s]) => `- ${id}: ${s.keywords.join('/')} → ${s.name}`)
-        .join('\n');
+  if (cachedRouterPrompt) {
+    return cachedRouterPrompt;
+  }
 
-    return `你是一个意图分类器。分析用户输入，识别其中包含的所有意图场景。
+  const sceneList = Object.entries(SCENES)
+    .map(([id, s]) => `- ${id}: ${s.keywords.join("/")} → ${s.name}`)
+    .join("\n");
+
+  cachedRouterPrompt = `你是一个意图分类器。分析用户输入，识别其中包含的所有意图场景。
 
 场景列表：
 ${sceneList}
@@ -23,58 +30,92 @@ ${sceneList}
 4. scenes 数组按主次顺序排列，最重要的在前面，最多 5 个
 5. 如果都不太匹配，返回 {"scenes":["optimize"],"composite":false}
 6. 不要返回任何其他文字，只返回 JSON`;
+
+  return cachedRouterPrompt;
 }
 
 // 解析路由器返回的 JSON，过滤无效场景 ID
 function parseRouterResult(text) {
-    let parsed = null;
-    try {
-        parsed = JSON.parse(text.trim());
-    } catch (e) {
-        // 尝试从 Markdown 代码块中提取
-        const match = text.match(/\{[\s\S]*?"scenes"[\s\S]*?\}/);
-        if (match) {
-            try { parsed = JSON.parse(match[0]); } catch (e2) { /* fallthrough */ }
+  let parsed = null;
+  const trimmed = text.trim();
+
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch (e) {
+    // 尝试从 Markdown 代码块中提取（更精确的正则）
+    // 匹配 ```json...``` 或 直接的 JSON 对象
+    const patterns = [
+      /```json\s*\n?({[\s\S]*?})\s*\n?```/,
+      /```\s*\n?({[\s\S]*?})\s*\n?```/,
+      /({\s*"scenes"\s*:[\s\S]*?})/,
+    ];
+
+    for (const pattern of patterns) {
+      const match = trimmed.match(pattern);
+      if (match) {
+        try {
+          parsed = JSON.parse(match[1]);
+          break;
+        } catch (e2) {
+          continue;
         }
+      }
+    }
+  }
+
+  if (parsed && parsed.scenes && Array.isArray(parsed.scenes)) {
+    // 过滤掉无效的场景 ID（确保是字符串且存在于 SCENES 中）
+    const validScenes = parsed.scenes
+      .filter((s) => typeof s === "string" && SCENES[s])
+      .slice(0, 5); // 最多保留 5 个场景
+
+    // 规范化 composite 字段（处理字符串 "true"/"false"）
+    let composite = false;
+    if (typeof parsed.composite === "boolean") {
+      composite = parsed.composite;
+    } else if (typeof parsed.composite === "string") {
+      composite = parsed.composite.toLowerCase() === "true";
     }
 
-    if (parsed && parsed.scenes && Array.isArray(parsed.scenes)) {
-        // 过滤掉不存在的场景 ID
-        const validScenes = parsed.scenes.filter(s => SCENES[s]);
-        return {
-            scenes: validScenes.length > 0 ? validScenes : ["optimize"],
-            composite: parsed.composite || false
-        };
-    }
+    return {
+      scenes: validScenes.length > 0 ? validScenes : ["optimize"],
+      composite: composite && validScenes.length > 1,
+    };
+  }
 
-    return { scenes: ["optimize"], composite: false };
+  return { scenes: ["optimize"], composite: false };
 }
 
 // 根据路由结果构建最终的 System Prompt
 function buildGenerationPrompt(routerResult) {
-    const validScenes = routerResult.scenes.filter(s => SCENES[s]);
-    if (validScenes.length === 0) {
-        validScenes.push("optimize");
-    }
+  const validScenes = routerResult.scenes.filter((s) => SCENES[s]);
+  if (validScenes.length === 0) {
+    validScenes.push("optimize");
+  }
 
-    if (validScenes.length === 1 && validScenes[0] === "optimize") {
-        // optimize 场景直接使用，它本身就是「写 Prompt」的指令
-        return { prompt: SCENES.optimize.prompt, sceneNames: [SCENES.optimize.name] };
-    }
+  if (validScenes.length === 1 && validScenes[0] === "optimize") {
+    // optimize 场景直接使用，它本身就是「写 Prompt」的指令
+    return {
+      prompt: SCENES.optimize.prompt,
+      sceneNames: [SCENES.optimize.name],
+    };
+  }
 
-    const sceneNames = validScenes.map(s => SCENE_NAMES[s] || s);
+  const sceneNames = validScenes.map((s) => SCENE_NAMES[s] || s);
 
-    if (routerResult.composite && validScenes.length > 1) {
-        // 复合模式：合并多个场景
-        const sceneSections = validScenes.map((s, i) => {
-            return `### 子任务 ${i + 1}：${SCENE_NAMES[s]}
+  if (routerResult.composite && validScenes.length > 1) {
+    // 复合模式：合并多个场景
+    const sceneSections = validScenes
+      .map((s, i) => {
+        return `### 子任务 ${i + 1}：${SCENE_NAMES[s]}
 以下是该领域的专家知识（作为参考素材，用于生成该子任务的专业 Prompt）：
 ${SCENES[s].prompt}`;
-        }).join('\n\n');
+      })
+      .join("\n\n");
 
-        const prompt = `⚠️ 核心原则：你是一个「Prompt 生成器」，不是「任务执行者」。你的任务是「写出一个专业 Prompt」，不是去执行用户的任务。
+    const prompt = `⚠️ 核心原则：你是一个「Prompt 生成器」，不是「任务执行者」。你的任务是「写出一个专业 Prompt」，不是去执行用户的任务。
 
-用户的复合需求涉及 ${validScenes.length} 个方面：${sceneNames.join('、')}。
+用户的复合需求涉及 ${validScenes.length} 个方面：${sceneNames.join("、")}。
 
 ${sceneSections}
 
@@ -94,11 +135,11 @@ ${sceneSections}
 
 只输出生成的 Prompt，不要前言。`;
 
-        return { prompt, sceneNames };
-    } else {
-        // 单一场景
-        const sceneId = validScenes[0];
-        const prompt = `⚠️ 核心原则：你是一个「Prompt 生成器」，不是「任务执行者」。你的任务是「写出一个专业 Prompt」，不是去执行用户的任务。
+    return { prompt, sceneNames };
+  } else {
+    // 单一场景
+    const sceneId = validScenes[0];
+    const prompt = `⚠️ 核心原则：你是一个「Prompt 生成器」，不是「任务执行者」。你的任务是「写出一个专业 Prompt」，不是去执行用户的任务。
 
 以下是「${SCENE_NAMES[sceneId]}」领域的专家知识（作为参考素材）：
 ${SCENES[sceneId].prompt}
@@ -117,8 +158,12 @@ ${SCENES[sceneId].prompt}
 
 只输出生成的 Prompt，不要前言。`;
 
-        return { prompt, sceneNames };
-    }
+    return { prompt, sceneNames };
+  }
 }
 
-module.exports = { buildRouterPrompt, parseRouterResult, buildGenerationPrompt };
+module.exports = {
+  buildRouterPrompt,
+  parseRouterResult,
+  buildGenerationPrompt,
+};
