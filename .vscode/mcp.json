@@ -1,0 +1,52 @@
+{
+  "servers": {
+    "openspec": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "openspec-mcp"]
+    },
+    "sequential-thinking": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+    },
+    "tavily": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "tavily-mcp"],
+      "env": {
+        "TAVILY_API_KEY": "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"
+      }
+    },
+    "context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"]
+    },
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp"]
+    },
+    "filesystem": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/flippysun/mcp-tools/easy-prompt",
+        "/Users/flippysun/Desktop",
+        "/Users/flippysun/Downloads",
+        "/Users/flippysun/Documents"
+      ]
+    },
+    "exa": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "exa-mcp-server"],
+      "env": {
+        "EXA_API_KEY": "92bfad15-fba1-490d-8c06-da2a7d3a72b1"
+      }
+    }
+  }
+}
