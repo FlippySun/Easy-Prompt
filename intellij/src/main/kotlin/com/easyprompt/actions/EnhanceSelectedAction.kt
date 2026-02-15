@@ -2,6 +2,7 @@ package com.easyprompt.actions
 
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -29,7 +30,10 @@ class EnhanceSelectedAction : AnAction() {
 
         if (selectedText.isNullOrBlank()) {
             // 没有选中文本 → 自动转发到智能增强（处理文件/剪贴板）
-            SmartEnhanceAction().actionPerformed(e)
+            val smartEnhanceAction = ActionManager.getInstance().getAction("EasyPrompt.SmartEnhance")
+            if (smartEnhanceAction != null) {
+                ActionManager.getInstance().tryToExecute(smartEnhanceAction, e.inputEvent, null, e.place, true)
+            }
             return
         }
 

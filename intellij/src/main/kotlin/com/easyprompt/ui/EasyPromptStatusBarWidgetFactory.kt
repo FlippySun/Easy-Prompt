@@ -1,10 +1,6 @@
 package com.easyprompt.ui
 
 import com.intellij.openapi.actionSystem.ActionManager
-import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.actionSystem.CommonDataKeys
-import com.intellij.openapi.actionSystem.DataContext
-import com.intellij.openapi.actionSystem.Presentation
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.StatusBar
@@ -53,23 +49,11 @@ class EasyPromptStatusBarWidget(private val project: Project) : StatusBarWidget,
 
     override fun getAlignment(): Float = Component.CENTER_ALIGNMENT
 
-    override fun getClickConsumer(): Consumer<MouseEvent> = Consumer {
+    override fun getClickConsumer(): Consumer<MouseEvent> = Consumer { mouseEvent ->
         val action = ActionManager.getInstance().getAction("EasyPrompt.StatusBarMenu") ?: return@Consumer
-        // 提供当前活跃编辑器，使 Action 能通过 CommonDataKeys.EDITOR 获取编辑器
+        // 使用编辑器组件提供 DataContext（包含 PROJECT + EDITOR），回退到点击组件
         val currentEditor = FileEditorManager.getInstance(project).selectedTextEditor
-        val dataContext = DataContext { dataId ->
-            when (dataId) {
-                CommonDataKeys.PROJECT.name -> project
-                CommonDataKeys.EDITOR.name -> currentEditor
-                else -> null
-            }
-        }
-        val event = AnActionEvent.createFromAnAction(
-            action,
-            null,
-            "EasyPromptStatusBar",
-            dataContext
-        )
-        action.actionPerformed(event)
+        val contextComponent = currentEditor?.component ?: mouseEvent.component
+        ActionManager.getInstance().tryToExecute(action, mouseEvent, contextComponent, "EasyPromptStatusBar", true)
     }
 }
