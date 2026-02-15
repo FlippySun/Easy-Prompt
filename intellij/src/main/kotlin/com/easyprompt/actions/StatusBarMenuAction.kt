@@ -4,8 +4,6 @@ import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.ui.popup.JBPopupFactory
-import javax.swing.DefaultListModel
-import javax.swing.JList
 
 class StatusBarMenuAction : AnAction() {
 
@@ -27,15 +25,13 @@ class StatusBarMenuAction : AnAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
 
-        val model = DefaultListModel<String>()
-        menuItems.forEach { model.addElement(it.label) }
-        val list = JList(model)
+        val labels = menuItems.map { it.label }
 
         JBPopupFactory.getInstance()
-            .createListPopupBuilder(list)
+            .createPopupChooserBuilder(labels)
             .setTitle("Easy Prompt — 快捷菜单")
-            .setItemChosenCallback(Runnable {
-                val selectedIndex = list.selectedIndex
+            .setItemChosenCallback { chosen ->
+                val selectedIndex = labels.indexOf(chosen)
                 if (selectedIndex >= 0) {
                     val item = menuItems[selectedIndex]
                     if (item.actionId == "ShowSettings") {
@@ -43,10 +39,12 @@ class StatusBarMenuAction : AnAction() {
                             .showSettingsDialog(project, "Easy Prompt")
                     } else {
                         val action = ActionManager.getInstance().getAction(item.actionId)
-                        action?.actionPerformed(e)
+                        if (action != null) {
+                            ActionManager.getInstance().tryToExecute(action, e.inputEvent, null, "EasyPromptMenu", true)
+                        }
                     }
                 }
-            })
+            }
             .createPopup()
             .showInFocusCenter()
     }

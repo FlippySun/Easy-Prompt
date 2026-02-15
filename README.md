@@ -49,11 +49,11 @@ cd intellij && ./gradlew buildPlugin
 
 > 💡 **开箱即用**：安装后无需任何配置即可使用内置 AI 服务。如需使用自己的 API，可通过命令面板 `Easy Prompt: 配置自定义 API` 一键配置（支持测试验证）。
 
-| 配置项                  | 说明                              | 默认     | 示例                        |
-| ----------------------- | --------------------------------- | -------- | --------------------------- |
-| `easyPrompt.apiKey`     | （可选）自定义 API Key            | 内置服务 | `sk-xxxx`                   |
-| `easyPrompt.apiBaseUrl` | （可选）API 地址 | 内置服务 | `https://api.openai.com/v1` |
-| `easyPrompt.model`      | （可选）模型名称                  | 内置模型 | `gpt-4o` / `deepseek-chat`  |
+| 配置项                  | 说明                   | 默认     | 示例                        |
+| ----------------------- | ---------------------- | -------- | --------------------------- |
+| `easyPrompt.apiKey`     | （可选）自定义 API Key | 内置服务 | `sk-xxxx`                   |
+| `easyPrompt.apiBaseUrl` | （可选）API 地址       | 内置服务 | `https://api.openai.com/v1` |
+| `easyPrompt.model`      | （可选）模型名称       | 内置模型 | `gpt-4o` / `deepseek-chat`  |
 
 ### IntelliJ IDEA
 

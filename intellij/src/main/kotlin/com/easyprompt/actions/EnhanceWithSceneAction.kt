@@ -18,8 +18,6 @@ import com.intellij.lang.Language
 import com.easyprompt.core.ApiClient
 import com.easyprompt.core.Scenes
 import com.easyprompt.settings.EasyPromptSettings
-import javax.swing.DefaultListModel
-import javax.swing.JList
 
 class EnhanceWithSceneAction : AnAction() {
 
@@ -36,15 +34,11 @@ class EnhanceWithSceneAction : AnAction() {
             "${scene.name}$fireLabel ($id)"
         }
 
-        val model = DefaultListModel<String>()
-        items.forEach { model.addElement(it) }
-        val list = JList(model)
-
         JBPopupFactory.getInstance()
-            .createListPopupBuilder(list)
+            .createPopupChooserBuilder(items)
             .setTitle("🎯 选择场景 — 定向增强 Prompt · 按使用频率排序")
-            .setItemChosenCallback(Runnable {
-                val selectedIndex = list.selectedIndex
+            .setItemChosenCallback { chosen ->
+                val selectedIndex = items.indexOf(chosen)
                 if (selectedIndex >= 0) {
                     val entry = sortedEntries[selectedIndex]
                     val sceneId = entry.key
@@ -66,7 +60,7 @@ class EnhanceWithSceneAction : AnAction() {
                         ) ?: ""
                     }
 
-                    if (text.isBlank()) return@Runnable
+                    if (text.isBlank()) return@setItemChosenCallback
 
                     // Step 3: 直接使用指定场景生成
                     val inputText = text
@@ -139,7 +133,7 @@ class EnhanceWithSceneAction : AnAction() {
                         }
                     })
                 }
-            })
+            }
             .createPopup()
             .showInFocusCenter()
     }

@@ -9,8 +9,6 @@ import com.intellij.ide.scratch.ScratchRootType
 import com.intellij.lang.Language
 import com.easyprompt.core.Scenes
 import com.easyprompt.settings.EasyPromptSettings
-import javax.swing.DefaultListModel
-import javax.swing.JList
 
 class ShowScenesAction : AnAction() {
 
@@ -27,15 +25,11 @@ class ShowScenesAction : AnAction() {
             "${scene.name}$fireLabel ($id) — ${scene.description}"
         }
 
-        val model = DefaultListModel<String>()
-        items.forEach { model.addElement(it) }
-        val list = JList(model)
-
         JBPopupFactory.getInstance()
-            .createListPopupBuilder(list)
+            .createPopupChooserBuilder(items)
             .setTitle("Easy Prompt — 场景列表 (${items.size} 个) · 按使用频率排序")
-            .setItemChosenCallback(Runnable {
-                val selectedIndex = list.selectedIndex
+            .setItemChosenCallback { chosen ->
+                val selectedIndex = items.indexOf(chosen)
                 if (selectedIndex >= 0) {
                     val entry = sortedEntries[selectedIndex]
                     val scene = entry.value
@@ -77,7 +71,7 @@ class ShowScenesAction : AnAction() {
                         }
                     }
                 }
-            })
+            }
             .createPopup()
             .showInFocusCenter()
     }
