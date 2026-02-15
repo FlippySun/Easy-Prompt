@@ -5,6 +5,17 @@ All notable changes to the Easy Prompt project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.2] - 2026-02-15
+
+### 🔧 IntelliJ 平台兼容性修复（JetBrains Marketplace 验证）
+
+- **`JBPopupFactory.createListPopupBuilder(JList)` → `createPopupChooserBuilder(List<String>)`**：3 处 deprecated API 替换（StatusBarMenuAction / EnhanceWithSceneAction / ShowScenesAction）
+- **`AnAction.actionPerformed()` 直接调用 → `ActionManager.tryToExecute()`**：3 处 override-only 违规修复（StatusBarMenuAction / EasyPromptStatusBarWidgetFactory / EnhanceSelectedAction）
+- **`AnActionEvent.createFromAnAction()` → 完全移除**：1 处 scheduled-for-removal API 替换（EasyPromptStatusBarWidgetFactory 改用 `tryToExecute` + `contextComponent`）
+- **WelcomeDialog 启动模态阻塞 → 非阻塞气泡通知**：WelcomeStartupActivity 改为 `NotificationGroupManager` 通知 + "查看使用教程" 按钮，新增 `isHeadlessEnvironment` / `isUnitTestMode` 环境检测跳过
+
+---
+
 ## [3.2.1] - 2026-02-14
 
 ### 🔄 Changed
