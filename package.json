@@ -2,7 +2,7 @@
   "name": "easy-prompt-ai",
   "displayName": "Easy Prompt — AI 智能 Prompt 增强器",
   "description": "Two-step AI intent recognition with 38 specialized scenes for professional prompt generation",
-  "version": "3.2.1",
+  "version": "3.2.2",
   "publisher": "FlippySun",
   "license": "MIT",
   "engines": {
