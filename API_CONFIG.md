@@ -13,9 +13,11 @@
 
 ### 配置项（全部可选）
 
-- `API Base URL`: API 服务地址（必须以 `/v1` 结尾）— 留空使用内置服务
+- `API Base URL`: API 服务地址（如 `https://api.openai.com/v1` 或 `https://api.example.com/v1/chat/completions`）— 留空使用内置服务
 - `API Key`: 访问密钥 — 留空使用内置服务
 - `Model`: 模型名称 — 留空使用默认模型
+
+> 💡 **智能 URL 拼接**：插件会自动检测 URL 是否已包含 `/chat/completions`，不再强制要求以 `/v1` 结尾。常见的 `/v1` 格式和完整路径格式均可正常使用。
 
 ---
 

@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.easyprompt"
-version = "3.2.0"
+version = "3.2.1"
 
 repositories {
     mavenCentral()
@@ -29,17 +29,18 @@ kotlin {
 
 intellijPlatform {
     pluginConfiguration {
-        id = "com.easyprompt.intellij"
+        id = "com.easyprompt.plugin"
         name = "Easy Prompt"
         version = project.version.toString()
         description = """
-            <h2>Easy Prompt — AI 智能 Prompt 增强器</h2>
-            <p>两步 AI 意图识别 + 38 个专业场景，将简单描述扩写为大师级 Prompt。</p>
+            Easy Prompt is an AI-powered prompt enhancer that uses two-step intent recognition with 38 specialized scenes to transform simple descriptions into professional-grade prompts.
+            <br/><br/>
+            <b>Key Features:</b>
             <ul>
-                <li>🧠 智能路由：自动识别意图，匹配最佳场景</li>
-                <li>🔀 复合支持：一句话包含多个意图也能精准处理</li>
-                <li>⚡ 快捷操作：选中文本 Ctrl+Alt+P 一键增强</li>
-                <li>📦 38 个场景：覆盖开发全流程</li>
+                <li>Smart Routing: Automatically identifies intent and matches the best scene</li>
+                <li>Composite Support: Handles multiple intents in a single input</li>
+                <li>Quick Enhance: Select text and press Ctrl+Alt+P to enhance instantly</li>
+                <li>38 Scenes: Covers the entire development workflow</li>
             </ul>
         """.trimIndent()
         vendor {
@@ -51,6 +52,11 @@ intellijPlatform {
             untilBuild = "252.*"
         }
         changeNotes = """
+            <h3>v3.2.1</h3>
+            <ul>
+                <li>优化：API 额度不足错误提示，显示具体金额并引导配置</li>
+                <li>优化：移除 Base URL 必须以 /v1 结尾的限制，支持更多 API 格式</li>
+            </ul>
             <h3>v3.2.0</h3>
             <ul>
                 <li>新增：Ctrl+Alt+H 快捷键快速打开使用教程</li>
@@ -79,6 +85,12 @@ intellijPlatform {
 
 tasks {
     buildSearchableOptions {
+        enabled = false
+    }
+    publishPlugin {
+        token.set(providers.environmentVariable("PUBLISH_TOKEN"))
+    }
+    signPlugin {
         enabled = false
     }
 }

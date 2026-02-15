@@ -51,7 +51,7 @@
 
 **修复:**
 
-- 验证 Base URL 必须以 `/v1` 结尾
+- 验证 Base URL 必须以 `/v1` 结尾 _(v3.2.1 已取消此强制校验，改为智能 URL 拼接)_
 - 验证 API Key 和 Model 不为空
 - 提供详细的格式错误提示
 - 文件: `vscode/extension.js`

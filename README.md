@@ -2,7 +2,7 @@
 
 > 两步 AI 意图识别 + 38 个专业场景，将你的简单描述自动扩写为大师级 Prompt。
 
-![Version](https://img.shields.io/badge/version-3.2.0-blue)
+![Version](https://img.shields.io/badge/version-3.2.1-blue)
 ![VSCode](https://img.shields.io/badge/VSCode-1.85%2B-blue)
 ![IntelliJ](https://img.shields.io/badge/IntelliJ-2024.1%2B-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -25,7 +25,7 @@
 ```bash
 # 方式 1：直接打包安装
 npx @vscode/vsce package --allow-missing-repository
-code --install-extension easy-prompt-3.2.0.vsix
+code --install-extension easy-prompt-3.2.1.vsix
 
 # 方式 2：开发调试
 code .  # 按 F5 启动调试
@@ -38,7 +38,7 @@ code .  # 按 F5 启动调试
 cd intellij && ./gradlew buildPlugin
 
 # 安装：Settings → Plugins → ⚙️ → Install Plugin from Disk
-# 选择 intellij/build/distributions/easy-prompt-intellij-3.2.0.zip
+# 选择 intellij/build/distributions/easy-prompt-intellij-3.2.1.zip
 ```
 
 ## ⚙️ 配置
@@ -52,7 +52,7 @@ cd intellij && ./gradlew buildPlugin
 | 配置项                  | 说明                              | 默认     | 示例                        |
 | ----------------------- | --------------------------------- | -------- | --------------------------- |
 | `easyPrompt.apiKey`     | （可选）自定义 API Key            | 内置服务 | `sk-xxxx`                   |
-| `easyPrompt.apiBaseUrl` | （可选）API 地址（以 `/v1` 结尾） | 内置服务 | `https://api.openai.com/v1` |
+| `easyPrompt.apiBaseUrl` | （可选）API 地址 | 内置服务 | `https://api.openai.com/v1` |
 | `easyPrompt.model`      | （可选）模型名称                  | 内置模型 | `gpt-4o` / `deepseek-chat`  |
 
 ### IntelliJ IDEA
@@ -275,7 +275,7 @@ A: 确保安装了 JDK 17：`brew install openjdk@17`，然后 `JAVA_HOME=/opt/h
 - **输入长度限制**：最大 10000 字符
 - **curl 进程安全**：超时 + 10 秒强制 Kill Timer
 - **竞态保护**：文档替换前验证选区偏移量 + 文档切换检查
-- **Base URL 规范化**：自动去除尾部斜杠，验证 `/v1` 后缀
+- **Base URL 规范化**：自动去除尾部斜杠，智能拼接 `/chat/completions` 路径
 
 ## 🔧 开发与测试
 

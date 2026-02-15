@@ -189,7 +189,7 @@ function friendlyError(errorMsg, model) {
 
   // === 响应解析错误 ===
   if (msg.includes("解析响应失败") || msg.includes("json")) {
-    return "📋 API 返回格式错误 · 请检查 Base URL 是否正确（应以 /v1 结尾）";
+    return "📋 API 返回格式错误 · 请检查 Base URL 是否正确";
   }
 
   // === 输入相关 ===
@@ -231,7 +231,11 @@ function callApiOnce(config, systemPrompt, userMessage, options = {}) {
     max_tokens: maxTokens,
   });
 
-  const url = `${baseUrl.replace(/\/+$/, "")}/chat/completions`;
+  // 智能拼接：如果用户已输入完整路径（含 /chat/completions），直接使用
+  const normalizedBase = baseUrl.replace(/\/+$/, "");
+  const url = normalizedBase.endsWith("/chat/completions")
+    ? normalizedBase
+    : `${normalizedBase}/chat/completions`;
 
   return new Promise((resolve, reject) => {
     const args = [
@@ -421,14 +425,6 @@ async function testApiConfig(config) {
       return {
         ok: false,
         message: "Base URL 格式错误：必须以 http:// 或 https:// 开头",
-        latency: 0,
-      };
-    }
-    if (!baseUrl.endsWith("/v1")) {
-      return {
-        ok: false,
-        message:
-          "Base URL 格式错误：必须以 /v1 结尾（例如：https://api.openai.com/v1）",
         latency: 0,
       };
     }

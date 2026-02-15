@@ -6,7 +6,7 @@
 
 - [x] API 安全性修复（stdin 传递数据）
 - [x] JSON 解析健壮性增强
-- [x] 配置验证（Base URL、API Key 格式）
+- [x] 配置验证（Base URL、API Key 格式）—— v3.2.1 取消 /v1 强制校验，改为智能 URL 拼接
 - [x] Windows curl 兼容性处理
 - [x] 输入长度限制（10000 字符）
 - [x] 友好错误提示（中文化、分类）
@@ -42,8 +42,8 @@
 - [x] 项目根目录 README.md
 - [x] CHANGELOG.md
 - [ ] 添加使用截图/GIF
-- [ ] FAQ 常见问题
-- [ ] API 提供商配置示例
+- [x] FAQ 常见问题
+- [x] API 提供商配置示例
 
 ### 测试
 
@@ -100,7 +100,7 @@
 3. **测试安装**
 
    ```bash
-   code --install-extension easy-prompt-3.2.0.vsix
+   code --install-extension easy-prompt-3.2.1.vsix
    ```
 
 4. **发布到市场**
@@ -116,7 +116,7 @@
    ```bash
    cd intellij
    JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ./gradlew buildPlugin
-   # 输出：build/distributions/easy-prompt-intellij-3.2.0.zip
+   # 输出：build/distributions/easy-prompt-intellij-3.2.1.zip
    ```
 
 2. **测试安装**

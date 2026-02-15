@@ -5,6 +5,24 @@ All notable changes to the Easy Prompt project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.1] - 2026-02-14
+
+### 🔄 Changed
+
+- **取消 Base URL `/v1` 结尾强制校验**：现在支持任意格式的 API 地址，如 `https://api.example.com/v1` 或 `https://api.example.com/v1/chat/completions` 均可
+- **智能 URL 拼接**：`callApiOnce()` 自动检测 URL 是否已包含 `/chat/completions`，避免重复拼接路径
+- **配额不足错误提示升级**：`friendlyError()` 使用正则解析 `$remain` / `$need` 金额，区分内置 Key 和自定义 Key 双场景提供指导建议
+- **IntelliJ 插件 ID 变更**：`com.easyprompt.intellij` → `com.easyprompt.plugin`（JetBrains Marketplace 禁止 ID 包含 "intellij"）
+- **IntelliJ 插件描述改为纯英文**，符合 JetBrains Marketplace 格式要求（必须以拉丁字母开头，≥40 字符）
+- **IntelliJ 新增 `publishPlugin` Gradle 任务**，支持通过 Token 自动发布到 JetBrains Marketplace
+- WebView 配置面板 Base URL 提示文案更新，展示多种 URL 格式示例
+
+### 🐛 Fixed
+
+- 修复 JSON 解析错误提示中残留的 "/v1 结尾" 引导文案（双端同步）
+
+---
+
 ## [3.2.0] - 2026-02-14
 
 ### ✨ Added
