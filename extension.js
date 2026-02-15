@@ -127,11 +127,6 @@ function getConfig() {
     if (!baseUrl.match(/^https?:\/\//)) {
       throw new Error("API Base URL 格式错误：必须以 http:// 或 https:// 开头");
     }
-    if (!baseUrl.endsWith("/v1")) {
-      throw new Error(
-        "API Base URL 格式错误：必须以 /v1 结尾（例如：https://api.openai.com/v1）",
-      );
-    }
 
     return {
       baseUrl: baseUrl.trim(),
@@ -1127,7 +1122,7 @@ input::placeholder { color: #555; }
 
   <div class="form-group">
     <label>API Base URL</label>
-    <div class="hint">OpenAI 兼容格式，必须以 /v1 结尾（如 https://api.openai.com/v1）</div>
+    <div class="hint">OpenAI 兼容格式（如 https://api.openai.com/v1 或 https://api.example.com/v1/chat/completions）</div>
     <input type="text" id="baseUrl" value="${esc(baseUrl)}" placeholder="留空 = 使用内置免费服务" />
   </div>
 

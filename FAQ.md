@@ -25,13 +25,15 @@
 
 ### Q: Base URL 应该怎么配置？
 
-**A:** 必须以 `/v1` 结尾，常见配置：
+**A:** 常见配置（支持 `/v1` 结尾或完整路径格式）：
 
 - OpenAI: `https://api.openai.com/v1`
 - Azure: `https://your-resource.openai.azure.com/openai/deployments/your-deployment/v1`
 - Gemini: `https://generativelanguage.googleapis.com/v1`
 - DeepSeek: `https://api.deepseek.com/v1`
-- 第三方中转: `https://your-proxy.com/v1`
+- 第三方中转: `https://your-proxy.com/v1` 或 `https://your-proxy.com/v1/chat/completions`
+
+> 💡 插件会自动检测 URL 是否已包含 `/chat/completions`，智能拼接路径，不再强制要求以 `/v1` 结尾。
 
 ### Q: 模型名称怎么填？
 
@@ -178,7 +180,7 @@
 
 1. ✅ 插件是否已启用
 2. ✅ API Key 是否配置
-3. ✅ Base URL 格式是否正确（以 /v1 结尾）
+3. ✅ Base URL 格式是否正确（如 `https://api.openai.com/v1` 或完整路径）
 4. ✅ curl 命令是否可用（终端运行 `curl --version`）
 5. ✅ 网络连接是否正常
 6. ✅ 查看 VSCode/IntelliJ 的开发者工具 Console 是否有错误日志

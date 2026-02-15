@@ -101,7 +101,7 @@ object ApiClient {
 
         // 响应解析错误
         if (msg.contains("json") || msg.contains("解析"))
-            return "📋 API 返回格式错误 · 请检查 Base URL 是否正确（应以 /v1 结尾）"
+            return "📋 API 返回格式错误 · 请检查 Base URL 是否正确"
 
         // 输入相关
         if (msg.contains("过长") || msg.contains("too long") || msg.contains("max"))
@@ -127,9 +127,6 @@ object ApiClient {
             if (!baseUrl.matches(Regex("^https?://.*"))) {
                 throw RuntimeException("API Base URL 格式错误：必须以 http:// 或 https:// 开头")
             }
-            if (!baseUrl.endsWith("/v1")) {
-                throw RuntimeException("API Base URL 格式错误：必须以 /v1 结尾（例如：https://api.openai.com/v1）")
-            }
 
             Triple(baseUrl, settings.apiKey, model)
         } else {
@@ -150,7 +147,12 @@ object ApiClient {
         timeout: Int = 60000
     ): String {
         val (baseUrl, apiKey, model) = getEffectiveConfig()
-        val url = URI("$baseUrl/chat/completions").toURL()
+        // 智能拼接：如果用户已输入完整路径（含 /chat/completions），直接使用
+        val url = if (baseUrl.endsWith("/chat/completions")) {
+            URI(baseUrl).toURL()
+        } else {
+            URI("$baseUrl/chat/completions").toURL()
+        }
 
         val body = JsonObject().apply {
             addProperty("model", model)
@@ -346,7 +348,13 @@ object ApiClient {
             return Triple(false, "API Base URL 不能为空", 0)
         }
 
-        val url = URI("${baseUrl.trimEnd('/')}/chat/completions").toURL()
+        // 智能拼接：如果用户已输入完整路径（含 /chat/completions），直接使用
+        val normalizedBase = baseUrl.trimEnd('/')
+        val url = if (normalizedBase.endsWith("/chat/completions")) {
+            URI(normalizedBase).toURL()
+        } else {
+            URI("$normalizedBase/chat/completions").toURL()
+        }
         val body = JsonObject().apply {
             addProperty("model", model.ifBlank { "gpt-4o" })
             add("messages", gson.toJsonTree(listOf(

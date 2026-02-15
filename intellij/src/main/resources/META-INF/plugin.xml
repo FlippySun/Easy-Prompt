@@ -1,5 +1,5 @@
 <idea-plugin>
-    <id>com.easyprompt.intellij</id>
+    <id>com.easyprompt.plugin</id>
     <name>Easy Prompt</name>
     <vendor>Easy Prompt</vendor>
 
