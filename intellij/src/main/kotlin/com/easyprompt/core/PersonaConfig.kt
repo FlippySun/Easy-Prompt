@@ -24,7 +24,7 @@ object PersonaConfig {
         Persona("marketer", "市场运营", listOf("marketing")),
         Persona("designer", "设计师", listOf("design")),
         Persona("analyst", "数据分析师", listOf("data")),
-        Persona("hr", "HR人事", listOf("hr")),
+        Persona("hr", "HR 人事", listOf("hr")),
         Persona("service", "客户服务", listOf("service")),
         Persona("founder", "创业者/管理者", listOf("startup")),
         Persona("student", "学生/教育", listOf("education"))

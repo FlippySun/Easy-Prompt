@@ -7,6 +7,9 @@
    §1. Constants & Configuration
    ═══════════════════════════════════════════════════ */
 
+// Pre-declare — will be populated after fetching scenes.json
+window.SCENES = null;
+
 const MAX_INPUT_LENGTH = 10000;
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [2000, 4000, 8000];
@@ -172,7 +175,7 @@ const PERSONAS = [
   { id: "analyst", name: "数据分析师", categories: ["data"] },
   { id: "hr", name: "HR 人事", categories: ["hr"] },
   { id: "service", name: "客户服务", categories: ["service"] },
-  { id: "founder", name: "创业者", categories: ["startup"] },
+  { id: "founder", name: "创业者/管理者", categories: ["startup"] },
   { id: "student", name: "学生/教育", categories: ["education"] },
 ];
 
@@ -383,7 +386,7 @@ function renderHistoryPanel() {
     .map(
       (r) => `
     <div class="history-card" data-id="${r.id}">
-      <div class="history-card__header" onclick="this.parentElement.classList.toggle('is-expanded')">
+      <div class="history-card__header">
         <div class="history-card__meta">
           <div class="history-card__top-row">
             <span class="history-card__time">${formatHistoryTime(r.timestamp)}</span>
@@ -457,8 +460,9 @@ function bindHistoryEvents() {
     showToast("历史记录已清空", "success");
   });
 
-  // Delegated events for copy & delete inside history list
+  // Delegated events for expand/collapse, copy & delete inside history list
   $("#history-list").addEventListener("click", (e) => {
+    // Copy button
     const copyBtn = e.target.closest(".history-diff__copy");
     if (copyBtn) {
       e.stopPropagation();
@@ -474,6 +478,7 @@ function bindHistoryEvents() {
       return;
     }
 
+    // Delete button
     const delBtn = e.target.closest(".history-card__delete");
     if (delBtn) {
       e.stopPropagation();
@@ -482,6 +487,14 @@ function bindHistoryEvents() {
       const card = delBtn.closest(".history-card");
       if (card) card.remove();
       renderHistoryPanel(); // refresh count
+      return;
+    }
+
+    // Expand/collapse card header
+    const header = e.target.closest(".history-card__header");
+    if (header) {
+      const card = header.closest(".history-card");
+      if (card) card.classList.toggle("is-expanded");
       return;
     }
   });
