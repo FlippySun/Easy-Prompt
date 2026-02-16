@@ -1683,7 +1683,7 @@ function showHistoryCommand(context) {
             .map(
               (r) => `
         <div class="card" data-id="${r.id}">
-          <div class="card-header" onclick="this.parentElement.classList.toggle('expanded')">
+          <div class="card-header">
             <div class="meta">
               <span class="time">${formatTime(r.timestamp)}</span>
               <span class="badge badge-${r.mode}">${r.mode === "smart" ? "智能路由" : r.sceneName || "场景"}</span>
@@ -1758,9 +1758,16 @@ function showHistoryCommand(context) {
     const vscode = acquireVsCodeApi();
     document.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-action]');
-      if (!btn) return;
-      e.stopPropagation();
-      vscode.postMessage({ action: btn.dataset.action, type: btn.dataset.type, id: btn.dataset.id });
+      if (btn) {
+        e.stopPropagation();
+        vscode.postMessage({ action: btn.dataset.action, type: btn.dataset.type, id: btn.dataset.id });
+        return;
+      }
+      const header = e.target.closest('.card-header');
+      if (header) {
+        const card = header.closest('.card');
+        if (card) card.classList.toggle('expanded');
+      }
     });
     const clearBtn = document.getElementById('btn-clear');
     if (clearBtn) {

@@ -1,6 +1,9 @@
 # IntelliJ 插件目录（不属于 VSCode 插件）
 intellij/**
 
+# Web 端（独立部署，不属于 VSCode 插件）
+web/**
+
 # 旧的 VSCode 子目录（已迁移到根目录）
 vscode/**
 
