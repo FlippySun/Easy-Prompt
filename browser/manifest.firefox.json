@@ -6,7 +6,11 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "easy-prompt@flippysun.com",
-      "strict_min_version": "115.0"
+      "strict_min_version": "115.0",
+      "data_collection_permissions": {
+        "urlBarReporting": false,
+        "searchSuggestionsOptIn": false
+      }
     }
   },
   "icons": {
