@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Easy Prompt</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <!-- ═══ Main View ═══ -->
+    <div id="main-view">
+      <!-- Header -->
+      <header class="header">
+        <div class="header__left">
+          <span class="header__logo" id="logo-icon"></span>
+          <span class="header__title">Easy Prompt</span>
+        </div>
+        <div class="header__actions">
+          <button
+            class="icon-btn"
+            id="btn-clear"
+            title="清除内容"
+            aria-label="清除内容"
+          ></button>
+          <button
+            class="icon-btn"
+            id="btn-history"
+            title="历史记录"
+            aria-label="历史记录"
+          ></button>
+          <button
+            class="icon-btn"
+            id="btn-theme"
+            title="切换主题"
+            aria-label="切换主题"
+          ></button>
+          <button
+            class="icon-btn"
+            id="btn-settings"
+            title="设置"
+            aria-label="设置"
+          ></button>
+        </div>
+      </header>
+
+      <!-- Input Area -->
+      <div class="input-area">
+        <textarea
+          id="input-text"
+          class="input-area__textarea"
+          placeholder="输入你的需求，AI 会自动识别意图并生成专业 Prompt..."
+          rows="4"
+          maxlength="10000"
+          aria-label="输入需求文本"
+        ></textarea>
+        <div class="input-area__footer">
+          <div class="input-area__scene">
+            <button
+              class="scene-select-btn"
+              id="btn-scene-select"
+              aria-haspopup="listbox"
+              aria-expanded="false"
+            >
+              <span id="scene-select-label">智能识别</span>
+              <span id="scene-select-chevron"></span>
+            </button>
+            <!-- Scene Picker Dropdown -->
+            <div
+              class="picker"
+              id="scene-picker"
+              role="listbox"
+              aria-label="场景选择"
+              hidden
+            >
+              <div class="picker__search-wrap">
+                <span
+                  class="picker__search-icon"
+                  id="picker-search-icon"
+                ></span>
+                <input
+                  type="text"
+                  class="picker__search"
+                  id="picker-search"
+                  placeholder="搜索场景..."
+                />
+              </div>
+              <div class="picker__list" id="picker-list"></div>
+            </div>
+          </div>
+          <div class="input-area__right">
+            <span class="char-count" id="char-count">0 / 10000</span>
+            <button class="btn-primary" id="btn-generate" disabled>
+              <span id="btn-generate-icon"></span>
+              <span id="btn-generate-text">生成</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hot Scene Tags -->
+      <div class="hot-tags" id="hot-tags"></div>
+
+      <!-- Status -->
+      <div class="status-bar" id="status-bar" hidden aria-live="polite">
+        <span class="status-bar__icon" id="status-icon"></span>
+        <span class="status-bar__text" id="status-text"></span>
+      </div>
+
+      <!-- Output Area -->
+      <div
+        class="output-area"
+        id="output-area"
+        role="region"
+        aria-label="增强结果"
+        hidden
+      >
+        <div class="output-area__header">
+          <div class="output-area__meta">
+            <span class="output-area__badge" id="output-scene-badge"></span>
+          </div>
+          <button
+            class="icon-btn icon-btn--sm"
+            id="btn-copy"
+            title="复制"
+            aria-label="复制结果"
+          ></button>
+        </div>
+        <div class="output-area__content" id="output-content"></div>
+      </div>
+
+      <!-- Empty State -->
+      <div class="empty-state" id="empty-state">
+        <div class="empty-state__icon" id="empty-icon"></div>
+        <p class="empty-state__text">输入需求，一键生成专业 Prompt</p>
+        <p class="empty-state__hint">支持 85 个专业场景 · AI 自动识别意图</p>
+      </div>
+    </div>
+
+    <!-- ═══ History Panel ═══ -->
+    <div
+      id="history-panel"
+      class="panel"
+      role="complementary"
+      aria-label="历史记录"
+      hidden
+    >
+      <div class="panel__header">
+        <button
+          class="icon-btn"
+          id="btn-history-back"
+          aria-label="返回"
+        ></button>
+        <span class="panel__title">历史记录</span>
+        <button
+          class="icon-btn icon-btn--danger"
+          id="btn-history-clear"
+          title="清空历史"
+          aria-label="清空历史"
+        ></button>
+      </div>
+      <div class="panel__body" id="history-list"></div>
+      <div class="panel__empty" id="history-empty" hidden>
+        <p>暂无历史记录</p>
+      </div>
+    </div>
+
+    <!-- ═══ Scenes Browser Modal ═══ -->
+    <div
+      id="scenes-modal"
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="场景浏览器"
+      hidden
+    >
+      <div class="modal__backdrop"></div>
+      <div class="modal__content">
+        <div class="modal__header">
+          <span class="modal__title">场景浏览器</span>
+          <button
+            class="icon-btn"
+            id="btn-scenes-close"
+            aria-label="关闭"
+          ></button>
+        </div>
+        <div class="modal__search-wrap">
+          <span class="modal__search-icon" id="scenes-search-icon"></span>
+          <input
+            type="text"
+            class="modal__search"
+            id="scenes-search"
+            placeholder="搜索场景名称、关键词..."
+          />
+        </div>
+        <!-- Persona Tabs -->
+        <div class="persona-tabs" id="persona-tabs"></div>
+        <!-- Scenes List -->
+        <div class="scenes-list" id="scenes-list"></div>
+      </div>
+    </div>
+
+    <!-- Toast -->
+    <div
+      class="toast"
+      id="toast"
+      role="alert"
+      aria-live="assertive"
+      hidden
+    ></div>
+
+    <!-- Scripts (order matters: dependencies first) -->
+    <script src="../shared/storage.js"></script>
+    <script src="../shared/defaults.js"></script>
+    <script src="../shared/scenes.js"></script>
+    <script src="../shared/api.js"></script>
+    <script src="../shared/router.js"></script>
+    <script src="../shared/icons.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

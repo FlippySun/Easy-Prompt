@@ -1111,15 +1111,48 @@ function toggleTheme() {
 function bindInputEvents() {
   const textarea = $("#input-textarea");
   const counter = $("#char-counter");
+  const clearBtn = $("#btn-clear");
 
   textarea.addEventListener("input", () => {
     const len = textarea.value.length;
     counter.textContent = `${len.toLocaleString()} / 10,000`;
     counter.classList.toggle("is-warning", len > 8000 && len <= 9500);
     counter.classList.toggle("is-danger", len > 9500);
+    // Show/hide clear button based on content
+    clearBtn.hidden = len === 0;
   });
 
+  clearBtn.addEventListener("click", handleClear);
   $("#btn-generate").addEventListener("click", handleGenerate);
+}
+
+function handleClear() {
+  // Cancel in-progress generation
+  if (isGenerating && currentAbortController) {
+    currentAbortController.abort();
+  }
+
+  // Clear input
+  const textarea = $("#input-textarea");
+  textarea.value = "";
+  $("#char-counter").textContent = "0 / 10,000";
+  $("#char-counter").classList.remove("is-warning", "is-danger");
+
+  // Hide clear button
+  $("#btn-clear").hidden = true;
+
+  // Hide output
+  hideOutput();
+
+  // Reset scene selection
+  selectedScene = null;
+  $$(".scene-tag").forEach((t) => t.classList.remove("is-active"));
+  updateSceneButton();
+
+  // Focus textarea
+  textarea.focus();
+
+  showToast("已清除", "success");
 }
 
 async function handleGenerate() {
@@ -1267,6 +1300,11 @@ async function handleCopy() {
     copyIcon.style.display = "none";
     checkIcon.style.display = "block";
     copyText.textContent = "已复制";
+
+    // Pulse animation
+    const btn = $("#btn-copy");
+    btn.classList.add("is-copied");
+    setTimeout(() => btn.classList.remove("is-copied"), 350);
 
     setTimeout(() => {
       copyIcon.style.display = "";

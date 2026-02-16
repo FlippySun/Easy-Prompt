@@ -486,6 +486,20 @@ a {
   background: var(--accent-subtle);
 }
 
+.btn--icon {
+  background: transparent;
+  color: var(--text-tertiary);
+  border: 1px solid transparent;
+  padding: 6px;
+  min-width: auto;
+}
+
+.btn--icon:not(:disabled):hover {
+  color: var(--text-primary);
+  background: var(--border);
+  border-color: var(--border);
+}
+
 .btn--sm {
   padding: 5px 10px;
   font-size: 12px;
@@ -1622,7 +1636,292 @@ textarea:focus:not(:focus-visible) {
   }
 }
 
-/* ─── 25. Reduced Motion ─── */
+/* ═══════════════════════════════════════════════════════════
+   §26. Enhanced Animation System
+   Inspired by: Linear · Vercel · Stripe · Notion · Raycast
+   shadcn/ui · Framer · Arc · Tailwind UI · Superlist
+   Things 3 · Cal.com · Resend · Lemon Squeezy · Dub.co
+   ═══════════════════════════════════════════════════════════ */
+
+/* 26.1 Theme transition smoothing */
+body,
+.header,
+.input-box,
+.output-card,
+.panel,
+.modal,
+.scene-tag,
+.history-card,
+.footer {
+  transition:
+    background-color var(--duration-normal) var(--ease-out),
+    color var(--duration-normal) var(--ease-out),
+    border-color var(--duration-normal) var(--ease-out);
+}
+
+/* 26.2 Ambient orb gentle drift */
+@keyframes orbDrift1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, -20px) scale(1.05); }
+  66% { transform: translate(-20px, 15px) scale(0.95); }
+}
+
+@keyframes orbDrift2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(-25px, 25px) scale(0.97); }
+  66% { transform: translate(20px, -15px) scale(1.03); }
+}
+
+@keyframes orbDrift3 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.05; }
+  50% { transform: translate(15px, -10px) scale(1.08); opacity: 0.08; }
+}
+
+.ambient-orb--1 { animation: orbDrift1 20s ease-in-out infinite; }
+.ambient-orb--2 { animation: orbDrift2 25s ease-in-out infinite; }
+.ambient-orb--3 { animation: orbDrift3 18s ease-in-out infinite; }
+
+/* 26.3 Hero section entrance stagger */
+@keyframes heroFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hero__badge {
+  animation: heroFadeUp 0.6s var(--ease-out) 0.1s both;
+}
+
+.hero__title {
+  animation: heroFadeUp 0.6s var(--ease-out) 0.2s both;
+}
+
+.hero__subtitle {
+  animation: heroFadeUp 0.6s var(--ease-out) 0.3s both;
+}
+
+/* 26.4 Input box typing glow */
+.input-box__textarea:focus {
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+/* 26.5 Button press micro-interactions */
+.btn:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+.header__actions .icon-btn:active {
+  transform: scale(0.9);
+}
+
+/* 26.6 Scene tag hover lift & stagger entrance */
+@keyframes tagEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.scene-tag {
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast),
+    border-color var(--duration-fast),
+    color var(--duration-fast);
+}
+
+.scene-tag:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.scene-tag:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.scene-tags .scene-tag:nth-child(2) { animation: tagEnter 0.35s var(--ease-out) 0.03s both; }
+.scene-tags .scene-tag:nth-child(3) { animation: tagEnter 0.35s var(--ease-out) 0.06s both; }
+.scene-tags .scene-tag:nth-child(4) { animation: tagEnter 0.35s var(--ease-out) 0.09s both; }
+.scene-tags .scene-tag:nth-child(5) { animation: tagEnter 0.35s var(--ease-out) 0.12s both; }
+.scene-tags .scene-tag:nth-child(6) { animation: tagEnter 0.35s var(--ease-out) 0.15s both; }
+.scene-tags .scene-tag:nth-child(7) { animation: tagEnter 0.35s var(--ease-out) 0.18s both; }
+.scene-tags .scene-tag:nth-child(8) { animation: tagEnter 0.35s var(--ease-out) 0.21s both; }
+.scene-tags .scene-tag:nth-child(9) { animation: tagEnter 0.35s var(--ease-out) 0.24s both; }
+.scene-tags .scene-tag:nth-child(10) { animation: tagEnter 0.35s var(--ease-out) 0.27s both; }
+
+/* 26.7 Scene tag hover glow */
+.scene-tag:hover {
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.08);
+}
+
+.scene-tag.is-active {
+  box-shadow: 0 0 0 1px var(--accent), 0 2px 8px rgba(139, 92, 246, 0.15);
+}
+
+/* 26.8 History card hover lift */
+.history-card {
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast);
+}
+
+.history-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-hover);
+}
+
+/* 26.9 Copy success pulse */
+@keyframes copyPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+.btn-copy.is-copied {
+  animation: copyPulse 0.35s var(--ease-spring);
+}
+
+/* 26.10 Panel slide enhanced */
+.panel {
+  transition:
+    transform var(--duration-slow) var(--ease-out),
+    opacity var(--duration-slow) var(--ease-out);
+}
+
+/* 26.11 Modal enhanced enter */
+@keyframes modalBackdropFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalContentEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.overlay.is-visible {
+  animation: modalBackdropFadeIn var(--duration-normal) var(--ease-out);
+}
+
+.modal {
+  animation: modalContentEnter var(--duration-normal) var(--ease-out);
+}
+
+/* 26.12 Progress shimmer */
+@keyframes progressShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.progress__inner {
+  position: relative;
+}
+
+.progress.is-visible .progress__inner::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--accent) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: progressShimmer 1.5s linear infinite;
+  border-radius: 1px;
+}
+
+/* 26.13 Output badges stagger */
+@keyframes badgeEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.output-badge {
+  animation: badgeEnter 0.3s var(--ease-spring) both;
+}
+
+.output-badge:nth-child(2) { animation-delay: 0.05s; }
+.output-badge:nth-child(3) { animation-delay: 0.1s; }
+.output-badge:nth-child(4) { animation-delay: 0.15s; }
+.output-badge:nth-child(5) { animation-delay: 0.2s; }
+
+/* 26.14 Toast enhanced entrance */
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+.toast.is-visible {
+  animation: toastSlideIn 0.3s var(--ease-spring);
+}
+
+/* 26.15 Dropdown item slide highlight */
+.scene-picker__item {
+  transition:
+    background-color var(--duration-fast),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.scene-picker__item:hover {
+  transform: translateX(2px);
+}
+
+.scene-picker__item:active {
+  transform: translateX(2px) scale(0.99);
+}
+
+/* 26.16 Footer gentle entrance */
+@keyframes footerFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.footer {
+  animation: footerFadeIn 0.5s var(--ease-out) 0.5s both;
+}
+
+/* ─── 27. Reduced Motion ─── */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

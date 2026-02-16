@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.easyprompt"
-version = "4.1.0"
+version = "5.0.0"
 
 repositories {
     mavenCentral()
@@ -54,6 +54,15 @@ intellijPlatform {
             untilBuild = "252.*"
         }
         changeNotes = """
+            <h3>v5.0.0 — 浏览器扩展正式上线，四端覆盖</h3>
+            <ul>
+                <li>🌐 新增：浏览器扩展正式上线（Chrome / Firefox / Safari 三平台 MV3）</li>
+                <li>🎨 新增：Popup 快速增强面板 + 场景选择器 + 历史记录 + 状态持久化</li>
+                <li>📄 新增：Content Script 浮动增强按钮，选中文本即可一键增强</li>
+                <li>⚙️ 新增：Options 设置页，支持 API 配置 + 测试连接</li>
+                <li>🐛 修复：Popup 面板 7 项审计问题（Escape 双触发/动画卡死/状态恢复闪烁/debounce 丢失/badge 分隔符/CSS 死代码）</li>
+                <li>🔧 优化：四端（VSCode/IntelliJ/Web/Browser）功能完全同步</li>
+            </ul>
             <h3>v4.1.0 — 画像系统 + 历史记录 + 35 新场景</h3>
             <ul>
                 <li>🧑‍💼 新增：10 大用户画像（软件工程师/内容创作者/产品经理/市场运营/设计师/数据分析师/HR人事/客户服务/创业者/学生教育）</li>

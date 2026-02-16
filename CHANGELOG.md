@@ -5,6 +5,42 @@ All notable changes to the Easy Prompt project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.0] - 2026-02-18
+
+### 🌐 浏览器扩展正式上线 — 四端覆盖，全渠道触达
+
+Easy Prompt 迎来 v5.0.0 大版本。全新浏览器扩展正式上线，支持 Chrome / Firefox / Safari 三大平台（MV3），与 VSCode 扩展、IntelliJ 插件、Web 在线版形成四端矩阵。
+
+#### 🧩 浏览器扩展功能
+
+- **Popup 快速增强面板**：输入文本 → AI 智能路由 → 生成专业 Prompt，支持场景选择 + 画像切换 + 历史记录
+- **场景选择器**：85 个场景按 15 分类 + 10 大画像分组浏览，热门标签快速选择
+- **Content Script 浮动按钮**：网页中选中文本自动显示增强按钮，一键发送到 Popup 增强
+- **Background Service Worker**：右键上下文菜单 + 键盘快捷键 + 消息中继
+- **Options 设置页**：支持自定义 API 配置（Base URL / API Key / Model）+ 一键测试连接
+- **状态持久化**：关闭再打开 Popup，输入/输出/选中场景自动恢复
+- **增强历史**：本地存储增强记录，支持复制、删除、清空
+- **暗色/亮色主题**：跟随系统或手动切换
+
+#### 🐛 Popup 面板审计修复（7 项）
+
+- **Major #1**: Escape 键双触发 — Focus Trap 和全局键盘监听同时调用 `closeScenesModal()`，导致面板关闭异常。修复：Focus Trap 中添加 `e.stopPropagation()` + 关闭函数添加幂等守卫
+- **Major #2**: 动画卡死 — `animationend` 事件在某些浏览器/GPU 环境下可能不触发，面板永远卡在 `is-leaving` 状态。修复：添加 350ms `setTimeout` fallback + `cleaned` 幂等标志
+- **Minor #3**: 状态恢复闪烁 — 从 Storage 恢复输出时触发 output-reveal 动画，造成视觉干扰。修复：`showOutput()` 新增 `animate` 参数，恢复时传 `false`
+- **Minor #4**: Debounce 丢失 — 300ms debounced save 在 Popup 关闭瞬间可能丢失最后一次状态。修复：添加 `pagehide` 事件监听立即 flush
+- **Minor #5**: Badge 分隔符缺失 — 多场景标签拼接使用空字符串，显示为 "场景A场景B"。修复：分隔符改为 `", "`
+- **Minor #6**: CSS 死代码 — `.modal__content` 中 `animation: fadeIn` 已被 Section 15 动画系统覆盖。修复：移除死代码
+- **Minor #7**: CSS 覆盖冲突 — `.scene-card`/`.history-card`/`.dropdown__item` 基础 `transition` 被 Section 15 完全覆盖。修复：移除基础冗余声明，添加注释指向
+
+#### 🔧 四端同步
+
+- VSCode: 版本号 + Welcome 页更新
+- IntelliJ: 版本号 + changeNotes 更新
+- Web: 版本号更新
+- Browser: 三平台 manifest 版本号 + Popup/Options/Content/Background 全部审查通过
+
+---
+
 ## [4.1.0] - 2026-02-17
 
 ### 🧑‍💼 画像系统 + 历史记录 + 35 新场景

@@ -415,7 +415,7 @@ assert(
 assert(welcomeCode.includes("状态栏"), "Welcome 提到状态栏功能");
 
 // package.json 版本
-assert(pkg.version === "4.1.0", "package.json 版本 = 4.1.0");
+assert(pkg.version === "5.0.0", "package.json 版本 = 5.0.0");
 assert(
   declaredCommands.includes("easy-prompt.statusBarMenu"),
   "package.json 声明 statusBarMenu 命令",
