@@ -61,5 +61,7 @@ try {
   }
   console.log("PNGs generated");
 } catch (e) {
-  console.warn("PNG generation skipped (rsvg-convert not found). Install: brew install librsvg");
+  console.warn(
+    "PNG generation skipped (rsvg-convert not found). Install: brew install librsvg",
+  );
 }

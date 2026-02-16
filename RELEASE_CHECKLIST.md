@@ -100,7 +100,7 @@
 3. **测试安装**
 
    ```bash
-   code --install-extension easy-prompt-ai-5.0.0.vsix
+   code --install-extension easy-prompt-ai-5.0.1.vsix
    ```
 
 4. **发布到市场**
@@ -116,7 +116,7 @@
    ```bash
    cd intellij
    JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ./gradlew buildPlugin
-   # 输出：build/distributions/easy-prompt-5.0.0.zip
+   # 输出：build/distributions/easy-prompt-5.0.1.zip
    ```
 
 2. **测试安装**

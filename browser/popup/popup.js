@@ -27,10 +27,12 @@ const $$ = (sel) => document.querySelectorAll(sel);
 /* ─── Utils ─── */
 function debounce(fn, ms) {
   let timer;
-  return (...args) => {
+  const debounced = (...args) => {
     clearTimeout(timer);
     timer = setTimeout(() => fn(...args), ms);
   };
+  debounced.cancel = () => clearTimeout(timer);
+  return debounced;
 }
 
 /* ─── State Persistence ─── */
@@ -117,7 +119,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           updateGenerateButton();
         }
         if (saved.selectedScene) {
-          selectScene(saved.selectedScene);
+          selectScene(saved.selectedScene, true);
         }
         if (saved.outputText) {
           showOutput(
@@ -135,6 +137,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Flush pending state save before popup closes (bypass debounce)
   window.addEventListener("pagehide", () => {
+    _savePopupState.cancel(); // Cancel pending debounced save to avoid stale overlap
     Storage.savePopupState({
       inputText: ($("#input-text").value || "").trim()
         ? $("#input-text").value
@@ -217,9 +220,11 @@ function bindHeaderEvents() {
     updateCharCount();
     updateGenerateButton();
     updateSceneButton();
+    hideStatus();
     $$(".scene-tag").forEach((t) => t.classList.remove("is-active"));
     // Hide output, show empty state
     $("#output-area").hidden = true;
+    $("#output-area").classList.remove("is-entering");
     $("#empty-state").hidden = false;
     // Clear session state
     await Storage.clearPopupState();
@@ -312,7 +317,6 @@ async function handleGenerate() {
     showOutput(result.result, result.scenes, result.composite);
 
     // Save to history
-    const scenes = Scenes.getScenes();
     const sceneNames = Scenes.getSceneNames();
     const sceneName = result.scenes.map((s) => sceneNames[s] || s).join(" + ");
     const mode = result.composite ? "composite" : "single";
@@ -392,6 +396,11 @@ function showOutput(text, sceneIds, composite, animate = true) {
     area.classList.remove("is-entering");
     void area.offsetWidth; // force reflow
     area.classList.add("is-entering");
+    area.addEventListener(
+      "animationend",
+      () => area.classList.remove("is-entering"),
+      { once: true },
+    );
   }
   $("#output-scene-badge").textContent = badge;
   $("#output-content").textContent = text;
@@ -470,7 +479,11 @@ function bindScenePickerEvents() {
   );
 }
 
+let _pickerCloseTimer = null;
+
 function openPicker() {
+  clearTimeout(_pickerCloseTimer);
+  _pickerCloseTimer = null;
   const picker = $("#scene-picker");
   picker.hidden = false;
   $("#btn-scene-select").setAttribute("aria-expanded", "true");
@@ -482,7 +495,9 @@ function closePicker() {
   const picker = $("#scene-picker");
   picker.classList.remove("is-visible");
   $("#btn-scene-select").setAttribute("aria-expanded", "false");
-  setTimeout(() => {
+  clearTimeout(_pickerCloseTimer);
+  _pickerCloseTimer = setTimeout(() => {
+    _pickerCloseTimer = null;
     picker.hidden = true;
     $("#picker-search").value = "";
     filterPicker("");
@@ -553,13 +568,13 @@ function filterPicker(query) {
   });
 }
 
-function selectScene(sceneId) {
+function selectScene(sceneId, skipSave = false) {
   selectedScene = sceneId;
   $$(".scene-tag").forEach((t) =>
     t.classList.toggle("is-active", t.dataset.scene === sceneId),
   );
   updateSceneButton();
-  _savePopupState();
+  if (!skipSave) _savePopupState();
 }
 
 function updateSceneButton() {
@@ -593,7 +608,7 @@ function openScenesModal() {
   // A02: Focus trap within modal
   modal._focusTrap = (e) => {
     if (e.key === "Escape") {
-      e.stopPropagation(); // 阻止冒泡, 避免全局 Escape handler 重复调用 closeScenesModal
+      e.stopImmediatePropagation(); // 阻止同一元素上的其他 keydown listener 重复调用 closeScenesModal
       closeScenesModal();
       return;
     }
@@ -623,6 +638,8 @@ function closeScenesModal() {
   const onEnd = () => {
     if (cleaned) return;
     cleaned = true;
+    modal.removeEventListener("animationend", onEnd);
+    clearTimeout(fallbackTimer);
     modal.hidden = true;
     modal.classList.remove("is-leaving");
     $("#scenes-search").value = "";
@@ -632,8 +649,8 @@ function closeScenesModal() {
       modal._focusTrap = null;
     }
   };
-  modal.addEventListener("animationend", onEnd, { once: true });
-  setTimeout(onEnd, 350); // fallback: 动画未触发时也能正常关闭
+  modal.addEventListener("animationend", onEnd);
+  const fallbackTimer = setTimeout(onEnd, 350); // fallback: 动画未触发时也能正常关闭
 }
 
 function renderSceneBrowser() {
@@ -775,11 +792,13 @@ function closeHistoryPanel() {
   const onEnd = () => {
     if (cleaned) return;
     cleaned = true;
+    panel.removeEventListener("animationend", onEnd);
+    clearTimeout(fallbackTimer);
     panel.hidden = true;
     panel.classList.remove("is-leaving");
   };
-  panel.addEventListener("animationend", onEnd, { once: true });
-  setTimeout(onEnd, 350); // fallback: 动画未触发时也能正常关闭
+  panel.addEventListener("animationend", onEnd);
+  const fallbackTimer = setTimeout(onEnd, 350); // fallback: 动画未触发时也能正常关闭
 }
 
 function renderHistoryList(records) {
@@ -808,16 +827,19 @@ function renderHistoryList(records) {
       hour: "2-digit",
       minute: "2-digit",
     });
-    _setHTML(card, `
+    _setHTML(
+      card,
+      `
       <div class="history-card__header">
         <span class="history-card__scene">${escapeHtml(rec.sceneName || "智能")}</span>
-        <span class="history-card__time">${time}</span>
+        <span class="history-card__time">${escapeHtml(time)}</span>
       </div>
       <div class="history-card__original">${escapeHtml(rec.originalText || "")}</div>
       <div class="history-card__actions">
         <button class="icon-btn icon-btn--sm" data-action="copy" title="复制结果" aria-label="复制结果">${Icons.copy}</button>
         <button class="icon-btn icon-btn--sm icon-btn--danger" data-action="delete" title="删除" aria-label="删除">${Icons.trash}</button>
-      </div>`);
+      </div>`,
+    );
     list.appendChild(card);
   }
 }

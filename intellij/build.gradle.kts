@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.easyprompt"
-version = "5.0.0"
+version = "5.0.1"
 
 repositories {
     mavenCentral()
@@ -54,6 +54,18 @@ intellijPlatform {
             untilBuild = "252.*"
         }
         changeNotes = """
+            <h3>v5.0.1 — 浏览器扩展稳定性修复 + Web 端 Bug 修复</h3>
+            <ul>
+                <li>修复：Browser Popup debounce 状态丢失，新增 cancel + pagehide flush 机制</li>
+                <li>修复：Browser Popup selectScene 恢复时重复保存，新增 skipSave 参数</li>
+                <li>修复：Browser Popup handleGenerate 场景方法调用错误（getScenes → getSceneNames）</li>
+                <li>修复：Browser Popup 动画 class 残留，添加 animationend 清理 + 定时器泄漏防护</li>
+                <li>修复：Browser Popup 清空按钮未隐藏状态提示 + is-entering class 残留</li>
+                <li>修复：Browser Popup 场景模态框事件穿透（stopPropagation → stopImmediatePropagation）</li>
+                <li>修复：Web 端清空按钮未隐藏进度条</li>
+                <li>修复：Web 端 CSS 未定义变量 --text-tertiary → --text-muted</li>
+                <li>修复：Web 端缺少 #btn-copy.is-copied 选择器样式</li>
+            </ul>
             <h3>v5.0.0 — 浏览器扩展正式上线，四端覆盖</h3>
             <ul>
                 <li>🌐 新增：浏览器扩展正式上线（Chrome / Firefox / Safari 三平台 MV3）</li>

@@ -488,7 +488,7 @@ a {
 
 .btn--icon {
   background: transparent;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   border: 1px solid transparent;
   padding: 6px;
   min-width: auto;
@@ -1842,7 +1842,8 @@ body,
   }
 }
 
-.btn-copy.is-copied {
+.btn-copy.is-copied,
+#btn-copy.is-copied {
   animation: copyPulse 0.35s var(--ease-spring);
 }
 
