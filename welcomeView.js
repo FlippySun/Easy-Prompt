@@ -6,7 +6,7 @@
 const vscode = require("vscode");
 const { SCENES, SCENE_NAMES } = require("./core");
 
-const WELCOME_STATE_KEY = "easyPrompt.welcomed.v3.2";
+const WELCOME_STATE_KEY = "easyPrompt.welcomed.v4.0";
 
 /**
  * 检查是否需要显示 Welcome 页面（首次安装/大版本升级时触发）
@@ -400,7 +400,7 @@ kbd {
 <div class="container">
     <!-- Hero -->
     <div class="hero">
-        <div class="version-badge">v3.2.0</div>
+        <div class="version-badge">v4.0.0</div>
         <h1>Welcome to <span>Easy Prompt</span></h1>
         <p>AI 驱动的智能 Prompt 工程工具包 — 写一句大白话，生成专业级 Prompt，38 个场景覆盖你的全部开发痛点</p>
     </div>
@@ -510,7 +510,7 @@ kbd {
 
     <!-- Footer -->
     <div class="footer">
-        <p>Easy Prompt v3.2.0 · Made with ❤️ · <a href="https://github.com/FlippySun/Easy-Prompt">GitHub</a></p>
+        <p>Easy Prompt v4.0.0 · Made with ❤️ · <a href="https://github.com/FlippySun/Easy-Prompt">GitHub</a></p>
         <p style="margin-top:8px;">💡 状态栏右侧 ✨ 图标可随时打开快捷菜单</p>
     </div>
 </div>

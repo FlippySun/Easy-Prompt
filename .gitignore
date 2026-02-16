@@ -30,6 +30,7 @@ out/
 .vscode/settings.json
 .roo/
 .claude/
+.playwright-mcp/
 .github/copilot-instructions.md
 .github/copilot-instructions.md.*
 .github/agents/

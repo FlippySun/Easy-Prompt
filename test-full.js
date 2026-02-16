@@ -404,7 +404,7 @@ assert(extCode.includes("b.hits - a.hits"), "场景列表按命中次数降序�
 assert(extCode.includes("🔥"), "场景列表含小火苗标记");
 
 // Welcome 页面更新
-assert(welcomeCode.includes("v3.2"), "Welcome 页面版本更新到 v3.2");
+assert(welcomeCode.includes("v4.0"), "Welcome 页面版本更新到 v4.0");
 assert(
   welcomeCode.includes("使用教程") && welcomeCode.includes("Alt</kbd>+<kbd>H"),
   "Welcome 含 Ctrl+Alt+H 快捷键",

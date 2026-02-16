@@ -5,6 +5,33 @@ All notable changes to the Easy Prompt project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] - 2026-02-16
+
+### 🌐 Web 端正式上线 — 三端覆盖，全场景触达
+
+Easy Prompt 迎来首个大版本升级。全新 Web 在线版正式上线，与 VSCode 扩展、IntelliJ 插件形成三端矩阵，让 Prompt 增强能力触手可及。
+
+#### 🚀 全新 Web 在线版
+
+- **纯前端 SPA 架构**：`index.html` + `style.css` + `app.js` + `scenes.json`，零后端依赖，部署到任意静态服务器即可使用
+- **专业级视觉设计**：参考 Linear / Vercel / Raycast 设计语言，高斯模糊背景 + 渐变光影 + 流畅微交互动画
+- **完整 38 场景支持**：场景选择器 + 实时搜索筛选 + 分类浏览 + 使用频率统计
+- **双模式增强**：智能路由（AI 自动识别意图）+ 指定场景（手动精准选择）
+- **全设备响应式**：桌面端与移动端自适应布局，支持所有主流浏览器
+- **Lucide SVG 图标体系**：全部使用专业内联 SVG 图标，零外部 CDN 依赖
+- **暗色主题**：与 VSCode / IntelliJ 端视觉风格统一
+
+#### 🔧 全平台质量审查
+
+- **VSCode** Welcome 引导页版本号显示修正
+- **IntelliJ** 38 个场景补齐「痛点」(painPoint) 数据，与 core 模块完全同步
+- **IntelliJ** changeNotes 补齐 v3.2.2 更新说明
+- **Web** 场景选择器下拉定位修复（`position: absolute` → `position: fixed`）
+- **Web** 背景装饰光影居中偏移修复
+- **Web** GitHub 链接 URL 更正
+
+---
+
 ## [3.2.2] - 2026-02-15
 
 ### 🔧 IntelliJ 平台兼容性修复（JetBrains Marketplace 验证）

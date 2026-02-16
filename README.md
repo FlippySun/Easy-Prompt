@@ -2,9 +2,10 @@
 
 > 两步 AI 意图识别 + 38 个专业场景，将你的简单描述自动扩写为大师级 Prompt。
 
-![Version](https://img.shields.io/badge/version-3.2.1-blue)
+![Version](https://img.shields.io/badge/version-4.0.0-blue)
 ![VSCode](https://img.shields.io/badge/VSCode-1.85%2B-blue)
 ![IntelliJ](https://img.shields.io/badge/IntelliJ-2024.1%2B-orange)
+![Web](https://img.shields.io/badge/Web-Online-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 ## ✨ 核心功能
@@ -13,32 +14,45 @@
 - 🔀 **复合意图支持**：一句话包含多个意图也能精准处理
 - ⚡ **智能增强**：自动判断增强选中文本 / 当前文件 / 剪贴板内容
 - 📦 **38 个场景**：覆盖开发全流程（需求→代码→测试→部署→运维）
-- 🔌 **多平台支持**：VSCode + IntelliJ IDEA（双端功能完全对齐）
+- 🌐 **三端覆盖**：VSCode 扩展 + IntelliJ 插件 + Web 在线版，全场景使用
 - 🔑 **多供应商兼容**：OpenAI / Azure / Gemini / DeepSeek / Ollama
 - 🎯 **开箱即用**：内置 AI 服务，零配置即可使用
 - 🔒 **安全加固**：AES-256-CBC 加密内置凭证、2MB 响应限制、竞态保护
 
 ## 📦 安装
 
+### Web 在线版（v4.0 新增）
+
+无需安装，打开浏览器即可使用：
+
+- 访问 [Easy Prompt Web](https://github.com/FlippySun/Easy-Prompt) 页面
+- 或将 `web/` 目录部署到任意静态服务器
+- 纯前端 SPA，零后端依赖，支持所有主流浏览器
+
 ### VSCode
 
 ```bash
-# 方式 1：直接打包安装
-npx @vscode/vsce package --allow-missing-repository
-code --install-extension easy-prompt-3.2.1.vsix
+# 方式 1：从 VSCode Marketplace 安装（推荐）
+# 搜索 "Easy Prompt" 或访问 Marketplace 页面直接安装
 
-# 方式 2：开发调试
+# 方式 2：本地打包安装
+npx @vscode/vsce package --allow-missing-repository
+code --install-extension easy-prompt-ai-4.0.0.vsix
+
+# 方式 3：开发调试
 code .  # 按 F5 启动调试
 ```
 
 ### IntelliJ IDEA
 
 ```bash
-# 构建插件（需要 JDK 17）
-cd intellij && ./gradlew buildPlugin
+# 方式 1：从 JetBrains Marketplace 安装（推荐）
+# Settings → Plugins → Marketplace → 搜索 "Easy Prompt"
 
-# 安装：Settings → Plugins → ⚙️ → Install Plugin from Disk
-# 选择 intellij/build/distributions/easy-prompt-intellij-3.2.1.zip
+# 方式 2：本地构建安装（需要 JDK 17）
+cd intellij && ./gradlew buildPlugin
+# Settings → Plugins → ⚙️ → Install Plugin from Disk
+# 选择 intellij/build/distributions/easy-prompt-4.0.0.zip
 ```
 
 ## ⚙️ 配置
@@ -220,9 +234,10 @@ easy-prompt/
 │   ├── composer.js          # 两步路由编排器（smartRoute）
 │   ├── api.js               # API 调用层（curl subprocess + 重试 + 安全限制）
 │   └── defaults.js          # 内置默认配置（AES-256-CBC 加密）
-├── extension.js             # VSCode 扩展入口（8 命令注册 + 核心逻辑）
-├── welcomeView.js           # Welcome 引导页（Webview）
-├── package.json             # VSCode 扩展清单（8 命令 + 6 快捷键）
+├── vscode/                  # VSCode 扩展
+│   ├── extension.js         # 扩展入口（8 命令注册 + 核心逻辑）
+│   ├── welcomeView.js       # Welcome 引导页（Webview）
+│   └── package.json         # 扩展清单（8 命令 + 6 快捷键）
 ├── intellij/                # IntelliJ IDEA 插件（Kotlin）
 │   ├── build.gradle.kts     # Gradle 构建配置
 │   └── src/main/kotlin/com/easyprompt/
@@ -230,8 +245,13 @@ easy-prompt/
 │       ├── core/            # 路由 + API + 场景 + 内置默认配置
 │       ├── settings/        # 配置管理（测试并保存）
 │       └── ui/              # Welcome 对话框 + 状态栏 Widget + 启动检测
+├── web/                     # Web 在线版（v4.0 新增）
+│   ├── index.html           # 主页面（SPA 入口）
+│   ├── style.css            # 样式（暗色主题 + 响应式）
+│   ├── app.js               # 应用逻辑（路由 + 场景 + API 调用）
+│   └── scenes.json          # 38 场景数据（由 core 生成）
 ├── README.md
-├── CLAUDE.md
+├── CHANGELOG.md
 └── .github/
     └── copilot-instructions.md
 ```
