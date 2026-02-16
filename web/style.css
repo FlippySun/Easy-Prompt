@@ -1661,25 +1661,52 @@ body,
 
 /* 26.2 Ambient orb gentle drift */
 @keyframes orbDrift1 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(30px, -20px) scale(1.05); }
-  66% { transform: translate(-20px, 15px) scale(0.95); }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(30px, -20px) scale(1.05);
+  }
+  66% {
+    transform: translate(-20px, 15px) scale(0.95);
+  }
 }
 
 @keyframes orbDrift2 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(-25px, 25px) scale(0.97); }
-  66% { transform: translate(20px, -15px) scale(1.03); }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(-25px, 25px) scale(0.97);
+  }
+  66% {
+    transform: translate(20px, -15px) scale(1.03);
+  }
 }
 
 @keyframes orbDrift3 {
-  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.05; }
-  50% { transform: translate(15px, -10px) scale(1.08); opacity: 0.08; }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.05;
+  }
+  50% {
+    transform: translate(15px, -10px) scale(1.08);
+    opacity: 0.08;
+  }
 }
 
-.ambient-orb--1 { animation: orbDrift1 20s ease-in-out infinite; }
-.ambient-orb--2 { animation: orbDrift2 25s ease-in-out infinite; }
-.ambient-orb--3 { animation: orbDrift3 18s ease-in-out infinite; }
+.ambient-orb--1 {
+  animation: orbDrift1 20s ease-in-out infinite;
+}
+.ambient-orb--2 {
+  animation: orbDrift2 25s ease-in-out infinite;
+}
+.ambient-orb--3 {
+  animation: orbDrift3 18s ease-in-out infinite;
+}
 
 /* 26.3 Hero section entrance stagger */
 @keyframes heroFadeUp {
@@ -1749,15 +1776,33 @@ body,
   transform: translateY(0) scale(0.97);
 }
 
-.scene-tags .scene-tag:nth-child(2) { animation: tagEnter 0.35s var(--ease-out) 0.03s both; }
-.scene-tags .scene-tag:nth-child(3) { animation: tagEnter 0.35s var(--ease-out) 0.06s both; }
-.scene-tags .scene-tag:nth-child(4) { animation: tagEnter 0.35s var(--ease-out) 0.09s both; }
-.scene-tags .scene-tag:nth-child(5) { animation: tagEnter 0.35s var(--ease-out) 0.12s both; }
-.scene-tags .scene-tag:nth-child(6) { animation: tagEnter 0.35s var(--ease-out) 0.15s both; }
-.scene-tags .scene-tag:nth-child(7) { animation: tagEnter 0.35s var(--ease-out) 0.18s both; }
-.scene-tags .scene-tag:nth-child(8) { animation: tagEnter 0.35s var(--ease-out) 0.21s both; }
-.scene-tags .scene-tag:nth-child(9) { animation: tagEnter 0.35s var(--ease-out) 0.24s both; }
-.scene-tags .scene-tag:nth-child(10) { animation: tagEnter 0.35s var(--ease-out) 0.27s both; }
+.scene-tags .scene-tag:nth-child(2) {
+  animation: tagEnter 0.35s var(--ease-out) 0.03s both;
+}
+.scene-tags .scene-tag:nth-child(3) {
+  animation: tagEnter 0.35s var(--ease-out) 0.06s both;
+}
+.scene-tags .scene-tag:nth-child(4) {
+  animation: tagEnter 0.35s var(--ease-out) 0.09s both;
+}
+.scene-tags .scene-tag:nth-child(5) {
+  animation: tagEnter 0.35s var(--ease-out) 0.12s both;
+}
+.scene-tags .scene-tag:nth-child(6) {
+  animation: tagEnter 0.35s var(--ease-out) 0.15s both;
+}
+.scene-tags .scene-tag:nth-child(7) {
+  animation: tagEnter 0.35s var(--ease-out) 0.18s both;
+}
+.scene-tags .scene-tag:nth-child(8) {
+  animation: tagEnter 0.35s var(--ease-out) 0.21s both;
+}
+.scene-tags .scene-tag:nth-child(9) {
+  animation: tagEnter 0.35s var(--ease-out) 0.24s both;
+}
+.scene-tags .scene-tag:nth-child(10) {
+  animation: tagEnter 0.35s var(--ease-out) 0.27s both;
+}
 
 /* 26.7 Scene tag hover glow */
 .scene-tag:hover {
@@ -1765,7 +1810,9 @@ body,
 }
 
 .scene-tag.is-active {
-  box-shadow: 0 0 0 1px var(--accent), 0 2px 8px rgba(139, 92, 246, 0.15);
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 2px 8px rgba(139, 92, 246, 0.15);
 }
 
 /* 26.8 History card hover lift */
@@ -1784,9 +1831,15 @@ body,
 
 /* 26.9 Copy success pulse */
 @keyframes copyPulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.15); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .btn-copy.is-copied {
@@ -1802,8 +1855,12 @@ body,
 
 /* 26.11 Modal enhanced enter */
 @keyframes modalBackdropFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes modalContentEnter {
@@ -1827,8 +1884,12 @@ body,
 
 /* 26.12 Progress shimmer */
 @keyframes progressShimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 .progress__inner {
@@ -1869,10 +1930,18 @@ body,
   animation: badgeEnter 0.3s var(--ease-spring) both;
 }
 
-.output-badge:nth-child(2) { animation-delay: 0.05s; }
-.output-badge:nth-child(3) { animation-delay: 0.1s; }
-.output-badge:nth-child(4) { animation-delay: 0.15s; }
-.output-badge:nth-child(5) { animation-delay: 0.2s; }
+.output-badge:nth-child(2) {
+  animation-delay: 0.05s;
+}
+.output-badge:nth-child(3) {
+  animation-delay: 0.1s;
+}
+.output-badge:nth-child(4) {
+  animation-delay: 0.15s;
+}
+.output-badge:nth-child(5) {
+  animation-delay: 0.2s;
+}
 
 /* 26.14 Toast enhanced entrance */
 @keyframes toastSlideIn {

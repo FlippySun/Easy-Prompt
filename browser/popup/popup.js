@@ -28,7 +28,9 @@ function debounce(fn, ms) {
 /* ─── State Persistence ─── */
 const _savePopupState = debounce(async () => {
   await Storage.savePopupState({
-    inputText: ($("#input-text").value || "").trim() ? $("#input-text").value : "",
+    inputText: ($("#input-text").value || "").trim()
+      ? $("#input-text").value
+      : "",
     outputText: _currentOutputText || "",
     outputScenes: _currentOutputScenes || [],
     outputComposite: _currentOutputComposite || false,
@@ -110,7 +112,12 @@ document.addEventListener("DOMContentLoaded", async () => {
           selectScene(saved.selectedScene);
         }
         if (saved.outputText) {
-          showOutput(saved.outputText, saved.outputScenes || [], saved.outputComposite || false, false);
+          showOutput(
+            saved.outputText,
+            saved.outputScenes || [],
+            saved.outputComposite || false,
+            false,
+          );
         }
       }
     } catch {
@@ -121,7 +128,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Flush pending state save before popup closes (bypass debounce)
   window.addEventListener("pagehide", () => {
     Storage.savePopupState({
-      inputText: ($("#input-text").value || "").trim() ? $("#input-text").value : "",
+      inputText: ($("#input-text").value || "").trim()
+        ? $("#input-text").value
+        : "",
       outputText: _currentOutputText || "",
       outputScenes: _currentOutputScenes || [],
       outputComposite: _currentOutputComposite || false,
