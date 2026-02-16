@@ -413,7 +413,7 @@ button {
   padding: 7px 10px;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background var(--duration-fast);
+  /* transition handled by section 15.16 */
 }
 .dropdown__item:hover {
   background: var(--accent-subtle);
@@ -618,7 +618,7 @@ button {
   background: var(--bg-subtle);
   margin-bottom: 8px;
   cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-out);
+  /* transition handled by section 15.5 */
 }
 .history-card:hover {
   border-color: var(--border-hover);
@@ -680,15 +680,7 @@ button {
   background: var(--bg-base);
   display: flex;
   flex-direction: column;
-  animation: fadeIn var(--duration-fast) var(--ease-out);
-}
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  /* animation handled by section 15.9 (.modal .modal__content) */
 }
 .modal__header {
   display: flex;
@@ -796,7 +788,7 @@ button {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-out);
+  /* transition handled by section 15.4 */
 }
 .scene-card:hover {
   border-color: var(--border-hover);

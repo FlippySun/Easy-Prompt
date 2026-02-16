@@ -28,7 +28,9 @@ function debounce(fn, ms) {
 /* ─── State Persistence ─── */
 const _savePopupState = debounce(async () => {
   await Storage.savePopupState({
-    inputText: ($("#input-text").value || "").trim() ? $("#input-text").value : "",
+    inputText: ($("#input-text").value || "").trim()
+      ? $("#input-text").value
+      : "",
     outputText: _currentOutputText || "",
     outputScenes: _currentOutputScenes || [],
     outputComposite: _currentOutputComposite || false,
@@ -110,13 +112,31 @@ document.addEventListener("DOMContentLoaded", async () => {
           selectScene(saved.selectedScene);
         }
         if (saved.outputText) {
-          showOutput(saved.outputText, saved.outputScenes || [], saved.outputComposite || false);
+          showOutput(
+            saved.outputText,
+            saved.outputScenes || [],
+            saved.outputComposite || false,
+            false,
+          );
         }
       }
     } catch {
       /* state restore failed — ignore */
     }
   }
+
+  // Flush pending state save before popup closes (bypass debounce)
+  window.addEventListener("pagehide", () => {
+    Storage.savePopupState({
+      inputText: ($("#input-text").value || "").trim()
+        ? $("#input-text").value
+        : "",
+      outputText: _currentOutputText || "",
+      outputScenes: _currentOutputScenes || [],
+      outputComposite: _currentOutputComposite || false,
+      selectedScene: selectedScene || null,
+    });
+  });
 });
 
 /* ─── Theme Helper ─── */
@@ -338,11 +358,11 @@ function hideStatus() {
   $("#status-bar").hidden = true;
 }
 
-function showOutput(text, sceneIds, composite) {
+function showOutput(text, sceneIds, composite, animate = true) {
   const scenes = Scenes.getSceneNames();
   const badge = sceneIds
     .map((s) => scenes[s] || s)
-    .join(composite ? " + " : "");
+    .join(composite ? " + " : ", ");
 
   // Store current output for copy button and state persistence
   _currentOutputText = text;
@@ -354,8 +374,8 @@ function showOutput(text, sceneIds, composite) {
   const area = $("#output-area");
   const wasHidden = area.hidden;
   area.hidden = false;
-  // Trigger reveal animation only on fresh show
-  if (wasHidden) {
+  // Trigger reveal animation only on fresh show (skip on state restore)
+  if (wasHidden && animate) {
     area.classList.remove("is-entering");
     void area.offsetWidth; // force reflow
     area.classList.add("is-entering");
@@ -560,6 +580,7 @@ function openScenesModal() {
   // A02: Focus trap within modal
   modal._focusTrap = (e) => {
     if (e.key === "Escape") {
+      e.stopPropagation(); // 阻止冒泡, 避免全局 Escape handler 重复调用 closeScenesModal
       closeScenesModal();
       return;
     }
@@ -583,8 +604,12 @@ function openScenesModal() {
 
 function closeScenesModal() {
   const modal = $("#scenes-modal");
+  if (modal.hidden || modal.classList.contains("is-leaving")) return;
   modal.classList.add("is-leaving");
+  let cleaned = false;
   const onEnd = () => {
+    if (cleaned) return;
+    cleaned = true;
     modal.hidden = true;
     modal.classList.remove("is-leaving");
     $("#scenes-search").value = "";
@@ -595,6 +620,7 @@ function closeScenesModal() {
     }
   };
   modal.addEventListener("animationend", onEnd, { once: true });
+  setTimeout(onEnd, 350); // fallback: 动画未触发时也能正常关闭
 }
 
 function renderSceneBrowser() {
@@ -727,15 +753,17 @@ async function openHistoryPanel() {
 
 function closeHistoryPanel() {
   const panel = $("#history-panel");
+  if (panel.hidden || panel.classList.contains("is-leaving")) return;
   panel.classList.add("is-leaving");
-  panel.addEventListener(
-    "animationend",
-    () => {
-      panel.hidden = true;
-      panel.classList.remove("is-leaving");
-    },
-    { once: true },
-  );
+  let cleaned = false;
+  const onEnd = () => {
+    if (cleaned) return;
+    cleaned = true;
+    panel.hidden = true;
+    panel.classList.remove("is-leaving");
+  };
+  panel.addEventListener("animationend", onEnd, { once: true });
+  setTimeout(onEnd, 350); // fallback: 动画未触发时也能正常关闭
 }
 
 function renderHistoryList(records) {

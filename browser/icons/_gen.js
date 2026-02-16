@@ -39,7 +39,27 @@ function makeSVG(size) {
   return lines.join("\n");
 }
 
-for (const size of [16, 32, 48, 128]) {
+const { execFileSync } = require("child_process");
+
+const sizes = [16, 32, 48, 128];
+
+for (const size of sizes) {
   fs.writeFileSync(__dirname + "/icon-" + size + ".svg", makeSVG(size));
 }
 console.log("SVGs generated");
+
+// Convert SVGs → PNGs via rsvg-convert (brew install librsvg)
+try {
+  const bin =
+    process.platform === "darwin"
+      ? "/opt/homebrew/opt/librsvg/bin/rsvg-convert"
+      : "rsvg-convert";
+  for (const size of sizes) {
+    const svg = __dirname + "/icon-" + size + ".svg";
+    const png = __dirname + "/icon-" + size + ".png";
+    execFileSync(bin, ["-w", String(size), "-h", String(size), svg, "-o", png]);
+  }
+  console.log("PNGs generated");
+} catch (e) {
+  console.warn("PNG generation skipped (rsvg-convert not found). Install: brew install librsvg");
+}
