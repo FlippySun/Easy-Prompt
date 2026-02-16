@@ -5,6 +5,14 @@
 
 const $ = (sel) => document.querySelector(sel);
 
+/* ─── Safe DOM Helper (avoids innerHTML for Firefox AMO compliance) ─── */
+const _htmlParser = new DOMParser();
+function _setHTML(el, html) {
+  el.replaceChildren(
+    ..._htmlParser.parseFromString(html, "text/html").body.childNodes,
+  );
+}
+
 /* ─── Theme Helper ─── */
 function getEffectiveTheme() {
   const attr = document.documentElement.getAttribute("data-theme");
@@ -27,12 +35,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // Update theme button icon
-  $("#btn-theme").innerHTML =
-    getEffectiveTheme() === "light" ? ICON_MOON : ICON_SUN;
+  _setHTML(
+    $("#btn-theme"),
+    getEffectiveTheme() === "light" ? ICON_MOON : ICON_SUN,
+  );
 
   // Logo icon (sparkles)
-  $("#logo-icon").innerHTML =
-    `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/></svg>`;
+  _setHTML(
+    $("#logo-icon"),
+    `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/></svg>`,
+  );
 
   // Load saved config
   const config = await Storage.loadConfig();
@@ -52,7 +64,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const next = current === "light" ? "dark" : "light";
     document.documentElement.setAttribute("data-theme", next);
     await Storage.saveTheme(next);
-    $("#btn-theme").innerHTML = next === "light" ? ICON_MOON : ICON_SUN;
+    _setHTML($("#btn-theme"), next === "light" ? ICON_MOON : ICON_SUN);
   });
 
   // Save
@@ -104,20 +116,26 @@ async function handleTest() {
     resultEl.hidden = false;
     if (result.ok) {
       resultEl.className = "test-result is-success";
-      $("#test-result-icon").innerHTML =
-        `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>`;
+      _setHTML(
+        $("#test-result-icon"),
+        `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>`,
+      );
       $("#test-result-text").textContent = `连接成功 · ${result.latency}ms`;
     } else {
       resultEl.className = "test-result is-error";
-      $("#test-result-icon").innerHTML =
-        `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>`;
+      _setHTML(
+        $("#test-result-icon"),
+        `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>`,
+      );
       $("#test-result-text").textContent = result.message;
     }
   } catch (err) {
     resultEl.hidden = false;
     resultEl.className = "test-result is-error";
-    $("#test-result-icon").innerHTML =
-      `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>`;
+    _setHTML(
+      $("#test-result-icon"),
+      `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>`,
+    );
     $("#test-result-text").textContent = err.message;
   } finally {
     btn.disabled = false;
