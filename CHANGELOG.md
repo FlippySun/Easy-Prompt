@@ -5,6 +5,38 @@ All notable changes to the Easy Prompt project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.1] - 2025-07-24
+
+### Bug 修复与稳定性改进
+
+v5.0.0 发布后的 Bug 修复和稳定性改进，主要集中在浏览器扩展 Popup 面板和 Web 端。
+
+#### 浏览器扩展 Popup（9 项修复）
+
+- **debounce 状态丢失修复**：debounce 函数新增 `.cancel()` 方法，`pagehide` 处理器先取消待执行的 debounced save 再同步 flush，避免 Popup 关闭瞬间状态丢失
+- **状态恢复重复保存修复**：`selectScene()` 新增 `skipSave` 参数，从 Storage 恢复状态时传入 `true`，避免恢复过程触发二次保存
+- **场景方法调用错误修复**：`handleGenerate` 中修正 `Scenes.getScenes()` → `Scenes.getSceneNames()`，修复生成时场景名称获取失败
+- **动画 class 残留修复**：`showOutput` 添加 `animationend` 事件监听（`{ once: true }`），动画结束后自动移除 `is-entering` class
+- **清空按钮状态残留修复**：清空操作时增加 `hideStatus()` 调用 + 移除 `is-entering` class，确保 UI 状态完全重置
+- **定时器泄漏修复**：新增 `_pickerCloseTimer` 变量管理 Picker 关闭定时器，open/close 时正确清理，防止泄漏
+- **事件穿透修复**：`openScenesModal` 中 `e.stopPropagation()` 改为 `e.stopImmediatePropagation()`，彻底阻止事件冒泡穿透
+- **模态框事件监听泄漏修复**：`closeScenesModal` 中添加 `modal.removeEventListener("animationend", onEnd)` 清理，防止 fallback timeout 触发时残留监听器
+
+#### Web 端（3 项修复）
+
+- **清空按钮进度条残留修复**：`handleClear()` 增加 `hideProgress()` 调用，清空时同步隐藏进度条
+- **CSS 变量修复**：修复未定义变量 `--text-tertiary` → 正确引用 `--text-muted`
+- **复制按钮样式修复**：补充 `#btn-copy.is-copied` 选择器，复制成功时正确显示样式变化
+
+#### 四端同步
+
+- VSCode：版本号更新
+- IntelliJ：版本号 + changeNotes 更新
+- Web：版本号 + Bug 修复
+- Browser：三平台 manifest 版本号 + Popup Bug 修复
+
+---
+
 ## [5.0.0] - 2026-02-18
 
 ### 🌐 浏览器扩展正式上线 — 四端覆盖，全渠道触达

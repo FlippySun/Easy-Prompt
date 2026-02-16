@@ -75,7 +75,7 @@ This document provides project context and development guidance for Claude Code 
 
 ```
 easy-prompt/
-├── core/                    # 共享核心逻辑（平台无关）
+├── core/                    # 共享核心逻辑（CommonJS，平台无关）
 │   ├── index.js             # 入口 — 导出所有模块
 │   ├── scenes.js            # 85 个场景定义（含痛点和示例）
 │   ├── router.js            # 意图识别路由器 + Prompt 构建
@@ -85,14 +85,31 @@ easy-prompt/
 ├── extension.js             # VSCode 扩展入口（8 命令注册 + handleCommandError）
 ├── welcomeView.js           # Welcome 引导页（Webview）
 ├── package.json             # VSCode 扩展清单（8 命令 + 6 快捷键）
-├── intellij/                # IntelliJ IDEA 插件
+├── intellij/                # IntelliJ IDEA 插件（Kotlin）
 │   ├── build.gradle.kts     # Gradle 构建配置
 │   └── src/main/kotlin/com/easyprompt/
 │       ├── actions/         # 7 个 Action（智能增强/增强选中/输入/场景/指定/教程/菜单）
 │       ├── core/            # 路由 + API + 场景 + 内置默认配置
 │       ├── settings/        # 配置管理（测试并保存）
 │       └── ui/              # Welcome 对话框 + 状态栏 Widget + 启动检测
-└── README.md
+├── web/                     # Web 在线版
+│   ├── index.html           # 主页面（SPA 入口）
+│   ├── style.css            # 样式（暗色主题 + 响应式）
+│   ├── app.js               # 应用逻辑（路由 + 场景 + API 调用）
+│   └── scenes.json          # 85 场景数据（由 core 生成）
+├── browser/                 # 浏览器扩展（Chrome/Firefox/Safari MV3）
+│   ├── manifest.*.json      # 三平台 manifest
+│   ├── build.js             # 构建脚本（自动打包 + zip）
+│   ├── popup/               # Popup 面板（输入/增强/场景/历史）
+│   ├── options/             # 设置页（API 配置 + 测试连接）
+│   ├── background/          # Service Worker（上下文菜单 + 快捷键）
+│   ├── content/             # Content Script（浮动增强按钮）
+│   ├── shared/              # 共享模块（Storage/API/Router/Scenes/Defaults/Icons）
+│   └── scenes.json          # 85 场景数据
+├── README.md
+├── CHANGELOG.md
+└── .github/
+    └── copilot-instructions.md
 ```
 
 ### Key Components

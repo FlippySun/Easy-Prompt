@@ -1141,8 +1141,9 @@ function handleClear() {
   // Hide clear button
   $("#btn-clear").hidden = true;
 
-  // Hide output
+  // Hide output & progress
   hideOutput();
+  hideProgress();
 
   // Reset scene selection
   selectedScene = null;
