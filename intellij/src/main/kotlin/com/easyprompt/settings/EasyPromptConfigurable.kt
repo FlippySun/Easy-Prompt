@@ -32,7 +32,7 @@ class EasyPromptConfigurable : Configurable {
 
         // 记住当前已保存的配置
         lastSavedBaseUrl = settings.state.apiBaseUrl
-        lastSavedApiKey = settings.state.apiKey
+        lastSavedApiKey = settings.getApiKey()
         lastSavedModel = settings.state.model
 
         panel = JPanel().apply {
@@ -55,7 +55,7 @@ class EasyPromptConfigurable : Configurable {
             text = settings.state.apiBaseUrl
         }
         apiKeyField = PlaceholderPasswordField("留空 = 使用内置免费服务", 40).apply {
-            text = settings.state.apiKey
+            text = settings.getApiKey()
         }
         // 内置服务支持的模型（无自定义 API Key 时显示）
         val builtinModels = arrayOf(
@@ -78,7 +78,7 @@ class EasyPromptConfigurable : Configurable {
             "gemini-3-pro-preview", "gemini-3-flash-preview", "gemini-3.0-pro", "gemini-2.5-pro", "gemini-2.5-flash",
             "deepseek-v3.2-chat", "deepseek-v3.2-reasoner", "deepseek-r1"
         )
-        val hasCustomApiKey = settings.state.apiKey.isNotBlank()
+        val hasCustomApiKey = settings.getApiKey().isNotBlank()
         val modelOptions = if (hasCustomApiKey) fullModels else builtinModels
         modelField = JComboBox(modelOptions).apply {
             isEditable = true
@@ -211,7 +211,9 @@ class EasyPromptConfigurable : Configurable {
         if (baseUrl.isBlank() && apiKey.isBlank() && model.isBlank()) {
             val settings = EasyPromptSettings.getInstance()
             val currentStats = settings.state.sceneStats
-            settings.loadState(EasyPromptSettings.State(sceneStats = currentStats))
+            val currentHistory = settings.state.historyRecords
+            settings.loadState(EasyPromptSettings.State(sceneStats = currentStats, historyRecords = currentHistory))
+            settings.setApiKey("")  // Clear from PasswordSafe
             lastSavedBaseUrl = ""
             lastSavedApiKey = ""
             lastSavedModel = ""
@@ -235,15 +237,17 @@ class EasyPromptConfigurable : Configurable {
             val (ok, msg, latency) = ApiClient.testApiConfig(baseUrl, apiKey, model)
             SwingUtilities.invokeLater {
                 if (ok) {
-                    // 测试通过，保存配置
+                    // 测试通过，保存配置（apiKey 存入 PasswordSafe）
                     val settings = EasyPromptSettings.getInstance()
                     val currentStats = settings.state.sceneStats
+                    val currentHistory = settings.state.historyRecords
                     settings.loadState(EasyPromptSettings.State(
                         apiBaseUrl = baseUrl,
-                        apiKey = apiKey,
                         model = model,
-                        sceneStats = currentStats
+                        sceneStats = currentStats,
+                        historyRecords = currentHistory
                     ))
+                    settings.setApiKey(apiKey)
                     lastSavedBaseUrl = baseUrl
                     lastSavedApiKey = apiKey
                     lastSavedModel = model
@@ -268,7 +272,9 @@ class EasyPromptConfigurable : Configurable {
         modelField?.selectedItem = ""
         val settings = EasyPromptSettings.getInstance()
         val currentStats = settings.state.sceneStats
-        settings.loadState(EasyPromptSettings.State(sceneStats = currentStats))
+        val currentHistory = settings.state.historyRecords
+        settings.loadState(EasyPromptSettings.State(sceneStats = currentStats, historyRecords = currentHistory))
+        settings.setApiKey("")  // Clear from PasswordSafe
         lastSavedBaseUrl = ""
         lastSavedApiKey = ""
         lastSavedModel = ""
@@ -299,7 +305,7 @@ class EasyPromptConfigurable : Configurable {
     override fun reset() {
         val settings = EasyPromptSettings.getInstance()
         lastSavedBaseUrl = settings.state.apiBaseUrl
-        lastSavedApiKey = settings.state.apiKey
+        lastSavedApiKey = settings.getApiKey()
         lastSavedModel = settings.state.model
 
         apiBaseUrlField?.text = lastSavedBaseUrl

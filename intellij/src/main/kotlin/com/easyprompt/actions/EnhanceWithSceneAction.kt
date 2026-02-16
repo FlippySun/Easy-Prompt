@@ -16,6 +16,7 @@ import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ide.scratch.ScratchRootType
 import com.intellij.lang.Language
 import com.easyprompt.core.ApiClient
+import com.easyprompt.core.PersonaConfig
 import com.easyprompt.core.Scenes
 import com.easyprompt.settings.EasyPromptSettings
 
@@ -25,24 +26,53 @@ class EnhanceWithSceneAction : AnAction() {
         val project = e.project ?: return
         val stats = EasyPromptSettings.getInstance().getSceneStats()
 
-        // Step 1: 选择场景（按命中次数排序）
-        val sortedEntries = Scenes.all.entries.sortedByDescending { stats[it.key] ?: 0 }
+        // 按画像分组构建选择列表
+        data class SceneItem(val id: String, val name: String)
+        val items = mutableListOf<String>()
+        val sceneItems = mutableListOf<SceneItem?>() // null = separator
 
-        val items = sortedEntries.map { (id, scene) ->
-            val hits = stats[id] ?: 0
-            val fireLabel = if (hits > 0) " 🔥$hits" else ""
-            "${scene.name}$fireLabel ($id)"
+        for (persona in PersonaConfig.personas) {
+            val personaSceneIds = PersonaConfig.getScenesForPersona(persona.id)
+            val personaEntries = Scenes.all.entries
+                .filter { it.key in personaSceneIds }
+                .sortedByDescending { stats[it.key] ?: 0 }
+
+            if (personaEntries.isNotEmpty()) {
+                items.add("── ${persona.name} ──")
+                sceneItems.add(null)
+
+                for (entry in personaEntries) {
+                    val hits = stats[entry.key] ?: 0
+                    val fireLabel = if (hits > 0) " 🔥$hits" else ""
+                    items.add("  ${entry.value.name}$fireLabel (${entry.key})")
+                    sceneItems.add(SceneItem(entry.key, entry.value.name))
+                }
+            }
+        }
+
+        // 未分类场景
+        val allCategorized = PersonaConfig.personas.flatMap { PersonaConfig.getScenesForPersona(it.id) }.toSet()
+        val uncategorized = Scenes.all.entries.filter { it.key !in allCategorized }.sortedByDescending { stats[it.key] ?: 0 }
+        if (uncategorized.isNotEmpty()) {
+            items.add("── 其他 ──")
+            sceneItems.add(null)
+            for (entry in uncategorized) {
+                val hits = stats[entry.key] ?: 0
+                val fireLabel = if (hits > 0) " 🔥$hits" else ""
+                items.add("  ${entry.value.name}$fireLabel (${entry.key})")
+                sceneItems.add(SceneItem(entry.key, entry.value.name))
+            }
         }
 
         JBPopupFactory.getInstance()
             .createPopupChooserBuilder(items)
-            .setTitle("🎯 选择场景 — 定向增强 Prompt · 按使用频率排序")
+            .setTitle("🎯 选择场景 — 定向增强 Prompt · 按画像分组 (${Scenes.all.size} 个)")
             .setItemChosenCallback { chosen ->
                 val selectedIndex = items.indexOf(chosen)
                 if (selectedIndex >= 0) {
-                    val entry = sortedEntries[selectedIndex]
-                    val sceneId = entry.key
-                    val sceneName = entry.value.name
+                    val item = sceneItems[selectedIndex] ?: return@setItemChosenCallback // skip separators
+                    val sceneId = item.id
+                    val sceneName = item.name
 
                     // Step 2: 获取文本（提前保存选区，防止竞态）
                     val editor = e.getData(CommonDataKeys.EDITOR)
@@ -68,14 +98,23 @@ class EnhanceWithSceneAction : AnAction() {
                         override fun run(indicator: ProgressIndicator) {
                             try {
                                 indicator.text = "✍️ 使用「${sceneName}」场景生成 Prompt..."
-                                val result = ApiClient.directGenerate(inputText, sceneId) { msg ->
+                                val result = ApiClient.directGenerate(inputText, sceneId, { msg ->
                                     indicator.text = msg
-                                }
+                                }, indicator)
 
                                 if (indicator.isCanceled) return
 
                                 // 记录场景命中
                                 EasyPromptSettings.getInstance().incrementSceneHits(listOf(sceneId))
+
+                                // 保存历史记录
+                                EasyPromptSettings.getInstance().saveHistory(
+                                    mode = "scene",
+                                    sceneIds = listOf(sceneId),
+                                    sceneName = sceneName,
+                                    originalText = inputText,
+                                    enhancedText = result
+                                )
 
                                 ApplicationManager.getApplication().invokeLater {
                                     if (hasSelection && editor != null) {

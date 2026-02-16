@@ -32,7 +32,7 @@
 - [x] WriteCommandAction 支持撤销
 - [x] 竞态条件修复（选区偏移量保存）
 - [x] NotificationGroupManager 非阻塞通知
-- [x] WelcomeDialog 38 场景全覆盖
+- [x] WelcomeDialog 85 场景全覆盖
 - [ ] 测试所有 Action 功能（含智能增强 Ctrl+Alt+I）
 - [ ] 测试快捷键（6 个）
 - [ ] 检查资源文件（图标）
@@ -100,7 +100,7 @@
 3. **测试安装**
 
    ```bash
-   code --install-extension easy-prompt-3.2.1.vsix
+   code --install-extension easy-prompt-ai-4.1.0.vsix
    ```
 
 4. **发布到市场**
@@ -116,7 +116,7 @@
    ```bash
    cd intellij
    JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ./gradlew buildPlugin
-   # 输出：build/distributions/easy-prompt-intellij-3.2.1.zip
+   # 输出：build/distributions/easy-prompt-4.1.0.zip
    ```
 
 2. **测试安装**

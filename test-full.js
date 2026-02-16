@@ -56,7 +56,7 @@ assert(
 console.log("\n=== 2. 场景完整性检查 ===");
 const scenes = core.SCENES;
 const sceneIds = Object.keys(scenes);
-assert(sceneIds.length === 38, `场景总数 = ${sceneIds.length} (期望 38)`);
+assert(sceneIds.length === 85, `场景总数 = ${sceneIds.length} (期望 85)`);
 
 for (const [id, s] of Object.entries(scenes)) {
   const hasAll =
@@ -96,7 +96,7 @@ for (const id of sceneIds) {
     failed++;
   }
 }
-if (allInPrompt) assert(true, "38 个场景 ID 全部包含在 Router Prompt 中");
+if (allInPrompt) assert(true, "85 个场景 ID 全部包含在 Router Prompt 中");
 
 // 缓存测试
 const rp2 = core.buildRouterPrompt();
@@ -400,7 +400,10 @@ assert(
 );
 
 // 动态排序
-assert(extCode.includes("b.hits - a.hits"), "场景列表按命中次数降序排列");
+assert(
+  extCode.includes("stats[b]") && extCode.includes("stats[a]"),
+  "场景列表按命中次数降序排列",
+);
 assert(extCode.includes("🔥"), "场景列表含小火苗标记");
 
 // Welcome 页面更新
@@ -412,7 +415,7 @@ assert(
 assert(welcomeCode.includes("状态栏"), "Welcome 提到状态栏功能");
 
 // package.json 版本
-assert(pkg.version === "3.2.0", "package.json 版本 = 3.2.0");
+assert(pkg.version === "4.1.0", "package.json 版本 = 4.1.0");
 assert(
   declaredCommands.includes("easy-prompt.statusBarMenu"),
   "package.json 声明 statusBarMenu 命令",

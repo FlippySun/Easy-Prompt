@@ -44,14 +44,28 @@ class EnhanceSelectedAction : AnAction() {
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Easy Prompt", true) {
             override fun run(indicator: ProgressIndicator) {
                 try {
-                    val result = ApiClient.smartRoute(selectedText) { msg ->
+                    val result = ApiClient.smartRoute(selectedText, { msg ->
                         indicator.text = msg
-                    }
+                    }, indicator)
 
                     if (indicator.isCanceled) return
 
                     // 记录场景命中
                     EasyPromptSettings.getInstance().incrementSceneHits(result.scenes)
+
+                    // 保存历史记录
+                    val sceneName = if (result.composite) {
+                        result.scenes.map { Scenes.nameMap[it] ?: it }.joinToString(" + ")
+                    } else {
+                        Scenes.nameMap[result.scenes.firstOrNull() ?: ""] ?: ""
+                    }
+                    EasyPromptSettings.getInstance().saveHistory(
+                        mode = "smart",
+                        sceneIds = result.scenes,
+                        sceneName = sceneName,
+                        originalText = selectedText,
+                        enhancedText = result.result
+                    )
 
                     ApplicationManager.getApplication().invokeLater {
                         WriteCommandAction.runWriteCommandAction(project) {

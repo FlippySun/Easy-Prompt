@@ -10,6 +10,8 @@ vscode/**
 .github/**
 .claude/**
 .roo/**
+.idea/**
+.playwright-mcp/**
 node_modules/**
 
 # 测试文件
@@ -29,6 +31,10 @@ CONTRIBUTING.md
 .gitignore
 .yarnrc
 .mcp.json
+.mcp.json.bak*
+
+# 打包产物
+easy-prompt-web-*.zip
 
 # 多余的图标文件（仅保留 VSCode 使用的 128x128 图标）
 assets/images/logo-mac.png

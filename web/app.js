@@ -59,6 +59,82 @@ const SCENE_CATEGORIES = [
     name: "工程运维",
     scenes: ["devops", "env", "script", "deps", "git", "incident"],
   },
+  {
+    id: "writing",
+    name: "内容创作",
+    scenes: [
+      "topic-gen",
+      "outline",
+      "copy-polish",
+      "style-rewrite",
+      "word-adjust",
+      "headline",
+      "fact-check",
+      "research",
+      "platform-adapt",
+      "compliance",
+      "seo-write",
+      "social-post",
+    ],
+  },
+  {
+    id: "product",
+    name: "产品管理",
+    scenes: [
+      "prd",
+      "user-story",
+      "competitor",
+      "data-analysis",
+      "meeting-notes",
+      "acceptance",
+    ],
+  },
+  {
+    id: "marketing",
+    name: "市场运营",
+    scenes: [
+      "ad-copy",
+      "brand-story",
+      "email-marketing",
+      "event-plan",
+      "growth-hack",
+    ],
+  },
+  {
+    id: "design",
+    name: "设计体验",
+    scenes: ["design-brief", "ux-review", "design-spec", "copy-ux"],
+  },
+  {
+    id: "data",
+    name: "数据分析",
+    scenes: ["data-report", "ab-test", "metric-define", "data-viz"],
+  },
+  {
+    id: "hr",
+    name: "HR 人事",
+    scenes: [
+      "jd-write",
+      "interview-guide",
+      "performance-review",
+      "onboarding-plan",
+    ],
+  },
+  {
+    id: "service",
+    name: "客户服务",
+    scenes: ["faq-write", "response-template", "feedback-analysis"],
+  },
+  {
+    id: "startup",
+    name: "创业管理",
+    scenes: ["business-plan", "pitch-deck", "okr", "swot", "risk-assess"],
+  },
+  {
+    id: "education",
+    name: "学习教育",
+    scenes: ["study-plan", "summary", "essay", "quiz-gen"],
+  },
   { id: "general", name: "综合工具", scenes: ["translate", "mock", "algo"] },
 ];
 
@@ -68,46 +144,103 @@ const HOT_SCENES = [
   "refactor",
   "debug",
   "review",
-  "test",
-  "doc",
-  "perf",
-  "split-task",
+  "copy-polish",
+  "topic-gen",
+  "platform-adapt",
+  "headline",
+];
+
+// 10 个使用画像 → 对应场景分类
+const PERSONAS = [
+  { id: "all", name: "全部", categories: null },
+  {
+    id: "engineer",
+    name: "软件工程师",
+    categories: [
+      "requirement",
+      "development",
+      "quality",
+      "docs",
+      "ops",
+      "general",
+    ],
+  },
+  { id: "creator", name: "内容创作者", categories: ["writing"] },
+  { id: "pm", name: "产品经理", categories: ["product"] },
+  { id: "marketer", name: "市场运营", categories: ["marketing"] },
+  { id: "designer", name: "设计师", categories: ["design"] },
+  { id: "analyst", name: "数据分析师", categories: ["data"] },
+  { id: "hr", name: "HR 人事", categories: ["hr"] },
+  { id: "service", name: "客户服务", categories: ["service"] },
+  { id: "founder", name: "创业者", categories: ["startup"] },
+  { id: "student", name: "学生/教育", categories: ["education"] },
 ];
 
 /* ═══════════════════════════════════════════════════
-   §2. Built-in Default Config (Obfuscated)
+   §2. Built-in Default Config (AES-256-CBC Encrypted)
    ═══════════════════════════════════════════════════ */
 
-function _getBuiltinDefaults() {
-  const _p1 = [104, 116, 116, 112, 115, 58, 47, 47]; // https://
-  const _p2 = [97, 112, 105, 46]; // api.
-  const _p3 = [121, 121, 100, 115, 49, 54, 56]; // yyds168
-  const _p4 = [46, 110, 101, 116, 47, 118, 49]; // .net/v1
-  const baseUrl = String.fromCharCode(..._p1, ..._p2, ..._p3, ..._p4);
+// Key fragments (same as core/defaults.js)
+const _k = [
+  "\x45\x50",
+  "\x2d\x53",
+  "\x65\x63",
+  "\x72\x65",
+  "\x74\x2d",
+  "\x4b\x33",
+  "\x79\x21",
+  "\x40\x32",
+  "\x30\x32",
+  "\x36\x23",
+  "\x46\x6c",
+  "\x69\x70",
+  "\x70\x79",
+  "\x53\x75",
+  "\x6e\x58",
+  "\x39",
+];
+const _seq = [0, 10, 4, 2, 14, 8, 6, 12, 1, 11, 5, 3, 15, 9, 7, 13];
+const _order = [0, 8, 1, 9, 2, 10, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15];
 
-  const _s1 = [115, 107, 45]; // sk-
-  const _s2 = [76, 100, 78, 85, 84, 71, 118, 51]; // LdNUTGv3
-  const _s3 = [120, 110, 109, 74, 101, 118, 115, 115]; // xnmJevss
-  const _s4 = [50, 81, 97, 90, 78, 81, 117, 81]; // 2QaZNQuQ
-  const _s5 = [66, 57, 51, 71, 84, 112, 112, 121]; // B93GTppy
-  const _s6 = [56, 110, 98, 111, 50, 87, 71, 106]; // 8nbo2WGj
-  const _s7 = [115, 89, 48, 85, 117, 114, 109, 55]; // sY0Uurm7
-  const apiKey = String.fromCharCode(
-    ..._s1,
-    ..._s2,
-    ..._s3,
-    ..._s4,
-    ..._s5,
-    ..._s6,
-    ..._s7,
+function _dk() {
+  return _order.map((i) => _k[_seq[i]]).join("");
+}
+
+// Pre-encrypted vault (AES-256-CBC, base64 iv:ciphertext)
+const _vault = {
+  _a: "nsyr2IS/y/d+/SjcQWWnMw==:QH+2F+3pvndj0tDx173pncFD8sjIXx7UVwJeFtOyTL4=",
+  _b: "dsTXcwfRJa0zhYDUl6QHFA==:hxcqQTO75KRuSwC/9FoijhfiK/aA1fmjdhdQUNaJJwMmE9RJew0tbaNpLxef62nIoBZ/OLAfPJfK6V09oSAF7Q==",
+  _c: "hStx3/BP4Pnf59dLvPg8VA==:kHqUSzkgftdvUmtb3K0eM6KC26J9s6gy7QvhcZi0x5c=",
+};
+
+let _builtinCache = null;
+
+async function _decAES(ct) {
+  const [ivB64, encB64] = ct.split(":");
+  const iv = Uint8Array.from(atob(ivB64), (c) => c.charCodeAt(0));
+  const enc = Uint8Array.from(atob(encB64), (c) => c.charCodeAt(0));
+  const rawKey = new TextEncoder().encode(_dk());
+  const hash = await crypto.subtle.digest("SHA-256", rawKey);
+  const key = await crypto.subtle.importKey(
+    "raw",
+    hash,
+    { name: "AES-CBC" },
+    false,
+    ["decrypt"],
   );
+  const dec = await crypto.subtle.decrypt({ name: "AES-CBC", iv }, key, enc);
+  return new TextDecoder().decode(dec);
+}
 
-  const _m1 = [103, 101, 109, 105, 110, 105]; // gemini
-  const _m2 = [45, 51, 45, 112, 114, 111]; // -3-pro
-  const _m3 = [45, 112, 114, 101, 118, 105, 101, 119]; // -preview
-  const model = String.fromCharCode(..._m1, ..._m2, ..._m3);
-
-  return { baseUrl, apiKey, model };
+async function _getBuiltinDefaults() {
+  if (_builtinCache) return _builtinCache;
+  const [baseUrl, apiKey, model] = await Promise.all([
+    _decAES(_vault._a),
+    _decAES(_vault._b),
+    _decAES(_vault._c),
+  ]);
+  _builtinCache = { baseUrl, apiKey, model };
+  return _builtinCache;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -135,14 +268,223 @@ function saveConfig(cfg) {
   }
 }
 
-function getEffectiveConfig() {
+async function getEffectiveConfig() {
   const user = loadConfig();
-  const builtin = _getBuiltinDefaults();
+  const builtin = await _getBuiltinDefaults();
   return {
     baseUrl: (user.baseUrl || "").trim() || builtin.baseUrl,
     apiKey: (user.apiKey || "").trim() || builtin.apiKey,
     model: (user.model || "").trim() || builtin.model,
   };
+}
+
+/* ═══════════════════════════════════════════════════
+   §3b. History Management (localStorage)
+   ═══════════════════════════════════════════════════ */
+
+const HISTORY_KEY = "easy-prompt-history";
+const MAX_HISTORY = 100;
+
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    /* ignore */
+  }
+  return [];
+}
+
+function saveHistoryRecord(
+  originalText,
+  enhancedText,
+  mode,
+  sceneIds,
+  sceneName,
+) {
+  const history = loadHistory();
+  const record = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    timestamp: Date.now(),
+    mode, // 'smart' | 'scene'
+    sceneIds: sceneIds || [],
+    sceneName: sceneName || "",
+    originalText,
+    enhancedText,
+  };
+  history.unshift(record);
+  if (history.length > MAX_HISTORY) history.length = MAX_HISTORY;
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  } catch (e) {
+    /* ignore */
+  }
+  return record;
+}
+
+function deleteHistoryRecord(id) {
+  const history = loadHistory().filter((r) => r.id !== id);
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  } catch (e) {
+    /* ignore */
+  }
+}
+
+function clearHistory() {
+  try {
+    localStorage.removeItem(HISTORY_KEY);
+  } catch (e) {
+    /* ignore */
+  }
+}
+
+function formatHistoryTime(ts) {
+  const d = new Date(ts);
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+  const diffDays = Math.floor((now - d) / 86400000);
+  if (diffDays === 0) return `今天 ${time}`;
+  if (diffDays === 1) return `昨天 ${time}`;
+  if (diffDays < 7) return `${diffDays} 天前 ${time}`;
+
+  const month = d.getMonth() + 1;
+  const day = d.getDate();
+  if (d.getFullYear() === now.getFullYear())
+    return `${month}月${day}日 ${time}`;
+  return `${d.getFullYear()}/${month}/${day} ${time}`;
+}
+
+function renderHistoryPanel() {
+  const list = $("#history-list");
+  const countEl = $("#history-count");
+  const history = loadHistory();
+
+  countEl.textContent = history.length > 0 ? `${history.length} 条` : "";
+
+  if (history.length === 0) {
+    list.innerHTML = `
+      <div class="history-empty">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+          <path d="M3 3v5h5"/>
+          <path d="M12 7v5l4 2"/>
+        </svg>
+        <span class="history-empty__title">暂无增强记录</span>
+        <span class="history-empty__desc">使用 Prompt 增强后，历史记录会自动保存在这里</span>
+      </div>
+    `;
+    return;
+  }
+
+  list.innerHTML = history
+    .map(
+      (r) => `
+    <div class="history-card" data-id="${r.id}">
+      <div class="history-card__header" onclick="this.parentElement.classList.toggle('is-expanded')">
+        <div class="history-card__meta">
+          <div class="history-card__top-row">
+            <span class="history-card__time">${formatHistoryTime(r.timestamp)}</span>
+            <span class="history-card__badge history-card__badge--${r.mode}">
+              ${r.mode === "smart" ? "智能路由" : r.sceneName || r.sceneIds[0] || "场景"}
+            </span>
+          </div>
+          <div class="history-card__preview">${escapeHtml(r.originalText.slice(0, 80))}${r.originalText.length > 80 ? "..." : ""}</div>
+        </div>
+        <svg class="history-card__chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+      <div class="history-card__body">
+        <div class="history-diff">
+          <div class="history-diff__section">
+            <div class="history-diff__label history-diff__label--before">
+              <span>原始文本</span>
+              <button class="history-diff__copy" data-copy="original" data-id="${r.id}">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                复制
+              </button>
+            </div>
+            <div class="history-diff__text">${escapeHtml(r.originalText)}</div>
+          </div>
+          <div class="history-diff__section">
+            <div class="history-diff__label history-diff__label--after">
+              <span>增强结果</span>
+              <button class="history-diff__copy" data-copy="enhanced" data-id="${r.id}">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                复制
+              </button>
+            </div>
+            <div class="history-diff__text">${escapeHtml(r.enhancedText)}</div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+          <button class="history-card__delete" data-delete="${r.id}" title="删除此记录">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  `,
+    )
+    .join("");
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function bindHistoryEvents() {
+  // Open history panel
+  $("#btn-history").addEventListener("click", () => {
+    renderHistoryPanel();
+    openPanel("history");
+  });
+
+  // Close history panel
+  $("#btn-history-close").addEventListener("click", () =>
+    closePanel("history"),
+  );
+  $("#history-overlay").addEventListener("click", () => closePanel("history"));
+
+  // Clear all history
+  $("#btn-clear-history").addEventListener("click", () => {
+    if (!confirm("确定要清空所有增强历史记录吗？此操作不可撤销。")) return;
+    clearHistory();
+    renderHistoryPanel();
+    showToast("历史记录已清空", "success");
+  });
+
+  // Delegated events for copy & delete inside history list
+  $("#history-list").addEventListener("click", (e) => {
+    const copyBtn = e.target.closest(".history-diff__copy");
+    if (copyBtn) {
+      e.stopPropagation();
+      const id = copyBtn.dataset.id;
+      const type = copyBtn.dataset.copy;
+      const record = loadHistory().find((r) => r.id === id);
+      if (!record) return;
+      const text =
+        type === "original" ? record.originalText : record.enhancedText;
+      navigator.clipboard.writeText(text).then(() => {
+        showToast("已复制到剪贴板", "success");
+      });
+      return;
+    }
+
+    const delBtn = e.target.closest(".history-card__delete");
+    if (delBtn) {
+      e.stopPropagation();
+      const id = delBtn.dataset.delete;
+      deleteHistoryRecord(id);
+      const card = delBtn.closest(".history-card");
+      if (card) card.remove();
+      renderHistoryPanel(); // refresh count
+      return;
+    }
+  });
 }
 
 /* ═══════════════════════════════════════════════════
@@ -439,7 +781,7 @@ function delay(ms) {
 }
 
 async function callApiOnce(config, systemPrompt, userMessage, options = {}) {
-  const { temperature = 0.7, maxTokens = 4096, timeout = 60 } = options;
+  const { temperature = 0.7, maxTokens = 4096, timeout = 60, signal } = options;
 
   const normalizedBase = config.baseUrl.replace(/\/+$/, "");
   const url = normalizedBase.endsWith("/chat/completions")
@@ -458,6 +800,15 @@ async function callApiOnce(config, systemPrompt, userMessage, options = {}) {
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout * 1000);
+
+  // 外部取消信号联动内部 controller
+  if (signal) {
+    if (signal.aborted) {
+      clearTimeout(timer);
+      throw new Error("已取消");
+    }
+    signal.addEventListener("abort", () => controller.abort(), { once: true });
+  }
 
   try {
     const resp = await fetch(url, {
@@ -485,7 +836,13 @@ async function callApiOnce(config, systemPrompt, userMessage, options = {}) {
       throw new Error(errorMsg);
     }
 
-    const data = await resp.json();
+    // 安全限制：响应体最大 2MB
+    const MAX_RESPONSE_SIZE = 2 * 1024 * 1024;
+    const text = await resp.text();
+    if (text.length > MAX_RESPONSE_SIZE) {
+      throw new Error("响应体过大（超过 2MB），已中断");
+    }
+    const data = JSON.parse(text);
     if (data.error) {
       throw new Error(data.error.message || JSON.stringify(data.error));
     }
@@ -496,14 +853,14 @@ async function callApiOnce(config, systemPrompt, userMessage, options = {}) {
   } catch (err) {
     clearTimeout(timer);
     if (err.name === "AbortError") {
-      throw new Error("请求超时");
+      throw new Error(signal?.aborted ? "已取消" : "请求超时");
     }
     throw err;
   }
 }
 
 async function callApi(config, systemPrompt, userMessage, options = {}) {
-  const { onRetry, ...callOptions } = options;
+  const { onRetry, signal, ...callOptions } = options;
 
   if (userMessage.length > MAX_INPUT_LENGTH) {
     throw new Error(
@@ -513,10 +870,15 @@ async function callApi(config, systemPrompt, userMessage, options = {}) {
 
   let lastError;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (signal?.aborted) throw new Error("已取消");
     try {
-      return await callApiOnce(config, systemPrompt, userMessage, callOptions);
+      return await callApiOnce(config, systemPrompt, userMessage, {
+        ...callOptions,
+        signal,
+      });
     } catch (err) {
       lastError = err;
+      if (signal?.aborted) throw new Error("已取消");
       if (!isRetryableError(err) || attempt >= MAX_RETRIES) {
         throw new Error(friendlyError(err.message, config.model));
       }
@@ -528,12 +890,19 @@ async function callApi(config, systemPrompt, userMessage, options = {}) {
   throw new Error(friendlyError(lastError.message, config.model));
 }
 
-async function callRouterApi(config, systemPrompt, userMessage, onRetry) {
+async function callRouterApi(
+  config,
+  systemPrompt,
+  userMessage,
+  onRetry,
+  signal,
+) {
   return callApi(config, systemPrompt, userMessage, {
     temperature: 0.1,
     maxTokens: 500,
     timeout: 30,
     onRetry,
+    signal,
   });
 }
 
@@ -543,12 +912,14 @@ async function callGenerationApi(
   userMessage,
   isComposite,
   onRetry,
+  signal,
 ) {
   return callApi(config, systemPrompt, userMessage, {
     temperature: 0.7,
     maxTokens: isComposite ? 8192 : 4096,
     timeout: 120,
     onRetry,
+    signal,
   });
 }
 
@@ -589,7 +960,7 @@ async function testApiConfig(config) {
    §7. Smart Route (Composer)
    ═══════════════════════════════════════════════════ */
 
-async function smartRoute(config, userInput, onProgress) {
+async function smartRoute(config, userInput, onProgress, signal) {
   const onRetry = (attempt, maxRetries, delayMs) => {
     if (onProgress)
       onProgress(
@@ -606,6 +977,7 @@ async function smartRoute(config, userInput, onProgress) {
     routerPrompt,
     userInput,
     onRetry,
+    signal,
   );
   const routerResult = parseRouterResult(routerText);
 
@@ -625,6 +997,7 @@ async function smartRoute(config, userInput, onProgress) {
     userInput,
     routerResult.composite,
     onRetry,
+    signal,
   );
 
   return {
@@ -637,7 +1010,7 @@ async function smartRoute(config, userInput, onProgress) {
 /**
  * Direct scene generation (skip router, use specified scene)
  */
-async function directGenerate(config, userInput, sceneId, onProgress) {
+async function directGenerate(config, userInput, sceneId, onProgress, signal) {
   const onRetry = (attempt, maxRetries, delayMs) => {
     if (onProgress)
       onProgress(
@@ -660,6 +1033,7 @@ async function directGenerate(config, userInput, sceneId, onProgress) {
     userInput,
     false,
     onRetry,
+    signal,
   );
 
   return { result, scenes: [sceneId], composite: false };
@@ -671,6 +1045,7 @@ async function directGenerate(config, userInput, sceneId, onProgress) {
 
 // State
 let isGenerating = false;
+let currentAbortController = null; // 用于取消正在进行的生成
 let selectedScene = null; // null = auto (smartRoute), string = specific scene
 
 // DOM references (populated on init)
@@ -690,10 +1065,12 @@ function initApp() {
   bindSceneBrowserEvents();
   bindScenePickerEvents();
   bindOutputEvents();
+  bindHistoryEvents();
   bindKeyboardShortcuts();
 
   // Render dynamic content
   renderSceneTags();
+  renderPersonaTabs();
   renderSceneBrowser();
   renderScenePicker();
 
@@ -733,7 +1110,11 @@ function bindInputEvents() {
 }
 
 async function handleGenerate() {
-  if (isGenerating) return;
+  // 生成中点击 → 取消
+  if (isGenerating) {
+    if (currentAbortController) currentAbortController.abort();
+    return;
+  }
 
   const textarea = $("#input-textarea");
   const input = textarea.value.trim();
@@ -752,17 +1133,20 @@ async function handleGenerate() {
   }
 
   isGenerating = true;
+  currentAbortController = new AbortController();
+  const { signal } = currentAbortController;
+
   const btn = $("#btn-generate");
-  btn.disabled = true;
+  btn.disabled = false;
   btn.classList.add("btn--generating");
   const btnText = btn.querySelector("span");
   const origText = btnText.textContent;
-  btnText.textContent = "生成中...";
+  btnText.textContent = "取消生成";
 
   showProgress("正在连接 AI 服务...");
   hideOutput();
 
-  const config = getEffectiveConfig();
+  const config = await getEffectiveConfig();
 
   try {
     let result;
@@ -774,18 +1158,33 @@ async function handleGenerate() {
         (stage, text) => {
           updateProgress(text);
         },
+        signal,
       );
     } else {
-      result = await smartRoute(config, input, (stage, text) => {
-        updateProgress(text);
-      });
+      result = await smartRoute(
+        config,
+        input,
+        (stage, text) => {
+          updateProgress(text);
+        },
+        signal,
+      );
     }
     hideProgress();
     showOutput(result.result, result.scenes, result.composite);
+    // Save to history
+    const mode = selectedScene ? "scene" : "smart";
+    const sceneName = result.scenes
+      .map((id) => SCENE_NAMES[id] || id)
+      .join(" + ");
+    saveHistoryRecord(input, result.result, mode, result.scenes, sceneName);
   } catch (err) {
     hideProgress();
-    showToast(err.message, "error");
+    if (err.message !== "已取消") {
+      showToast(err.message, "error");
+    }
   } finally {
+    currentAbortController = null;
     isGenerating = false;
     btn.disabled = false;
     btn.classList.remove("btn--generating");
@@ -941,7 +1340,7 @@ async function handleTestApi() {
   btn.innerHTML = "<span>测试中...</span>";
 
   // Gather config (use form values or fallback to builtin)
-  const builtin = _getBuiltinDefaults();
+  const builtin = await _getBuiltinDefaults();
   const config = {
     baseUrl: ($("#setting-base-url").value || "").trim() || builtin.baseUrl,
     apiKey: ($("#setting-api-key").value || "").trim() || builtin.apiKey,
@@ -965,9 +1364,6 @@ function handleSaveSettings() {
     model: ($("#setting-model").value || "").trim(),
   };
   saveConfig(cfg);
-
-  // Clear router prompt cache since config may affect behavior
-  cachedRouterPrompt = null;
 
   showToast("配置已保存", "success");
   closePanel("settings");
@@ -1074,6 +1470,67 @@ function bindSceneBrowserEvents() {
   $("#scene-search").addEventListener("input", (e) =>
     filterSceneBrowser(e.target.value),
   );
+}
+
+let activePersona = "all";
+
+function renderPersonaTabs() {
+  const container = $("#persona-tabs");
+  container.innerHTML = "";
+
+  // Lucide SVG icons for each persona (16x16, stroke)
+  const personaIcons = {
+    all: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/></svg>',
+    engineer:
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>',
+    creator:
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/></svg>',
+    pm: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 12h4"/><path d="M10 16h4"/></svg>',
+    marketer:
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2"/></svg>',
+    designer:
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="6.5" cy="13.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>',
+    analyst:
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m19 9-5 5-4-4-3 3"/></svg>',
+    hr: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+    service:
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z"/></svg>',
+    founder:
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>',
+    student:
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 6 3 6 3s3 0 6-3v-5"/></svg>',
+  };
+
+  for (const persona of PERSONAS) {
+    const tab = document.createElement("button");
+    tab.className =
+      "persona-tab" + (persona.id === activePersona ? " is-active" : "");
+    tab.dataset.persona = persona.id;
+    tab.innerHTML = `${personaIcons[persona.id] || ""}${persona.name}`;
+    tab.addEventListener("click", () => {
+      activePersona = persona.id;
+      $$(".persona-tab").forEach((t) =>
+        t.classList.toggle("is-active", t.dataset.persona === persona.id),
+      );
+      filterByPersona(persona.id);
+    });
+    container.appendChild(tab);
+  }
+}
+
+function filterByPersona(personaId) {
+  const persona = PERSONAS.find((p) => p.id === personaId);
+  const categories = persona && persona.categories;
+
+  $$("#scenes-list .scene-category").forEach((catEl) => {
+    if (!categories) {
+      catEl.style.display = "";
+    } else {
+      catEl.style.display = categories.includes(catEl.dataset.category)
+        ? ""
+        : "none";
+    }
+  });
 }
 
 function renderSceneBrowser() {
@@ -1259,6 +1716,7 @@ function bindKeyboardShortcuts() {
     if (e.key === "Escape") {
       closePicker();
       if (!$("#settings-panel").hidden) closePanel("settings");
+      if (!$("#history-panel").hidden) closePanel("history");
       if (!$("#scenes-modal").hidden) closeModal("scenes");
     }
   });

@@ -31,7 +31,7 @@ class WelcomeDialog(private val project: Project) : DialogWrapper(project, true)
         // Hero
         content.add(createLabel("<html><div style='text-align:center;'>" +
                 "<span style='font-size:22px;font-weight:bold;'>✨ Easy Prompt</span><br/>" +
-                "<span style='font-size:13px;color:gray;'>AI 驱动的智能 Prompt 工程工具包 · 38 个专业场景</span>" +
+                "<span style='font-size:13px;color:gray;'>AI 驱动的智能 Prompt 工程工具包 · ${Scenes.all.size} 个专业场景</span>" +
                 "</div></html>").apply {
             alignmentX = Component.CENTER_ALIGNMENT
         })
@@ -54,7 +54,7 @@ class WelcomeDialog(private val project: Project) : DialogWrapper(project, true)
             arrayOf("Ctrl+Alt+I", "智能增强", "自动判断增强选中/文件/剪贴板，多来源时选择"),
             arrayOf("Ctrl+Alt+P", "增强选中", "选中文本 → 自动识别意图 → 原地替换"),
             arrayOf("Ctrl+Alt+O", "快速输入", "弹出输入框 → 新标签页显示结果"),
-            arrayOf("Ctrl+Alt+L", "浏览场景", "查看 38 个场景详情"),
+            arrayOf("Ctrl+Alt+L", "浏览场景", "查看 ${Scenes.all.size} 个场景详情"),
             arrayOf("Ctrl+Alt+M", "指定场景", "手动选择场景 → 精准定向增强"),
             arrayOf("Ctrl+Alt+H", "使用教程", "随时打开本引导页")
         )
@@ -75,12 +75,21 @@ class WelcomeDialog(private val project: Project) : DialogWrapper(project, true)
         content.add(createSectionTitle("🎯 场景预览（${Scenes.all.size} 个）"))
         content.add(Box.createVerticalStrut(8))
         val categories = mapOf(
-            "🚀 需求 & 规划" to listOf("optimize", "split-task", "techstack", "proposal"),
-            "💻 编码 & 开发" to listOf("api-design", "refactor", "regex", "sql", "convert", "typescript", "css", "state", "component", "form", "async", "schema", "script", "algo"),
-            "🔍 调试 & 质量" to listOf("debug", "error", "perf", "review", "test", "security", "incident"),
-            "📝 文档 & 协作" to listOf("comment", "doc", "commit", "changelog", "translate", "present", "mock"),
-            "🛠️ 运维 & 环境" to listOf("devops", "env", "deps", "git"),
-            "💡 学习 & 纠偏" to listOf("explain", "followup")
+            "🚀 需求 & 规划" to listOf("optimize", "split-task", "techstack", "api-design"),
+            "💻 编码 & 开发" to listOf("refactor", "perf", "regex", "sql", "convert", "typescript", "css", "state", "component", "form", "async", "schema", "algo"),
+            "🔍 调试 & 质量" to listOf("review", "test", "debug", "error", "security", "comment"),
+            "📝 文档 & 协作" to listOf("doc", "changelog", "commit", "proposal", "present", "translate", "mock"),
+            "🛠️ 运维 & 环境" to listOf("devops", "env", "script", "deps", "git", "incident"),
+            "💡 学习 & 纠偏" to listOf("explain", "followup"),
+            "✍️ 内容创作" to listOf("topic-gen", "outline", "copy-polish", "style-rewrite", "word-adjust", "headline", "fact-check", "research", "platform-adapt", "compliance", "seo-write", "social-post"),
+            "📋 产品管理" to listOf("prd", "user-story", "competitor", "data-analysis", "meeting-notes", "acceptance"),
+            "📣 市场运营" to listOf("ad-copy", "brand-story", "email-marketing", "event-plan", "growth-hack"),
+            "🎨 设计体验" to listOf("design-brief", "ux-review", "design-spec", "copy-ux"),
+            "📊 数据分析" to listOf("data-report", "ab-test", "metric-define", "data-viz"),
+            "👥 HR 人事" to listOf("jd-write", "interview-guide", "performance-review", "onboarding-plan"),
+            "💬 客户服务" to listOf("faq-write", "response-template", "feedback-analysis"),
+            "🏢 创业管理" to listOf("business-plan", "pitch-deck", "okr", "swot", "risk-assess"),
+            "🎓 学习教育" to listOf("study-plan", "summary", "essay", "quiz-gen")
         )
         val sceneText = StringBuilder("<html><div style='font-size:12px;line-height:1.6;'>")
         categories.forEach { (cat, ids) ->

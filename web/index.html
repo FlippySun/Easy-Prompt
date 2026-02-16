@@ -6,9 +6,13 @@
     <title>Easy Prompt — AI 智能 Prompt 工程工具包</title>
     <meta
       name="description"
-      content="38 个专业场景，两步 AI 路由，将你的需求扩写为大师级 Prompt"
+      content="85 个专业场景，两步 AI 路由，将你的需求扩写为大师级 Prompt"
     />
     <meta name="theme-color" content="#09090b" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src *; img-src 'self' data:;"
+    />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -60,7 +64,7 @@
             class="header__nav-btn"
             id="btn-scenes-browser"
             aria-label="浏览场景"
-            title="浏览 38 个专业场景"
+            title="浏览 85 个专业场景"
           >
             <svg
               width="18"
@@ -77,6 +81,29 @@
               />
             </svg>
             <span class="header__nav-label">场景</span>
+          </button>
+
+          <button
+            class="header__nav-btn"
+            id="btn-history"
+            aria-label="历史记录"
+            title="查看增强历史"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
+              <path d="M12 7v5l4 2" />
+            </svg>
+            <span class="header__nav-label">历史</span>
           </button>
 
           <button
@@ -180,7 +207,7 @@
           >
             <path d="m13 2 1.5 6L21 9.5l-6 2L13 18l-1.5-6.5L5 9.5l6.5-1Z" />
           </svg>
-          <span>38 个专业场景 · 两步 AI 路由</span>
+          <span>85 个专业场景 · 两步 AI 路由</span>
         </div>
         <h1 class="hero__title">
           将你的需求<br />
@@ -393,9 +420,9 @@
 
     <!-- ═══════════ Footer ═══════════ -->
     <footer class="footer">
-      <span>Easy Prompt v4.0.0</span>
+      <span>Easy Prompt v4.1.0</span>
       <span class="footer__dot">·</span>
-      <span>38 个专业场景</span>
+      <span>85 个专业场景</span>
       <span class="footer__dot">·</span>
       <span>开箱即用，无需配置</span>
     </footer>
@@ -588,6 +615,76 @@
       </div>
     </aside>
 
+    <!-- ═══════════ History Panel (Slide-over) ═══════════ -->
+    <div class="overlay" id="history-overlay" hidden></div>
+    <aside class="panel panel--wide" id="history-panel" hidden>
+      <div class="panel__header">
+        <h2 class="panel__title">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+            <path d="M12 7v5l4 2" />
+          </svg>
+          增强历史
+          <span class="history-count" id="history-count"></span>
+        </h2>
+        <div class="panel__header-actions">
+          <button
+            class="btn btn--ghost btn--sm"
+            id="btn-clear-history"
+            aria-label="清空历史"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M3 6h18" />
+              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+            </svg>
+            清空
+          </button>
+          <button
+            class="panel__close"
+            id="btn-history-close"
+            aria-label="关闭历史"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="panel__body" id="history-list">
+        <!-- History items injected by JS -->
+      </div>
+    </aside>
+
     <!-- ═══════════ Scene Browser Modal ═══════════ -->
     <div class="overlay" id="scenes-overlay" hidden></div>
     <div class="modal" id="scenes-modal" hidden>
@@ -608,7 +705,7 @@
             />
           </svg>
           场景大全
-          <span class="modal__count">38 个</span>
+          <span class="modal__count">85 个</span>
         </h2>
         <button class="modal__close" id="btn-scenes-close" aria-label="关闭">
           <svg
@@ -647,6 +744,9 @@
           placeholder="搜索场景名称或关键词..."
           spellcheck="false"
         />
+      </div>
+      <div class="modal__personas" id="persona-tabs">
+        <!-- Persona tabs injected by JS -->
       </div>
       <div class="modal__body" id="scenes-list">
         <!-- Scene cards injected by JS -->
