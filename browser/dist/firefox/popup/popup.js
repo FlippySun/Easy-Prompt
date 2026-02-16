@@ -3,6 +3,14 @@
  * 主界面交互：输入 → 智能路由/指定场景 → 生成 Prompt → 历史
  */
 
+/* ─── Safe DOM Helper (avoids innerHTML for Firefox AMO compliance) ─── */
+const _htmlParser = new DOMParser();
+function _setHTML(el, html) {
+  el.replaceChildren(
+    ..._htmlParser.parseFromString(html, "text/html").body.childNodes,
+  );
+}
+
 /* ─── State ─── */
 let isGenerating = false;
 let currentAbortController = null;
@@ -150,25 +158,30 @@ function getEffectiveTheme() {
 
 /* ═══ Icon Injection ═══ */
 function injectIcons() {
-  $("#logo-icon").innerHTML = Icons.sparkles;
-  $("#btn-clear").innerHTML = Icons.eraser;
-  $("#btn-history").innerHTML = Icons.history;
-  $("#btn-theme").innerHTML =
-    getEffectiveTheme() === "light" ? Icons.moon : Icons.sun;
-  $("#btn-settings").innerHTML = Icons.settings;
-  $("#btn-generate-icon").innerHTML = Icons.send;
-  $("#scene-select-chevron").innerHTML = Icons.chevronDown;
-  $("#picker-search-icon").innerHTML = Icons.search;
-  $("#empty-icon").innerHTML = Icons.sparkles
-    .replace('width="16"', 'width="36"')
-    .replace('height="16"', 'height="36"')
-    .replace('stroke-width="2"', 'stroke-width="1.5"');
+  _setHTML($("#logo-icon"), Icons.sparkles);
+  _setHTML($("#btn-clear"), Icons.eraser);
+  _setHTML($("#btn-history"), Icons.history);
+  _setHTML(
+    $("#btn-theme"),
+    getEffectiveTheme() === "light" ? Icons.moon : Icons.sun,
+  );
+  _setHTML($("#btn-settings"), Icons.settings);
+  _setHTML($("#btn-generate-icon"), Icons.send);
+  _setHTML($("#scene-select-chevron"), Icons.chevronDown);
+  _setHTML($("#picker-search-icon"), Icons.search);
+  _setHTML(
+    $("#empty-icon"),
+    Icons.sparkles
+      .replace('width="16"', 'width="36"')
+      .replace('height="16"', 'height="36"')
+      .replace('stroke-width="2"', 'stroke-width="1.5"'),
+  );
   // History panel icons
-  $("#btn-history-back").innerHTML = Icons.arrowLeft;
-  $("#btn-history-clear").innerHTML = Icons.trash;
+  _setHTML($("#btn-history-back"), Icons.arrowLeft);
+  _setHTML($("#btn-history-clear"), Icons.trash);
   // Scene modal icons
-  $("#btn-scenes-close").innerHTML = Icons.close;
-  $("#scenes-search-icon").innerHTML = Icons.search;
+  _setHTML($("#btn-scenes-close"), Icons.close);
+  _setHTML($("#scenes-search-icon"), Icons.search);
 }
 
 /* ═══ Input Events ═══ */
@@ -220,7 +233,7 @@ function bindHeaderEvents() {
     const next = current === "light" ? "dark" : "light";
     document.documentElement.setAttribute("data-theme", next);
     await Storage.saveTheme(next);
-    $("#btn-theme").innerHTML = next === "light" ? Icons.moon : Icons.sun;
+    _setHTML($("#btn-theme"), next === "light" ? Icons.moon : Icons.sun);
   });
 
   // History panel
@@ -335,11 +348,11 @@ function setGenerating(active) {
   if (active) {
     btn.classList.add("is-generating");
     btn.disabled = false;
-    $("#btn-generate-icon").innerHTML = Icons.stop;
+    _setHTML($("#btn-generate-icon"), Icons.stop);
     $("#btn-generate-text").textContent = "停止";
   } else {
     btn.classList.remove("is-generating");
-    $("#btn-generate-icon").innerHTML = Icons.send;
+    _setHTML($("#btn-generate-icon"), Icons.send);
     $("#btn-generate-text").textContent = "生成";
     updateGenerateButton();
   }
@@ -349,7 +362,7 @@ function showStatus(stage, message) {
   const bar = $("#status-bar");
   bar.hidden = false;
   const icon = $("#status-icon");
-  icon.innerHTML = Icons.loader;
+  _setHTML(icon, Icons.loader);
   icon.classList.toggle("is-spinning", stage !== "done");
   $("#status-text").textContent = message;
 }
@@ -384,7 +397,7 @@ function showOutput(text, sceneIds, composite, animate = true) {
   $("#output-content").textContent = text;
 
   // Reset copy button icon (reuse same button, no cloneNode needed)
-  $("#btn-copy").innerHTML = Icons.copy;
+  _setHTML($("#btn-copy"), Icons.copy);
 
   // Persist state
   _savePopupState();
@@ -394,11 +407,11 @@ async function handleCopy(text) {
   try {
     await navigator.clipboard.writeText(text);
     const btn = $("#btn-copy");
-    btn.innerHTML = Icons.check;
+    _setHTML(btn, Icons.check);
     btn.classList.add("is-copied");
     showToast("已复制到剪贴板", "success");
     setTimeout(() => {
-      btn.innerHTML = Icons.copy;
+      _setHTML(btn, Icons.copy);
       btn.classList.remove("is-copied");
     }, 2000);
   } catch {
@@ -407,7 +420,7 @@ async function handleCopy(text) {
 }
 
 function bindCopyButton() {
-  $("#btn-copy").innerHTML = Icons.copy;
+  _setHTML($("#btn-copy"), Icons.copy);
   $("#btn-copy").addEventListener("click", () => {
     if (_currentOutputText) handleCopy(_currentOutputText);
   });
@@ -432,7 +445,7 @@ function renderHotTags() {
   // Browse all button
   const browseTag = document.createElement("button");
   browseTag.className = "scene-tag scene-tag--browse";
-  browseTag.innerHTML = `${Icons.grid} 全部场景`;
+  _setHTML(browseTag, `${Icons.grid} 全部场景`);
   browseTag.addEventListener("click", () => openScenesModal());
   container.appendChild(browseTag);
 }
@@ -478,7 +491,7 @@ function closePicker() {
 
 function renderScenePicker() {
   const list = $("#picker-list");
-  list.innerHTML = "";
+  list.replaceChildren();
   const scenes = Scenes.getScenes();
   if (!scenes) return;
 
@@ -625,7 +638,7 @@ function closeScenesModal() {
 
 function renderSceneBrowser() {
   const container = $("#scenes-list");
-  container.innerHTML = "";
+  container.replaceChildren();
   const scenes = Scenes.getScenes();
   if (!scenes) return;
 
@@ -698,7 +711,7 @@ let activePersona = "all";
 
 function renderPersonaTabs() {
   const container = $("#persona-tabs");
-  container.innerHTML = "";
+  container.replaceChildren();
 
   for (const persona of Scenes.PERSONAS) {
     const tab = document.createElement("button");
@@ -707,7 +720,10 @@ function renderPersonaTabs() {
     tab.dataset.persona = persona.id;
     tab.setAttribute("aria-label", persona.name);
     const icon = Icons.persona[persona.id];
-    if (icon) tab.insertAdjacentHTML("beforeend", icon);
+    if (icon) {
+      const frag = _htmlParser.parseFromString(icon, "text/html").body;
+      tab.appendChild(document.adoptNode(frag.firstChild));
+    }
     tab.appendChild(document.createTextNode(persona.name));
     container.appendChild(tab);
   }
@@ -769,7 +785,7 @@ function closeHistoryPanel() {
 function renderHistoryList(records) {
   const list = $("#history-list");
   const empty = $("#history-empty");
-  list.innerHTML = "";
+  list.replaceChildren();
 
   // 存储记录数据供事件委托使用
   _historyData = records || [];
@@ -792,7 +808,7 @@ function renderHistoryList(records) {
       hour: "2-digit",
       minute: "2-digit",
     });
-    card.innerHTML = `
+    _setHTML(card, `
       <div class="history-card__header">
         <span class="history-card__scene">${escapeHtml(rec.sceneName || "智能")}</span>
         <span class="history-card__time">${time}</span>
@@ -801,7 +817,7 @@ function renderHistoryList(records) {
       <div class="history-card__actions">
         <button class="icon-btn icon-btn--sm" data-action="copy" title="复制结果" aria-label="复制结果">${Icons.copy}</button>
         <button class="icon-btn icon-btn--sm icon-btn--danger" data-action="delete" title="删除" aria-label="删除">${Icons.trash}</button>
-      </div>`;
+      </div>`);
     list.appendChild(card);
   }
 }
