@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.easyprompt"
-version = "3.2.2"
+version = "4.0.0"
 
 repositories {
     mavenCentral()
@@ -41,6 +41,8 @@ intellijPlatform {
                 <li>Composite Support: Handles multiple intents in a single input</li>
                 <li>Quick Enhance: Select text and press Ctrl+Alt+P to enhance instantly</li>
                 <li>38 Scenes: Covers the entire development workflow</li>
+                <li>Multi-Platform: Available on VSCode, IntelliJ IDEA, and Web</li>
+                <li>Zero Config: Built-in AI service, works out of the box</li>
             </ul>
         """.trimIndent()
         vendor {
@@ -52,6 +54,19 @@ intellijPlatform {
             untilBuild = "252.*"
         }
         changeNotes = """
+            <h3>v4.0.0 — Web 端上线，三端覆盖</h3>
+            <ul>
+                <li>🌐 新增：Web 在线版，纯前端 SPA 开箱即用，无需安装</li>
+                <li>🎨 新增：专业级 UI 设计（参考 Linear / Vercel 设计语言）</li>
+                <li>📝 优化：38 个场景新增「痛点」数据，场景详情更完整</li>
+                <li>🔧 修复：全平台审查修复多处细节问题</li>
+            </ul>
+            <h3>v3.2.2</h3>
+            <ul>
+                <li>修复：Welcome 页面版本号显示更新</li>
+                <li>优化：IntelliJ 场景详情页新增「💡 痛点」板块，展示场景使用场景</li>
+                <li>优化：全平台审查修复多处细节问题</li>
+            </ul>
             <h3>v3.2.1</h3>
             <ul>
                 <li>优化：API 额度不足错误提示，显示具体金额并引导配置</li>
