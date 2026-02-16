@@ -1,8 +1,8 @@
 {
   "name": "easy-prompt-ai",
   "displayName": "Easy Prompt — AI 智能 Prompt 增强器",
-  "description": "Two-step AI intent recognition with 38 specialized scenes for professional prompt generation. Available on VSCode, IntelliJ IDEA, and Web.",
-  "version": "4.0.0",
+  "description": "Two-step AI intent recognition with 85 specialized scenes and 10 persona profiles for professional prompt generation. Available on VSCode, IntelliJ IDEA, and Web.",
+  "version": "4.1.0",
   "publisher": "FlippySun",
   "license": "MIT",
   "engines": {
@@ -70,6 +70,11 @@
         "command": "easy-prompt.statusBarMenu",
         "title": "Easy Prompt: 打开快捷菜单",
         "category": "Easy Prompt"
+      },
+      {
+        "command": "easy-prompt.showHistory",
+        "title": "Easy Prompt: 查看增强历史",
+        "category": "Easy Prompt"
       }
     ],
     "keybindings": [
@@ -102,6 +107,11 @@
         "command": "easy-prompt.showWelcome",
         "key": "ctrl+alt+h",
         "mac": "ctrl+alt+h"
+      },
+      {
+        "command": "easy-prompt.showHistory",
+        "key": "ctrl+alt+y",
+        "mac": "ctrl+alt+y"
       }
     ],
     "configuration": {

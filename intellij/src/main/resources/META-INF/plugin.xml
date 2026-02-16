@@ -70,6 +70,13 @@
                 <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt H"/>
             </action>
 
+            <action id="EasyPrompt.ShowHistory"
+                    class="com.easyprompt.actions.ShowHistoryAction"
+                    text="查看增强历史"
+                    description="查看 Prompt 增强历史记录，支持对比和复制">
+                <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt Y"/>
+            </action>
+
             <action id="EasyPrompt.StatusBarMenu"
                     class="com.easyprompt.actions.StatusBarMenuAction"
                     text="打开快捷菜单"

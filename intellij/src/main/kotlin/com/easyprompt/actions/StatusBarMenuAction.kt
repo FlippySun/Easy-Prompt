@@ -18,7 +18,8 @@ class StatusBarMenuAction : AnAction() {
         MenuItem("📝 增强选中文本 (Ctrl+Alt+P)", "EasyPrompt.EnhanceSelected"),
         MenuItem("🎯 指定场景增强 (Ctrl+Alt+M)", "EasyPrompt.EnhanceWithScene"),
         MenuItem("📋 浏览场景大全 (Ctrl+Alt+L)", "EasyPrompt.ShowScenes"),
-        MenuItem("📖 使用教程 (Ctrl+Alt+H)", "EasyPrompt.ShowWelcome"),
+        MenuItem("� 增强历史 (Ctrl+Alt+Y)", "EasyPrompt.ShowHistory"),
+        MenuItem("�📖 使用教程 (Ctrl+Alt+H)", "EasyPrompt.ShowWelcome"),
         MenuItem("⚙️ API 配置", "ShowSettings"),
     )
 

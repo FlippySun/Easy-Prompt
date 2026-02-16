@@ -21,19 +21,7 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.ui.popup.util.BaseListPopupStep
 
-/**
- * 智能增强 Action
- * 按优先级智能选择增强内容源：
- * 1. 选中文本（最高优先级）
- * 2. 当前文件（≤50 行且 ≤2000 字符）
- * 3. 剪贴板文本（≤10000 字符）
- *
- * 多来源时让用户选择，单来源自动使用
- *
- * 对应 VSCode 的 smartEnhance() 函数
- *
- * @since 3.2.0
- */
+
 class SmartEnhanceAction : AnAction() {
 
     // 内容来源类型
@@ -216,9 +204,9 @@ class SmartEnhanceAction : AnAction() {
             override fun run(indicator: com.intellij.openapi.progress.ProgressIndicator) {
                 try {
                     // 使用 ApiClient.smartRoute 进行两步路由（意图识别 + 生成）
-                    val result = ApiClient.smartRoute(text) { msg ->
+                    val result = ApiClient.smartRoute(text, { msg ->
                         indicator.text = msg
-                    }
+                    }, indicator)
 
                     enhancedText = result.result
                     resultScenes = result.scenes
@@ -226,6 +214,20 @@ class SmartEnhanceAction : AnAction() {
 
                     // 记录场景命中
                     EasyPromptSettings.getInstance().incrementSceneHits(result.scenes)
+
+                    // 保存历史记录
+                    val historySceneName = if (result.composite) {
+                        result.scenes.map { Scenes.nameMap[it] ?: it }.joinToString(" + ")
+                    } else {
+                        Scenes.nameMap[result.scenes.firstOrNull() ?: ""] ?: ""
+                    }
+                    EasyPromptSettings.getInstance().saveHistory(
+                        mode = "smart",
+                        sceneIds = result.scenes,
+                        sceneName = historySceneName,
+                        originalText = text,
+                        enhancedText = result.result
+                    )
 
                 } catch (e: Exception) {
                     errorMessage = e.message ?: "未知错误"

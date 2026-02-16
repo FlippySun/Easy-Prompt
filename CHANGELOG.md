@@ -5,17 +5,88 @@ All notable changes to the Easy Prompt project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.0] - 2026-02-17
+
+### 🧑‍💼 画像系统 + 历史记录 + 35 新场景
+
+Easy Prompt v4.1.0 全面升级。引入 10 大用户画像系统和增强历史功能，新增 35 个专业场景（总计 85 个），三端同步。
+
+#### 🧑‍💼 10 大用户画像
+
+场景之上抽象出用户画像层，按职业角色分组场景，降低认知负荷：
+
+- **软件工程师**：需求分析 + 编码开发 + 质量保障 + 文档 + 运维（5 个分类）
+- **内容创作者**：通用写作（12 个场景）
+- **产品经理**：PRD/用户故事/竞品分析/数据分析/会议纪要/验收标准
+- **市场运营**：广告文案/品牌故事/邮件营销/活动策划/增长策略
+- **设计师**：设计Brief/UX评审/设计规范/UX文案
+- **数据分析师**：数据报告/AB测试/指标定义/数据可视化
+- **HR人事**：JD编写/面试指南/绩效评语/入职方案
+- **客户服务**：FAQ编写/回复模板/反馈分析
+- **创业者/管理者**：商业计划书/路演PPT/OKR/SWOT/风险评估
+- **学生/教育**：学习计划/读书笔记/论文大纲/出题生成
+
+#### 🎯 35 个新增专业场景（总计 85 个）
+
+- 产品经理：`prd`, `user-story`, `competitor`, `data-analysis`, `meeting-notes`, `acceptance`
+- 市场运营：`ad-copy`, `brand-story`, `email-marketing`, `event-plan`, `growth-hack`
+- 设计师：`design-brief`, `ux-review`, `design-spec`, `copy-ux`
+- 数据分析师：`data-report`, `ab-test`, `metric-define`, `data-viz`
+- HR人事：`jd-write`, `interview-guide`, `performance-review`, `onboarding-plan`
+- 客户服务：`faq-write`, `response-template`, `feedback-analysis`
+- 创业者/管理者：`business-plan`, `pitch-deck`, `okr`, `swot`, `risk-assess`
+- 学生/教育：`study-plan`, `summary`, `essay`, `quiz-gen`
+
+#### 🕐 增强历史功能
+
+- 新增 `Ctrl+Alt+Y` 快捷键查看增强历史
+- 支持 before/after 文本对比展示
+- 支持一键复制原文/增强结果
+- 支持删除单条记录和清空全部
+- 最多保留最近 100 条（FIFO）
+- 三端存储：VSCode→globalState, IntelliJ→PersistentState, Web→localStorage
+
+#### 📂 场景分组优化
+
+- 场景列表/选择器按画像分组展示（取代原有的纯频率排序）
+- Web 端新增画像 Tab 页快速筛选
+- VSCode 端 QuickPick 添加画像分隔符
+- IntelliJ 端 Popup 列表按画像分组
+
+#### 🔧 三端同步
+
+- VSCode: history + persona + package.json 命令注册 + 快捷键
+- IntelliJ: ShowHistoryAction + PersonaConfig + 4 个 Action 文件 history save + plugin.xml 注册
+- Web: history panel + persona tabs + SCENE_CATEGORIES 15 分类
+
+---
+
 ## [4.0.0] - 2026-02-16
 
 ### 🌐 Web 端正式上线 — 三端覆盖，全场景触达
 
 Easy Prompt 迎来首个大版本升级。全新 Web 在线版正式上线，与 VSCode 扩展、IntelliJ 插件形成三端矩阵，让 Prompt 增强能力触手可及。
 
+#### ✍️ 12 个写作专业场景（50 场景全覆盖）
+
+- **选题生成** (topic-gen)：根据领域/定位/热点生成选题清单，含爆款潜力评分
+- **事实校验** (fact-check)：逐段核查事实性陈述，三级标注（可信/存疑/错误）
+- **背景调研** (research)：整理背景资料、关键数据、权威引用、正反观点
+- **文风改写** (style-rewrite)：正式↔口语/学术↔通俗/幽默↔文艺风格转换
+- **字数调控** (word-adjust)：扩写或缩写到目标字数，核心信息保持率 ≥ 95%
+- **平台适配** (platform-adapt)：针对公众号/小红书/知乎/微博/B站/抖音改写
+- **合规审查** (compliance)：广告法/平台规则/版权风险三维审查 + 合规版全文
+- **标题优化** (headline)：10 个标题方案（数字/悬念/对比/情绪/痛点/行动型）
+- **大纲生成** (outline)：结构化大纲（含钩子/论点/素材/节奏/字数估算）
+- **SEO 优化** (seo-write)：关键词策略 + 内容优化 + 技术 SEO + SEO 评分
+- **文案润色** (copy-polish)：错别字/语法/表达/结构/风格五维润色
+- **社媒文案** (social-post)：5 版本社媒文案（走心/金句/数据/悬念/互动）
+
 #### 🚀 全新 Web 在线版
 
 - **纯前端 SPA 架构**：`index.html` + `style.css` + `app.js` + `scenes.json`，零后端依赖，部署到任意静态服务器即可使用
 - **专业级视觉设计**：参考 Linear / Vercel / Raycast 设计语言，高斯模糊背景 + 渐变光影 + 流畅微交互动画
-- **完整 38 场景支持**：场景选择器 + 实时搜索筛选 + 分类浏览 + 使用频率统计
+- **完整 50 场景支持**：场景选择器 + 实时搜索筛选 + 7 大分类浏览 + 使用频率统计
 - **双模式增强**：智能路由（AI 自动识别意图）+ 指定场景（手动精准选择）
 - **全设备响应式**：桌面端与移动端自适应布局，支持所有主流浏览器
 - **Lucide SVG 图标体系**：全部使用专业内联 SVG 图标，零外部 CDN 依赖
@@ -24,7 +95,7 @@ Easy Prompt 迎来首个大版本升级。全新 Web 在线版正式上线，与
 #### 🔧 全平台质量审查
 
 - **VSCode** Welcome 引导页版本号显示修正
-- **IntelliJ** 38 个场景补齐「痛点」(painPoint) 数据，与 core 模块完全同步
+- **IntelliJ** 50 个场景补齐「痛点」(painPoint) 数据，与 core 模块完全同步
 - **IntelliJ** changeNotes 补齐 v3.2.2 更新说明
 - **Web** 场景选择器下拉定位修复（`position: absolute` → `position: fixed`）
 - **Web** 背景装饰光影居中偏移修复
@@ -77,7 +148,7 @@ Easy Prompt 迎来首个大版本升级。全新 Web 在线版正式上线，与
 - **`handleCommandError()` 集中错误处理**：统一重试/配置/取消操作按钮，根据错误类型智能提供操作建议
 - Welcome 引导页新增 Ctrl+Alt+I / Ctrl+Alt+H 快捷键说明和状态栏使用提示
 - 场景浏览和指定场景增强均按使用频率智能排序
-- IntelliJ WelcomeDialog 场景分类扩展至全部 38 个场景（6 个分类，与 VSCode 端完全对齐）
+- IntelliJ WelcomeDialog 场景分类扩展至全部 50 个场景（6 个分类，与 VSCode 端完全对齐）
 
 ### 🐛 Fixed
 
@@ -121,7 +192,7 @@ Easy Prompt 迎来首个大版本升级。全新 Web 在线版正式上线，与
 
 ### 📋 Improvements
 
-- 38 个场景添加痛点描述和示例
+- 50 个场景添加痛点描述和示例
 - 增强进度反馈：显示每步耗时
 - 优化用户体验：添加「撤销」快捷提示
 
@@ -131,7 +202,7 @@ Easy Prompt 迎来首个大版本升级。全新 Web 在线版正式上线，与
 
 - 首次发布
 - 两步 AI 智能路由：意图识别 + 专业 Prompt 生成
-- 38 个专业场景覆盖开发全流程
+- 50 个专业场景覆盖开发全流程
 - 支持复合意图识别
 - VSCode 和 IntelliJ IDEA 双平台支持
 - 多 API 提供商兼容（OpenAI / Azure / Gemini / DeepSeek / Ollama）

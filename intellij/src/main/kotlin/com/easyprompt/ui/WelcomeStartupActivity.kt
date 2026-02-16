@@ -7,6 +7,7 @@ import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.startup.ProjectActivity
+import com.easyprompt.core.Scenes
 
 class WelcomeStartupActivity : ProjectActivity {
 
@@ -25,7 +26,7 @@ class WelcomeStartupActivity : ProjectActivity {
                     .getNotificationGroup("Easy Prompt")
                     .createNotification(
                         "欢迎使用 Easy Prompt！",
-                        "AI 驱动的智能 Prompt 工程工具包 · 38 个专业场景。Ctrl+Alt+I 智能增强，Ctrl+Alt+H 查看完整教程。",
+                        "AI 驱动的智能 Prompt 工程工具包 · ${Scenes.all.size} 个专业场景。Ctrl+Alt+I 智能增强，Ctrl+Alt+H 查看完整教程。",
                         NotificationType.INFORMATION
                     )
                     .addAction(NotificationAction.createSimple("查看使用教程") {

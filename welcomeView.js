@@ -64,10 +64,10 @@ function showWelcomePage(context) {
 function getWelcomeHtml() {
   // 构建场景分类
   const categories = {
-    "🚀 需求 & 规划": ["optimize", "split-task", "techstack", "proposal"],
+    "🚀 需求 & 规划": ["optimize", "split-task", "techstack", "api-design"],
     "💻 编码 & 开发": [
-      "api-design",
       "refactor",
+      "perf",
       "regex",
       "sql",
       "convert",
@@ -78,30 +78,82 @@ function getWelcomeHtml() {
       "form",
       "async",
       "schema",
-      "script",
       "algo",
     ],
     "🔍 调试 & 质量": [
-      "debug",
-      "error",
-      "perf",
       "review",
       "test",
+      "debug",
+      "error",
       "security",
-      "incident",
+      "comment",
     ],
     "📝 文档 & 协作": [
-      "comment",
       "doc",
-      "commit",
       "changelog",
-      "translate",
+      "commit",
+      "proposal",
       "present",
+      "translate",
       "mock",
     ],
-    "🛠️ 运维 & 环境": ["devops", "env", "deps", "git"],
+    "🛠️ 运维 & 环境": ["devops", "env", "script", "deps", "git", "incident"],
     "💡 学习 & 纠偏": ["explain", "followup"],
+    "✍️ 内容创作": [
+      "topic-gen",
+      "outline",
+      "copy-polish",
+      "style-rewrite",
+      "word-adjust",
+      "headline",
+      "fact-check",
+      "research",
+      "platform-adapt",
+      "compliance",
+      "seo-write",
+      "social-post",
+    ],
+    "📋 产品管理": [
+      "prd",
+      "user-story",
+      "competitor",
+      "data-analysis",
+      "meeting-notes",
+      "acceptance",
+    ],
+    "📣 市场运营": [
+      "ad-copy",
+      "brand-story",
+      "email-marketing",
+      "event-plan",
+      "growth-hack",
+    ],
+    "🎨 设计体验": ["design-brief", "ux-review", "design-spec", "copy-ux"],
+    "📊 数据分析": ["data-report", "ab-test", "metric-define", "data-viz"],
+    "👥 HR 人事": [
+      "jd-write",
+      "interview-guide",
+      "performance-review",
+      "onboarding-plan",
+    ],
+    "💬 客户服务": ["faq-write", "response-template", "feedback-analysis"],
+    "🏢 创业管理": [
+      "business-plan",
+      "pitch-deck",
+      "okr",
+      "swot",
+      "risk-assess",
+    ],
+    "🎓 学习教育": ["study-plan", "summary", "essay", "quiz-gen"],
   };
+
+  function _esc(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
 
   const sceneSections = Object.entries(categories)
     .map(([cat, ids]) => {
@@ -110,15 +162,15 @@ function getWelcomeHtml() {
           const s = SCENES[id];
           if (!s) return "";
           const pp = (s.painPoint || "").split("—")[0].trim();
-          return `<div class="scene-card" data-id="${id}">
-                <div class="scene-name">${s.name}</div>
-                <div class="scene-tag">${id}</div>
-                <div class="scene-pain">${pp}</div>
+          return `<div class="scene-card" data-id="${_esc(id)}">
+                <div class="scene-name">${_esc(s.name)}</div>
+                <div class="scene-tag">${_esc(id)}</div>
+                <div class="scene-pain">${_esc(pp)}</div>
             </div>`;
         })
         .join("");
       return `<div class="category">
-            <h3>${cat}</h3>
+            <h3>${_esc(cat)}</h3>
             <div class="scene-grid">${cards}</div>
         </div>`;
     })
@@ -132,16 +184,16 @@ function getWelcomeHtml() {
 <title>Welcome to Easy Prompt</title>
 <style>
 :root {
-    --bg: #1e1e1e;
-    --card: #252526;
-    --card-hover: #2d2d30;
-    --border: #3e3e42;
-    --text: #cccccc;
-    --text-dim: #858585;
-    --accent: #0078d4;
-    --accent-light: #1a8cff;
-    --success: #4ec9b0;
-    --warn: #dcdcaa;
+    --bg: var(--vscode-editor-background, #1e1e1e);
+    --card: var(--vscode-sideBar-background, #252526);
+    --card-hover: var(--vscode-list-hoverBackground, #2d2d30);
+    --border: var(--vscode-input-border, #3e3e42);
+    --text: var(--vscode-foreground, #cccccc);
+    --text-dim: var(--vscode-descriptionForeground, #858585);
+    --accent: var(--vscode-textLink-foreground, #0078d4);
+    --accent-light: var(--vscode-textLink-activeForeground, #1a8cff);
+    --success: var(--vscode-terminal-ansiGreen, #4ec9b0);
+    --warn: var(--vscode-editorWarning-foreground, #dcdcaa);
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -400,9 +452,9 @@ kbd {
 <div class="container">
     <!-- Hero -->
     <div class="hero">
-        <div class="version-badge">v4.0.0</div>
+        <div class="version-badge">v4.1.0</div>
         <h1>Welcome to <span>Easy Prompt</span></h1>
-        <p>AI 驱动的智能 Prompt 工程工具包 — 写一句大白话，生成专业级 Prompt，38 个场景覆盖你的全部开发痛点</p>
+        <p>AI 驱动的智能 Prompt 工程工具包 — 写一句大白话，生成专业级 Prompt，85 个场景 + 10 大画像覆盖你的全部开发与创作痛点</p>
     </div>
 
     <!-- Quick Start -->
@@ -449,7 +501,7 @@ kbd {
             </tr>
             <tr>
                 <td><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>L</kbd></td>
-                <td><strong>浏览场景</strong><br><span class="shortcut-desc">查看 38 个场景详情和 System Prompt</span></td>
+                <td><strong>浏览场景</strong><br><span class="shortcut-desc">查看 85 个场景详情和 System Prompt</span></td>
             </tr>
             <tr>
                 <td><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>M</kbd></td>
@@ -492,7 +544,7 @@ kbd {
 
     <!-- Scenes -->
     <div class="section">
-        <h2>🎯 38 个专业场景</h2>
+        <h2>🎯 85 个专业场景</h2>
         <p style="color:var(--text-dim);font-size:13px;margin-bottom:16px;">点击任意场景卡片可查看详情 · 使用 <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>M</kbd> 指定场景增强 · 场景按使用频率 🔥 智能排序</p>
         ${sceneSections}
     </div>
@@ -510,7 +562,7 @@ kbd {
 
     <!-- Footer -->
     <div class="footer">
-        <p>Easy Prompt v4.0.0 · Made with ❤️ · <a href="https://github.com/FlippySun/Easy-Prompt">GitHub</a></p>
+        <p>Easy Prompt v4.1.0 · Made with ❤️ · <a href="https://github.com/FlippySun/Easy-Prompt">GitHub</a></p>
         <p style="margin-top:8px;">💡 状态栏右侧 ✨ 图标可随时打开快捷菜单</p>
     </div>
 </div>

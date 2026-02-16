@@ -3,6 +3,7 @@ package com.easyprompt.core
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.easyprompt.settings.EasyPromptSettings
+import com.intellij.openapi.progress.ProgressIndicator
 import java.net.HttpURLConnection
 import java.net.URI
 
@@ -117,18 +118,20 @@ object ApiClient {
      * 获取有效配置（用户自定义优先，否则使用内置默认）
      */
     private fun getEffectiveConfig(): Triple<String, String, String> {
-        val settings = EasyPromptSettings.getInstance().state
-        return if (settings.apiKey.isNotBlank()) {
+        val settingsInstance = EasyPromptSettings.getInstance()
+        val state = settingsInstance.state
+        val userApiKey = settingsInstance.getApiKey()
+        return if (userApiKey.isNotBlank()) {
             // 用户配置了自定义 Key，使用用户的全套配置
-            val baseUrl = settings.apiBaseUrl.ifBlank { "https://api.openai.com/v1" }.trimEnd('/')
-            val model = settings.model.ifBlank { "gpt-4o" }
+            val baseUrl = state.apiBaseUrl.ifBlank { "https://api.openai.com/v1" }.trimEnd('/')
+            val model = state.model.ifBlank { "gpt-4o" }
 
             // 格式验证（与 VSCode getConfig 一致）
             if (!baseUrl.matches(Regex("^https?://.*"))) {
                 throw RuntimeException("API Base URL 格式错误：必须以 http:// 或 https:// 开头")
             }
 
-            Triple(baseUrl, settings.apiKey, model)
+            Triple(baseUrl, userApiKey, model)
         } else {
             // 使用内置默认配置
             val defaults = BuiltinDefaults.getDefaults()
@@ -144,7 +147,8 @@ object ApiClient {
         userMessage: String,
         temperature: Double = 0.7,
         maxTokens: Int = 4096,
-        timeout: Int = 60000
+        timeout: Int = 60000,
+        indicator: ProgressIndicator? = null
     ): String {
         val (baseUrl, apiKey, model) = getEffectiveConfig()
         // 智能拼接：如果用户已输入完整路径（含 /chat/completions），直接使用
@@ -172,18 +176,62 @@ object ApiClient {
             conn.connectTimeout = timeout
             conn.readTimeout = timeout
             conn.doOutput = true
+
+            // 写入请求体前检查取消
+            if (indicator?.isCanceled == true) {
+                throw RuntimeException("已取消")
+            }
             conn.outputStream.write(body.toString().toByteArray())
 
+            // 等待响应前检查取消
+            if (indicator?.isCanceled == true) {
+                throw RuntimeException("已取消")
+            }
+
             val responseCode = conn.responseCode
+            // 安全限制：响应体最大 2MB，错误体最大 2MB
+            val maxSize = 2 * 1024 * 1024
             val responseBody = if (responseCode in 200..299) {
-                val body = conn.inputStream.bufferedReader().readText()
-                // 安全限制：响应体最大 2MB，防止 OOM
-                if (body.length > 2 * 1024 * 1024) {
-                    throw RuntimeException("响应体过大（超过 2MB），已中断")
+                // 流式读取，超过限制立即中断，防止 OOM
+                val reader = conn.inputStream.bufferedReader()
+                val sb = StringBuilder()
+                val buf = CharArray(8192)
+                var totalRead = 0
+                while (true) {
+                    if (indicator?.isCanceled == true) {
+                        reader.close()
+                        throw RuntimeException("已取消")
+                    }
+                    val n = reader.read(buf)
+                    if (n == -1) break
+                    totalRead += n
+                    if (totalRead > maxSize) {
+                        reader.close()
+                        throw RuntimeException("响应体过大（超过 2MB），已中断")
+                    }
+                    sb.append(buf, 0, n)
                 }
-                body
+                sb.toString()
             } else {
-                val errorBody = conn.errorStream?.bufferedReader()?.readText() ?: "Unknown error"
+                // 错误响应体也做大小限制（防止异常服务器返回超大错误体导致 OOM）
+                val errorBody = try {
+                    val errStream = conn.errorStream
+                    if (errStream != null) {
+                        val errReader = errStream.bufferedReader()
+                        val errBuf = CharArray(8192)
+                        val errSb = StringBuilder()
+                        var errTotal = 0
+                        while (true) {
+                            val n = errReader.read(errBuf)
+                            if (n == -1) break
+                            errTotal += n
+                            if (errTotal > maxSize) break  // 截断，不抛异常
+                            errSb.append(errBuf, 0, n)
+                        }
+                        errReader.close()
+                        errSb.toString()
+                    } else "Unknown error"
+                } catch (_: Exception) { "Unknown error" }
                 throw RuntimeException("API 错误 ($responseCode): $errorBody")
             }
 
@@ -207,7 +255,8 @@ object ApiClient {
         temperature: Double = 0.7,
         maxTokens: Int = 4096,
         timeout: Int = 60000,
-        onRetry: ((Int, String) -> Unit)? = null
+        onRetry: ((Int, String) -> Unit)? = null,
+        indicator: ProgressIndicator? = null
     ): String {
         // 输入长度检查
         if (userMessage.length > MAX_INPUT_LENGTH) {
@@ -218,11 +267,19 @@ object ApiClient {
         val (_, _, model) = getEffectiveConfig()
 
         for (attempt in 0..MAX_RETRIES) {
+            if (indicator?.isCanceled == true) {
+                throw RuntimeException("已取消")
+            }
             try {
-                return callApiOnce(systemPrompt, userMessage, temperature, maxTokens, timeout)
+                return callApiOnce(systemPrompt, userMessage, temperature, maxTokens, timeout, indicator)
             } catch (e: Exception) {
                 lastError = e
                 val errorMsg = e.message ?: "Unknown error"
+
+                // 用户取消 — 直接抛出，不重试
+                if (errorMsg == "已取消" || indicator?.isCanceled == true) {
+                    throw RuntimeException("已取消")
+                }
 
                 // 非重试类错误直接抛出（如 401, 403, 模型不存在等）
                 if (!isRetryableError(errorMsg)) {
@@ -296,7 +353,7 @@ object ApiClient {
     /**
      * 两步智能路由
      */
-    fun smartRoute(userInput: String, onProgress: ((String) -> Unit)? = null): SmartRouteResult {
+    fun smartRoute(userInput: String, onProgress: ((String) -> Unit)? = null, indicator: ProgressIndicator? = null): SmartRouteResult {
         onProgress?.invoke("🔍 正在识别意图...")
 
         val onRetry: ((Int, String) -> Unit)? = onProgress?.let { progress ->
@@ -305,7 +362,7 @@ object ApiClient {
 
         // 第一步：意图识别
         val routerPrompt = Router.buildRouterPrompt()
-        val routerText = callApi(routerPrompt, userInput, temperature = 0.1, maxTokens = 500, timeout = 30000, onRetry = onRetry)
+        val routerText = callApi(routerPrompt, userInput, temperature = 0.1, maxTokens = 500, timeout = 30000, onRetry = onRetry, indicator = indicator)
         val routerResult = parseRouterResult(routerText)
 
         val sceneLabels = routerResult.scenes.map { Scenes.nameMap[it] ?: it }
@@ -315,7 +372,7 @@ object ApiClient {
         // 第二步：生成
         val genPrompt = Router.buildGenerationPrompt(routerResult)
         val maxTokens = if (routerResult.composite) 8192 else 4096
-        val result = callApi(genPrompt, userInput, maxTokens = maxTokens, timeout = 120000, onRetry = onRetry)
+        val result = callApi(genPrompt, userInput, maxTokens = maxTokens, timeout = 120000, onRetry = onRetry, indicator = indicator)
 
         return SmartRouteResult(result, routerResult.scenes, routerResult.composite)
     }
@@ -323,7 +380,7 @@ object ApiClient {
     /**
      * 指定场景直接生成（跳过路由）
      */
-    fun directGenerate(userInput: String, sceneId: String, onProgress: ((String) -> Unit)? = null): String {
+    fun directGenerate(userInput: String, sceneId: String, onProgress: ((String) -> Unit)? = null, indicator: ProgressIndicator? = null): String {
         val sceneName = Scenes.nameMap[sceneId] ?: sceneId
         onProgress?.invoke("✍️ 使用「${sceneName}」场景生成 Prompt...")
 
@@ -333,7 +390,7 @@ object ApiClient {
 
         val routerResult = RouterResult(listOf(sceneId), false)
         val genPrompt = Router.buildGenerationPrompt(routerResult)
-        return callApi(genPrompt, userInput, maxTokens = 4096, timeout = 120000, onRetry = onRetry)
+        return callApi(genPrompt, userInput, maxTokens = 4096, timeout = 120000, onRetry = onRetry, indicator = indicator)
     }
 
     /**
@@ -383,7 +440,26 @@ object ApiClient {
                 if (responseCode in 200..299) {
                     Triple(true, "连接成功 · 延迟 ${latency}ms · 模型: ${model.ifBlank { "gpt-4o" }}", latency)
                 } else {
-                    val errorBody = conn.errorStream?.bufferedReader()?.readText() ?: "Unknown error"
+                    // 错误响应体做大小限制（与 callApiOnce 一致）
+                    val errorBody = try {
+                        val errStream = conn.errorStream
+                        if (errStream != null) {
+                            val errReader = errStream.bufferedReader()
+                            val errBuf = CharArray(4096)
+                            val errSb = StringBuilder()
+                            var errTotal = 0
+                            val errMaxSize = 64 * 1024 // 测试接口错误体限制 64KB 即可
+                            while (true) {
+                                val n = errReader.read(errBuf)
+                                if (n == -1) break
+                                errTotal += n
+                                if (errTotal > errMaxSize) break
+                                errSb.append(errBuf, 0, n)
+                            }
+                            errReader.close()
+                            errSb.toString()
+                        } else "Unknown error"
+                    } catch (_: Exception) { "Unknown error" }
                     val msg = when (responseCode) {
                         401 -> "API Key 无效 · 请检查你的 Key 是否正确"
                         403 -> "访问被拒绝 · Key 可能没有权限"

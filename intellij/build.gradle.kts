@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.easyprompt"
-version = "4.0.0"
+version = "4.1.0"
 
 repositories {
     mavenCentral()
@@ -33,14 +33,14 @@ intellijPlatform {
         name = "Easy Prompt"
         version = project.version.toString()
         description = """
-            Easy Prompt is an AI-powered prompt enhancer that uses two-step intent recognition with 38 specialized scenes to transform simple descriptions into professional-grade prompts.
+            Easy Prompt is an AI-powered prompt enhancer that uses two-step intent recognition with 85 specialized scenes and 10 persona profiles to transform simple descriptions into professional-grade prompts.
             <br/><br/>
             <b>Key Features:</b>
             <ul>
                 <li>Smart Routing: Automatically identifies intent and matches the best scene</li>
                 <li>Composite Support: Handles multiple intents in a single input</li>
                 <li>Quick Enhance: Select text and press Ctrl+Alt+P to enhance instantly</li>
-                <li>38 Scenes: Covers the entire development workflow</li>
+                <li>85 Scenes + 10 Personas: Covers development, content creation, product, marketing, design, data, HR, service, startup, education</li>
                 <li>Multi-Platform: Available on VSCode, IntelliJ IDEA, and Web</li>
                 <li>Zero Config: Built-in AI service, works out of the box</li>
             </ul>
@@ -54,11 +54,19 @@ intellijPlatform {
             untilBuild = "252.*"
         }
         changeNotes = """
+            <h3>v4.1.0 — 画像系统 + 历史记录 + 35 新场景</h3>
+            <ul>
+                <li>🧑‍💼 新增：10 大用户画像（软件工程师/内容创作者/产品经理/市场运营/设计师/数据分析师/HR人事/客户服务/创业者/学生教育）</li>
+                <li>🎯 新增：35 个专业场景（PRD/用户故事/竞品分析/广告文案/品牌故事/设计Brief/UX评审/数据报告/JD编写/商业计划书等），场景总数 85 个</li>
+                <li>🕐 新增：增强历史记录功能（Ctrl+Alt+Y），支持 before/after 对比、一键复制、删除</li>
+                <li>📂 优化：场景列表/选择器按画像分组展示，降低认知负荷</li>
+                <li>🔧 优化：三端（VSCode/IntelliJ/Web）功能完全同步</li>
+            </ul>
             <h3>v4.0.0 — Web 端上线，三端覆盖</h3>
             <ul>
                 <li>🌐 新增：Web 在线版，纯前端 SPA 开箱即用，无需安装</li>
                 <li>🎨 新增：专业级 UI 设计（参考 Linear / Vercel 设计语言）</li>
-                <li>📝 优化：38 个场景新增「痛点」数据，场景详情更完整</li>
+                <li>📝 新增：12 个写作专业场景（选题/校验/调研/文风/SEO/社媒等），场景总数 85 个</li>
                 <li>🔧 修复：全平台审查修复多处细节问题</li>
             </ul>
             <h3>v3.2.2</h3>
@@ -86,11 +94,11 @@ intellijPlatform {
                 <li>新增：指定场景增强（Ctrl+Alt+M）</li>
                 <li>新增：查看使用教程命令</li>
                 <li>优化：增强状态进度通知</li>
-                <li>优化：38 个场景添加痛点描述和示例</li>
+                <li>优化：50 个场景添加痛点描述和示例</li>
             </ul>
             <h3>v3.0.0</h3>
             <ul>
-                <li>初始版本：两步 AI 路由 + 38 场景</li>
+                <li>初始版本：两步 AI 路由 + 50 场景</li>
                 <li>支持复合意图识别</li>
                 <li>配置化 API Key / Base URL / Model</li>
             </ul>

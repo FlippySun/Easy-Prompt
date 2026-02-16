@@ -7,6 +7,7 @@ import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ide.scratch.ScratchRootType
 import com.intellij.lang.Language
+import com.easyprompt.core.PersonaConfig
 import com.easyprompt.core.Scenes
 import com.easyprompt.settings.EasyPromptSettings
 
@@ -16,26 +17,56 @@ class ShowScenesAction : AnAction() {
         val project = e.project ?: return
         val stats = EasyPromptSettings.getInstance().getSceneStats()
 
-        // 按命中次数降序排列
-        val sortedEntries = Scenes.all.entries.sortedByDescending { stats[it.key] ?: 0 }
+        // 按画像分组构建列表
+        val items = mutableListOf<String>()
+        data class ItemEntry(val sceneId: String, val scene: com.easyprompt.core.Scene)
+        val itemEntries = mutableListOf<ItemEntry?>() // null = separator
 
-        val items = sortedEntries.map { (id, scene) ->
-            val hits = stats[id] ?: 0
-            val fireLabel = if (hits > 0) " 🔥$hits" else ""
-            "${scene.name}$fireLabel ($id) — ${scene.description}"
+        for (persona in PersonaConfig.personas) {
+            val personaSceneIds = PersonaConfig.getScenesForPersona(persona.id)
+            val personaEntries = Scenes.all.entries
+                .filter { it.key in personaSceneIds }
+                .sortedByDescending { stats[it.key] ?: 0 }
+
+            if (personaEntries.isNotEmpty()) {
+                // 分隔符
+                items.add("── ${persona.name} ──")
+                itemEntries.add(null)
+
+                for (entry in personaEntries) {
+                    val hits = stats[entry.key] ?: 0
+                    val fireLabel = if (hits > 0) " 🔥$hits" else ""
+                    items.add("  ${entry.value.name}$fireLabel (${entry.key}) — ${entry.value.description}")
+                    itemEntries.add(ItemEntry(entry.key, entry.value))
+                }
+            }
+        }
+
+        // 未分类场景
+        val allCategorized = PersonaConfig.personas.flatMap { PersonaConfig.getScenesForPersona(it.id) }.toSet()
+        val uncategorized = Scenes.all.entries.filter { it.key !in allCategorized }.sortedByDescending { stats[it.key] ?: 0 }
+        if (uncategorized.isNotEmpty()) {
+            items.add("── 其他 ──")
+            itemEntries.add(null)
+            for (entry in uncategorized) {
+                val hits = stats[entry.key] ?: 0
+                val fireLabel = if (hits > 0) " 🔥$hits" else ""
+                items.add("  ${entry.value.name}$fireLabel (${entry.key}) — ${entry.value.description}")
+                itemEntries.add(ItemEntry(entry.key, entry.value))
+            }
         }
 
         JBPopupFactory.getInstance()
             .createPopupChooserBuilder(items)
-            .setTitle("Easy Prompt — 场景列表 (${items.size} 个) · 按使用频率排序")
+            .setTitle("Easy Prompt — 场景列表 (${Scenes.all.size} 个) · 按画像分组")
             .setItemChosenCallback { chosen ->
                 val selectedIndex = items.indexOf(chosen)
                 if (selectedIndex >= 0) {
-                    val entry = sortedEntries[selectedIndex]
-                    val scene = entry.value
-                    val hits = stats[entry.key] ?: 0
+                    val entry = itemEntries[selectedIndex] ?: return@setItemChosenCallback // skip separators
+                    val scene = entry.scene
+                    val hits = stats[entry.sceneId] ?: 0
                     val content = buildString {
-                        appendLine("# ${scene.name} (${entry.key})")
+                        appendLine("# ${scene.name} (${entry.sceneId})")
                         appendLine()
                         appendLine("> ${scene.description}")
                         if (hits > 0) {
@@ -62,7 +93,7 @@ class ShowScenesAction : AnAction() {
                     ApplicationManager.getApplication().invokeLater {
                         val scratchFile = ScratchRootType.getInstance().createScratchFile(
                             project,
-                            "Scene-${entry.key}.md",
+                            "Scene-${entry.sceneId}.md",
                             Language.findLanguageByID("Markdown"),
                             content
                         )

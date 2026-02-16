@@ -2,11 +2,16 @@ package com.easyprompt.core
 
 object Router {
 
+    // 路由 Prompt 缓存（场景数据不变，仅需构建一次）— 与 core/router.js cachedRouterPrompt 一致
+    private var cachedRouterPrompt: String? = null
+
     fun buildRouterPrompt(): String {
+        cachedRouterPrompt?.let { return it }
+
         val sceneList = Scenes.all.entries.joinToString("\n") { (id, s) ->
             "- $id: ${s.keywords.joinToString("/")} → ${s.name}"
         }
-        return """你是一个意图分类器。分析用户输入，识别其中包含的所有意图场景。
+        val prompt = """你是一个意图分类器。分析用户输入，识别其中包含的所有意图场景。
 
 场景列表：
 $sceneList
@@ -18,6 +23,8 @@ $sceneList
 4. scenes 数组按主次顺序排列，最重要的在前面，最多 5 个
 5. 如果都不太匹配，返回 {"scenes":["optimize"],"composite":false}
 6. 不要返回任何其他文字，只返回 JSON"""
+        cachedRouterPrompt = prompt
+        return prompt
     }
 
     fun buildGenerationPrompt(routerResult: RouterResult): String {

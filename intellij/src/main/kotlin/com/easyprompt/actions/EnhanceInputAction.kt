@@ -33,14 +33,28 @@ class EnhanceInputAction : AnAction() {
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Easy Prompt", true) {
             override fun run(indicator: ProgressIndicator) {
                 try {
-                    val result = ApiClient.smartRoute(input) { msg ->
+                    val result = ApiClient.smartRoute(input, { msg ->
                         indicator.text = msg
-                    }
+                    }, indicator)
 
                     if (indicator.isCanceled) return
 
                     // 记录场景命中
                     EasyPromptSettings.getInstance().incrementSceneHits(result.scenes)
+
+                    // 保存历史记录
+                    val historySceneName = if (result.composite) {
+                        result.scenes.map { Scenes.nameMap[it] ?: it }.joinToString(" + ")
+                    } else {
+                        Scenes.nameMap[result.scenes.firstOrNull() ?: ""] ?: ""
+                    }
+                    EasyPromptSettings.getInstance().saveHistory(
+                        mode = "smart",
+                        sceneIds = result.scenes,
+                        sceneName = historySceneName,
+                        originalText = input,
+                        enhancedText = result.result
+                    )
 
                     ApplicationManager.getApplication().invokeLater {
                         val scratchFile = ScratchRootType.getInstance().createScratchFile(

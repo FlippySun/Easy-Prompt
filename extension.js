@@ -15,6 +15,149 @@ const SCENE_STATS_KEY = "easyPrompt.sceneStats";
 /** 全局上下文引用，在 activate 中赋值 */
 let _context = null;
 
+/** configureApi 面板复用引用 */
+let _configPanel = null;
+let _historyPanel = null;
+
+// ============ 模块级静态数据（场景分类 + 画像分组） ============
+
+const SCENE_CATEGORIES = [
+  {
+    id: "requirement",
+    scenes: ["optimize", "split-task", "techstack", "api-design"],
+  },
+  {
+    id: "development",
+    scenes: [
+      "refactor",
+      "perf",
+      "regex",
+      "sql",
+      "convert",
+      "typescript",
+      "css",
+      "state",
+      "component",
+      "form",
+      "async",
+      "schema",
+    ],
+  },
+  {
+    id: "quality",
+    scenes: ["review", "test", "debug", "error", "security", "comment"],
+  },
+  {
+    id: "docs",
+    scenes: [
+      "doc",
+      "changelog",
+      "commit",
+      "proposal",
+      "present",
+      "explain",
+      "followup",
+    ],
+  },
+  { id: "ops", scenes: ["devops", "env", "script", "deps", "git", "incident"] },
+  {
+    id: "writing",
+    scenes: [
+      "topic-gen",
+      "outline",
+      "copy-polish",
+      "style-rewrite",
+      "word-adjust",
+      "headline",
+      "fact-check",
+      "research",
+      "platform-adapt",
+      "compliance",
+      "seo-write",
+      "social-post",
+    ],
+  },
+  {
+    id: "product",
+    scenes: [
+      "prd",
+      "user-story",
+      "competitor",
+      "data-analysis",
+      "meeting-notes",
+      "acceptance",
+    ],
+  },
+  {
+    id: "marketing",
+    scenes: [
+      "ad-copy",
+      "brand-story",
+      "email-marketing",
+      "event-plan",
+      "growth-hack",
+    ],
+  },
+  {
+    id: "design",
+    scenes: ["design-brief", "ux-review", "design-spec", "copy-ux"],
+  },
+  {
+    id: "data",
+    scenes: ["data-report", "ab-test", "metric-define", "data-viz"],
+  },
+  {
+    id: "hr",
+    scenes: [
+      "jd-write",
+      "interview-guide",
+      "performance-review",
+      "onboarding-plan",
+    ],
+  },
+  {
+    id: "service",
+    scenes: ["faq-write", "response-template", "feedback-analysis"],
+  },
+  {
+    id: "startup",
+    scenes: ["business-plan", "pitch-deck", "okr", "swot", "risk-assess"],
+  },
+  { id: "education", scenes: ["study-plan", "summary", "essay", "quiz-gen"] },
+  { id: "general", scenes: ["translate", "mock", "algo"] },
+];
+
+// 场景 → 分类 反向映射（仅构建一次）
+const SCENE_TO_CATEGORY = {};
+for (const cat of SCENE_CATEGORIES) {
+  for (const s of cat.scenes) {
+    SCENE_TO_CATEGORY[s] = cat.id;
+  }
+}
+
+const PERSONA_GROUPS = [
+  {
+    label: "软件工程师",
+    categories: [
+      "requirement",
+      "development",
+      "quality",
+      "docs",
+      "ops",
+      "general",
+    ],
+  },
+  { label: "内容创作者", categories: ["writing"] },
+  { label: "产品经理", categories: ["product"] },
+  { label: "市场运营", categories: ["marketing"] },
+  { label: "设计师", categories: ["design"] },
+  { label: "数据分析师", categories: ["data"] },
+  { label: "HR 人事", categories: ["hr"] },
+  { label: "客户服务", categories: ["service"] },
+  { label: "创业者/管理者", categories: ["startup"] },
+  { label: "学生/教育", categories: ["education"] },
+];
+
 /**
  * 获取场景命中统计 { [sceneId]: number }
  */
@@ -35,6 +178,39 @@ function incrementSceneHits(sceneIds) {
   _context.globalState.update(SCENE_STATS_KEY, stats);
 }
 
+// ============ 增强历史记录 ============
+
+const HISTORY_KEY = "easyPrompt.history";
+const MAX_HISTORY = 100;
+
+function loadHistory() {
+  if (!_context) return [];
+  return _context.globalState.get(HISTORY_KEY, []);
+}
+
+function saveHistory(originalText, enhancedText, mode, sceneIds, sceneName) {
+  if (!_context) return;
+  const history = loadHistory();
+  const record = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    timestamp: Date.now(),
+    mode,
+    sceneIds: sceneIds || [],
+    sceneName: sceneName || "",
+    originalText,
+    enhancedText,
+  };
+  history.unshift(record);
+  if (history.length > MAX_HISTORY) history.length = MAX_HISTORY;
+  _context.globalState.update(HISTORY_KEY, history);
+  return record;
+}
+
+function clearHistoryStorage() {
+  if (!_context) return;
+  _context.globalState.update(HISTORY_KEY, []);
+}
+
 /**
  * 构建带命中计数的场景列表项（用于 QuickPick），按命中次数降序排列
  * @param {Object} options - { showDetail: boolean }
@@ -43,24 +219,38 @@ function buildSceneItems(options = {}) {
   const stats = getSceneStats();
   const { showDetail = true } = options;
 
-  const items = Object.entries(SCENES).map(([id, scene]) => {
-    const hits = stats[id] || 0;
-    const fireLabel = hits > 0 ? ` 🔥${hits}` : "";
-    return {
-      label: `$(symbol-method) ${scene.name}${fireLabel}`,
-      description: id,
-      detail: showDetail
-        ? `${scene.description}${scene.painPoint ? " · 💡 " + scene.painPoint.split("—")[0].trim() : ""}`
-        : scene.painPoint
-          ? scene.painPoint.split("—")[0].trim()
-          : scene.description,
-      sceneId: id,
-      hits,
-    };
-  });
-
-  // 按命中次数降序排列，次数相同则保持原始顺序
-  items.sort((a, b) => b.hits - a.hits);
+  const items = [];
+  for (const group of PERSONA_GROUPS) {
+    // QuickPick separator (kind: -1 is QuickPickItemKind.Separator)
+    items.push({ label: group.label, kind: -1 });
+    const groupScenes = [];
+    for (const catId of group.categories) {
+      const cat = SCENE_CATEGORIES.find((c) => c.id === catId);
+      if (!cat) continue;
+      for (const sceneId of cat.scenes) {
+        if (!SCENES[sceneId]) continue;
+        groupScenes.push(sceneId);
+      }
+    }
+    // Sort by hits within group
+    groupScenes.sort((a, b) => (stats[b] || 0) - (stats[a] || 0));
+    for (const id of groupScenes) {
+      const scene = SCENES[id];
+      const hits = stats[id] || 0;
+      const fireLabel = hits > 0 ? ` 🔥${hits}` : "";
+      items.push({
+        label: `$(symbol-method) ${scene.name}${fireLabel}`,
+        description: id,
+        detail: showDetail
+          ? `${scene.description}${scene.painPoint ? " · 💡 " + scene.painPoint.split("—")[0].trim() : ""}`
+          : scene.painPoint
+            ? scene.painPoint.split("—")[0].trim()
+            : scene.description,
+        sceneId: id,
+        hits,
+      });
+    }
+  }
 
   return items;
 }
@@ -268,6 +458,7 @@ async function enhanceSelected() {
             "⚠️ 原文档已关闭或切换，结果已在新标签页显示并复制到剪贴板",
           );
           incrementSceneHits(res.scenes);
+          saveHistory(text, res.result, "smart", res.scenes, res.label);
           return;
         }
 
@@ -275,8 +466,9 @@ async function enhanceSelected() {
           editBuilder.replace(savedSelection, res.result);
         });
 
-        // 记录场景命中
+        // 记录场景命中 + 历史
         incrementSceneHits(res.scenes);
+        saveHistory(text, res.result, "smart", res.scenes, res.label);
 
         vscode.window
           .showInformationMessage(
@@ -470,8 +662,15 @@ async function smartEnhance() {
 
         if (token.isCancellationRequested) return;
 
-        // 记录场景命中
+        // 记录场景命中 + 历史
         incrementSceneHits(res.scenes);
+        saveHistory(
+          selectedSource.text,
+          res.result,
+          "smart",
+          res.scenes,
+          res.label,
+        );
 
         // 结果处理：根据源类型决定回显方式
         if (
@@ -579,8 +778,9 @@ async function enhanceInput() {
         });
         await vscode.window.showTextDocument(doc, { preview: false });
 
-        // 记录场景命中
+        // 记录场景命中 + 历史
         incrementSceneHits(res.scenes);
+        saveHistory(input, res.result, "smart", res.scenes, res.label);
 
         vscode.window
           .showInformationMessage(
@@ -723,6 +923,7 @@ async function enhanceWithScene() {
               "⚠️ 原文档已关闭或切换，结果已在新标签页显示并复制到剪贴板",
             );
             incrementSceneHits(res.scenes);
+            saveHistory(text, res.result, "scene", res.scenes, res.label);
             return;
           }
 
@@ -737,8 +938,9 @@ async function enhanceWithScene() {
           await vscode.window.showTextDocument(doc, { preview: false });
         }
 
-        // 记录场景命中
+        // 记录场景命中 + 历史
         incrementSceneHits(res.scenes);
+        saveHistory(text, res.result, "scene", res.scenes, res.label);
 
         vscode.window
           .showInformationMessage(
@@ -775,12 +977,22 @@ function showWelcome(context) {
  */
 function configureApi(context) {
   return async () => {
+    // 复用已有面板
+    if (_configPanel) {
+      _configPanel.reveal(vscode.ViewColumn.One);
+      return;
+    }
+
     const panel = vscode.window.createWebviewPanel(
       "easyPromptConfig",
       "Easy Prompt — 自定义 API 配置",
       vscode.ViewColumn.One,
       { enableScripts: true, retainContextWhenHidden: true },
     );
+    _configPanel = panel;
+    panel.onDidDispose(() => {
+      _configPanel = null;
+    });
 
     // 读取当前用户已保存的自定义配置（不暴露内置默认值）
     const cfg = vscode.workspace.getConfiguration("easyPrompt");
@@ -982,10 +1194,16 @@ function getConfigHtml(baseUrl, apiKey, model) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 :root {
-  --bg: #1e1e1e; --card: #252526; --border: #3e3e42;
-  --text: #cccccc; --text-dim: #858585; --accent: #0078d4;
-  --accent-light: #1a8cff; --success: #4ec9b0; --error: #f48771;
-  --warn: #dcdcaa;
+  --bg: var(--vscode-editor-background, #1e1e1e);
+  --card: var(--vscode-sideBar-background, #252526);
+  --border: var(--vscode-input-border, #3e3e42);
+  --text: var(--vscode-foreground, #cccccc);
+  --text-dim: var(--vscode-descriptionForeground, #858585);
+  --accent: var(--vscode-textLink-foreground, #0078d4);
+  --accent-light: var(--vscode-textLink-activeForeground, #1a8cff);
+  --success: var(--vscode-terminal-ansiGreen, #4ec9b0);
+  --error: var(--vscode-errorForeground, #f48771);
+  --warn: var(--vscode-editorWarning-foreground, #dcdcaa);
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -1428,6 +1646,181 @@ window.addEventListener('message', e => {
 </html>`;
 }
 
+/**
+ * 命令 9：查看增强历史（Ctrl+Alt+Y）
+ * 使用 Webview 展示历史记录列表，支持 before/after 对比和复制
+ */
+function showHistoryCommand(context) {
+  function formatTime(ts) {
+    const d = new Date(ts);
+    const pad = (n) => String(n).padStart(2, "0");
+    const now = new Date();
+    const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const diffDays = Math.floor((now - d) / 86400000);
+    if (diffDays === 0) return `今天 ${time}`;
+    if (diffDays === 1) return `昨天 ${time}`;
+    if (diffDays < 7) return `${diffDays} 天前 ${time}`;
+    const month = d.getMonth() + 1;
+    const day = d.getDate();
+    if (d.getFullYear() === now.getFullYear())
+      return `${month}月${day}日 ${time}`;
+    return `${d.getFullYear()}/${month}/${day} ${time}`;
+  }
+
+  function escapeHtml(str) {
+    return str
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function buildHistoryHtml(history) {
+    const historyCards =
+      history.length === 0
+        ? `<div class="empty"><h2>暂无增强记录</h2><p>使用 Prompt 增强后，历史记录会自动保存在这里</p></div>`
+        : history
+            .map(
+              (r) => `
+        <div class="card" data-id="${r.id}">
+          <div class="card-header" onclick="this.parentElement.classList.toggle('expanded')">
+            <div class="meta">
+              <span class="time">${formatTime(r.timestamp)}</span>
+              <span class="badge badge-${r.mode}">${r.mode === "smart" ? "智能路由" : r.sceneName || "场景"}</span>
+            </div>
+            <div class="preview">${escapeHtml(r.originalText.slice(0, 100))}${r.originalText.length > 100 ? "..." : ""}</div>
+            <span class="chevron"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+          </div>
+          <div class="card-body">
+            <div class="diff-section">
+              <div class="diff-label diff-before">
+                <span>原始文本</span>
+                <button class="copy-btn" data-action="copy" data-type="original" data-id="${r.id}">复制</button>
+              </div>
+              <pre class="diff-text">${escapeHtml(r.originalText)}</pre>
+            </div>
+            <div class="diff-section">
+              <div class="diff-label diff-after">
+                <span>增强结果</span>
+                <button class="copy-btn" data-action="copy" data-type="enhanced" data-id="${r.id}">复制</button>
+              </div>
+              <pre class="diff-text">${escapeHtml(r.enhancedText)}</pre>
+            </div>
+            <div class="card-actions">
+              <button class="del-btn" data-action="delete" data-id="${r.id}">删除此记录</button>
+            </div>
+          </div>
+        </div>
+      `,
+            )
+            .join("");
+
+    return `<!DOCTYPE html>
+<html><head><style>
+  body { font-family: var(--vscode-font-family); background: var(--vscode-editor-background); color: var(--vscode-editor-foreground); padding: 20px; margin: 0; }
+  h1 { font-size: 18px; margin: 0 0 6px; }
+  .subtitle { font-size: 13px; color: var(--vscode-descriptionForeground); margin-bottom: 20px; }
+  .toolbar { display: flex; gap: 10px; margin-bottom: 16px; }
+  .toolbar button { padding: 6px 14px; border: 1px solid var(--vscode-button-border, var(--vscode-input-border)); border-radius: 4px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); cursor: pointer; font-size: 12px; }
+  .toolbar button:hover { background: var(--vscode-button-secondaryHoverBackground); }
+  .empty { text-align: center; padding: 60px 20px; color: var(--vscode-descriptionForeground); }
+  .empty h2 { font-size: 16px; margin-bottom: 8px; }
+  .empty p { font-size: 13px; }
+  .card { border: 1px solid var(--vscode-input-border); border-radius: 6px; margin-bottom: 10px; overflow: hidden; }
+  .card-header { padding: 12px 16px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; position: relative; }
+  .card-header:hover { background: var(--vscode-list-hoverBackground); }
+  .meta { display: flex; align-items: center; gap: 8px; }
+  .time { font-size: 12px; color: var(--vscode-descriptionForeground); font-variant-numeric: tabular-nums; }
+  .badge { font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 100px; }
+  .badge-smart { background: rgba(139,92,246,0.15); color: rgb(167,139,250); }
+  .badge-scene { background: rgba(34,197,94,0.15); color: rgb(74,222,128); }
+  .preview { font-size: 13px; color: var(--vscode-editor-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.7; }
+  .chevron { position: absolute; right: 16px; top: 14px; color: var(--vscode-descriptionForeground); transition: transform 0.15s; display: flex; align-items: center; }
+  .card.expanded .chevron { transform: rotate(180deg); }
+  .card-body { display: none; border-top: 1px solid var(--vscode-input-border); padding: 16px; }
+  .card.expanded .card-body { display: block; }
+  .diff-section { margin-bottom: 12px; border-radius: 4px; overflow: hidden; }
+  .diff-label { display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; font-size: 12px; font-weight: 600; }
+  .diff-before { background: rgba(239,68,68,0.12); color: rgb(248,113,113); }
+  .diff-after { background: rgba(34,197,94,0.12); color: rgb(74,222,128); }
+  .copy-btn { padding: 2px 8px; border: none; border-radius: 3px; background: transparent; color: inherit; font-size: 11px; cursor: pointer; opacity: 0.7; }
+  .copy-btn:hover { opacity: 1; }
+  .diff-text { margin: 0; padding: 12px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; background: var(--vscode-editor-background); border: 1px solid var(--vscode-input-border); border-top: none; max-height: 200px; overflow-y: auto; }
+  .card-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+  .del-btn { padding: 4px 12px; border: 1px solid rgba(239,68,68,0.3); border-radius: 4px; background: transparent; color: rgb(248,113,113); font-size: 12px; cursor: pointer; }
+  .del-btn:hover { background: rgba(239,68,68,0.12); }
+</style></head><body>
+  <h1>增强历史</h1>
+  <p class="subtitle">${history.length} 条记录（最多保留 ${MAX_HISTORY} 条）</p>
+  ${history.length > 0 ? '<div class="toolbar"><button id="btn-clear">清空全部历史</button></div>' : ""}
+  <div id="history-container">${historyCards}</div>
+  <script>
+    const vscode = acquireVsCodeApi();
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      e.stopPropagation();
+      vscode.postMessage({ action: btn.dataset.action, type: btn.dataset.type, id: btn.dataset.id });
+    });
+    const clearBtn = document.getElementById('btn-clear');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        if (confirm('确定要清空所有增强历史记录吗？此操作不可撤销。')) {
+          vscode.postMessage({ action: 'clearAll' });
+        }
+      });
+    }
+  </script>
+</body></html>`;
+  }
+
+  function refreshPanel(panel) {
+    panel.webview.html = buildHistoryHtml(loadHistory());
+  }
+
+  return () => {
+    // 复用已存在的面板
+    if (_historyPanel) {
+      _historyPanel.reveal(vscode.ViewColumn.One);
+      refreshPanel(_historyPanel);
+      return;
+    }
+
+    const panel = vscode.window.createWebviewPanel(
+      "easyPromptHistory",
+      "Easy Prompt 增强历史",
+      vscode.ViewColumn.One,
+      { enableScripts: true },
+    );
+
+    _historyPanel = panel;
+    panel.onDidDispose(() => {
+      _historyPanel = null;
+    });
+
+    refreshPanel(panel);
+
+    panel.webview.onDidReceiveMessage((msg) => {
+      if (msg.action === "copy") {
+        const record = loadHistory().find((r) => r.id === msg.id);
+        if (!record) return;
+        const text =
+          msg.type === "original" ? record.originalText : record.enhancedText;
+        vscode.env.clipboard.writeText(text);
+        vscode.window.showInformationMessage("已复制到剪贴板");
+      } else if (msg.action === "delete") {
+        const history = loadHistory().filter((r) => r.id !== msg.id);
+        _context.globalState.update(HISTORY_KEY, history);
+        refreshPanel(panel);
+      } else if (msg.action === "clearAll") {
+        clearHistoryStorage();
+        refreshPanel(panel);
+        vscode.window.showInformationMessage("历史记录已清空");
+      }
+    });
+  };
+}
+
 function activate(context) {
   // 保存全局上下文引用（用于场景命中计数）
   _context = context;
@@ -1455,6 +1848,10 @@ function activate(context) {
     vscode.commands.registerCommand(
       "easy-prompt.statusBarMenu",
       showStatusBarMenu(context),
+    ),
+    vscode.commands.registerCommand(
+      "easy-prompt.showHistory",
+      showHistoryCommand(context),
     ),
   );
 
@@ -1506,8 +1903,14 @@ function showStatusBarMenu(context) {
       {
         label: "$(list-unordered) 浏览场景大全",
         description: "Ctrl+Alt+L",
-        detail: "查看 38 个场景的详情和 System Prompt",
+        detail: "查看 85 个场景的详情和 System Prompt",
         command: "easy-prompt.showScenes",
+      },
+      {
+        label: "$(history) 增强历史",
+        description: "Ctrl+Alt+Y",
+        detail: "查看过往 Prompt 增强记录，支持对比与复制",
+        command: "easy-prompt.showHistory",
       },
       {
         label: "$(book) 使用教程",

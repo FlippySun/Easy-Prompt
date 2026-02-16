@@ -77,7 +77,7 @@ This document provides project context and development guidance for Claude Code 
 easy-prompt/
 ├── core/                    # 共享核心逻辑（平台无关）
 │   ├── index.js             # 入口 — 导出所有模块
-│   ├── scenes.js            # 38 个场景定义（含痛点和示例）
+│   ├── scenes.js            # 85 个场景定义（含痛点和示例）
 │   ├── router.js            # 意图识别路由器 + Prompt 构建
 │   ├── composer.js          # 两步路由编排器（smartRoute）
 │   ├── api.js               # API 调用层（curl subprocess + 重试 + 安全限制）
@@ -99,13 +99,13 @@ easy-prompt/
 
 | File               | Purpose                                                                                                                |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| `core/scenes.js`   | 38 个场景定义，含 name/keywords/description/painPoint/example/prompt                                                   |
+| `core/scenes.js`   | 85 个场景定义，含 name/keywords/description/painPoint/example/prompt                                                   |
 | `core/router.js`   | 意图识别 Prompt + 解析 + 生成 Prompt 构建（单一/复合模式）                                                             |
 | `core/composer.js` | smartRoute() — 编排两步路由流程                                                                                        |
 | `core/api.js`      | callApi — curl 调用 OpenAI 兼容 API（含重试/响应限制 2MB/Kill Timer/curl 缓存）                                        |
 | `core/defaults.js` | 内置默认 API 配置（AES-256-CBC 加密 + 多层混淆）                                                                       |
 | `extension.js`     | 8 个命令：enhanceSelected/smartEnhance/enhanceInput/showScenes/enhanceWithScene/showWelcome/configureApi/statusBarMenu |
-| `welcomeView.js`   | Webview HTML 生成 — 首次安装引导页，含 38 场景卡片                                                                     |
+| `welcomeView.js`   | Webview HTML 生成 — 首次安装引导页，含 50 场景卡片                                                                     |
 
 ### Two-Step AI Routing
 
