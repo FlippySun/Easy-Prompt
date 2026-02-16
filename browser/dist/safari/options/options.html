@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Easy Prompt 设置</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="header">
+        <div class="header__brand">
+          <span id="logo-icon" class="logo-icon"></span>
+          <h1 class="header__title">
+            Easy Prompt <span class="header__version">设置</span>
+          </h1>
+        </div>
+        <button
+          id="btn-theme"
+          class="icon-btn"
+          title="切换主题"
+          aria-label="切换主题"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2" />
+            <path d="M12 20v2" />
+            <path d="m4.93 4.93 1.41 1.41" />
+            <path d="m17.66 17.66 1.41 1.41" />
+            <path d="M2 12h2" />
+            <path d="M20 12h2" />
+            <path d="m6.34 17.66-1.41 1.41" />
+            <path d="m19.07 4.93-1.41 1.41" />
+          </svg>
+        </button>
+      </header>
+
+      <main class="main">
+        <!-- API 配置 -->
+        <section class="card">
+          <h2 class="card__title">API 配置</h2>
+          <p class="card__desc">
+            配置 OpenAI 兼容的 API 服务（如 DeepSeek、OpenAI、Claude 等）
+          </p>
+
+          <div class="form-group">
+            <label class="form-label" for="input-base-url">API Base URL</label>
+            <input
+              id="input-base-url"
+              type="url"
+              class="form-input"
+              placeholder="https://api.deepseek.com"
+            />
+            <span class="form-hint"
+              >接口地址，无需包含 /v1/chat/completions</span
+            >
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="input-api-key">API Key</label>
+            <div class="input-group">
+              <input
+                id="input-api-key"
+                type="password"
+                class="form-input"
+                placeholder="sk-..."
+              />
+              <button id="btn-toggle-key" class="icon-btn" title="显示/隐藏">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"
+                  />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="input-model">模型名称</label>
+            <input
+              id="input-model"
+              type="text"
+              class="form-input"
+              placeholder="deepseek-chat"
+            />
+          </div>
+
+          <div class="actions">
+            <button id="btn-test" class="btn btn--secondary">
+              <span id="btn-test-icon"
+                ><svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                  <path d="m9 11 3 3L22 4" /></svg
+              ></span>
+              <span id="btn-test-text">测试连接</span>
+            </button>
+            <button id="btn-save" class="btn btn--primary">保存配置</button>
+          </div>
+
+          <div id="test-result" class="test-result" hidden>
+            <span id="test-result-icon"></span>
+            <span id="test-result-text"></span>
+          </div>
+        </section>
+
+        <!-- 关于 -->
+        <section class="card">
+          <h2 class="card__title">关于</h2>
+          <p class="card__desc">
+            Easy Prompt AI — 智能 Prompt 工程工具包，85
+            个专业场景，一键生成高质量 Prompt。
+          </p>
+          <div class="about-links">
+            <a
+              href="https://github.com/nicepkg/easy-prompt"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="about-link"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <path
+                  d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"
+                />
+              </svg>
+              GitHub
+            </a>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div
+      id="toast"
+      class="toast"
+      role="alert"
+      aria-live="assertive"
+      hidden
+    ></div>
+
+    <script src="../shared/storage.js"></script>
+    <script src="../shared/defaults.js"></script>
+    <script src="../shared/api.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>

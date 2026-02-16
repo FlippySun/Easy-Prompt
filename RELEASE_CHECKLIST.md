@@ -100,7 +100,7 @@
 3. **测试安装**
 
    ```bash
-   code --install-extension easy-prompt-ai-4.1.0.vsix
+   code --install-extension easy-prompt-ai-5.0.0.vsix
    ```
 
 4. **发布到市场**
@@ -116,7 +116,7 @@
    ```bash
    cd intellij
    JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ./gradlew buildPlugin
-   # 输出：build/distributions/easy-prompt-4.1.0.zip
+   # 输出：build/distributions/easy-prompt-5.0.0.zip
    ```
 
 2. **测试安装**
@@ -127,6 +127,26 @@
    - 访问 https://plugins.jetbrains.com/
    - 登录 JetBrains 账号
    - 上传插件 ZIP 文件
+
+### 浏览器扩展
+
+1. **构建**
+
+   ```bash
+   cd browser && node build.js
+   # 输出：dist/easy-prompt-chrome.zip / easy-prompt-firefox.zip / easy-prompt-safari.zip
+   ```
+
+2. **Chrome Web Store**
+   - 访问 https://chrome.google.com/webstore/devconsole
+   - 上传 `dist/easy-prompt-chrome.zip`
+
+3. **Firefox Add-ons**
+   - 访问 https://addons.mozilla.org/developers/
+   - 上传 `dist/easy-prompt-firefox.zip`
+
+4. **Safari Extensions**
+   - 需要通过 Xcode 打包并提交至 App Store Connect
 
 ## ⚠️ 阻塞发布的问题
 

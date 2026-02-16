@@ -2,9 +2,10 @@
 
 > 两步 AI 意图识别 + 85 个专业场景 + 10 大用户画像，将你的简单描述自动扩写为大师级 Prompt。
 
-![Version](https://img.shields.io/badge/version-4.1.0-blue)
+![Version](https://img.shields.io/badge/version-5.0.0-blue)
 ![VSCode](https://img.shields.io/badge/VSCode-1.85%2B-blue)
 ![IntelliJ](https://img.shields.io/badge/IntelliJ-2024.1%2B-orange)
+![Browser](https://img.shields.io/badge/Browser-Chrome%20%7C%20Firefox%20%7C%20Safari-yellow)
 ![Web](https://img.shields.io/badge/Web-Online-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -16,12 +17,29 @@
 - 📦 **85 个场景**：覆盖开发全流程 + 内容创作 + 产品 + 营销 + 设计 + 数据 + HR + 客服 + 创业 + 教育
 - 🧑‍💼 **10 大画像**：软件工程师/内容创作者/产品经理/市场运营/设计师/数据分析师/HR/客服/创业者/学生教育
 - 🕐 **增强历史**：查看历史记录，支持 before/after 对比、一键复制、删除
-- 🌐 **三端覆盖**：VSCode 扩展 + IntelliJ 插件 + Web 在线版，全场景使用
+- 🌐 **四端覆盖**：VSCode 扩展 + IntelliJ 插件 + 浏览器扩展（Chrome/Firefox/Safari） + Web 在线版，全场景使用
 - 🔑 **多供应商兼容**：OpenAI / Azure / Gemini / DeepSeek / Ollama
 - 🎯 **开箱即用**：内置 AI 服务，零配置即可使用
 - 🔒 **安全加固**：AES-256-CBC 加密内置凭证、2MB 响应限制、竞态保护
 
 ## 📦 安装
+
+### 浏览器扩展（v5.0 新增）
+
+支持 Chrome、Firefox、Safari 三大平台：
+
+```bash
+# 方式 1：从各平台扩展商店安装（推荐）
+# Chrome Web Store / Firefox Add-ons / Safari Extensions 搜索 "Easy Prompt"
+
+# 方式 2：本地构建安装
+cd browser && node build.js          # 构建所有平台（chrome/firefox/safari）
+cd browser && node build.js chrome   # 仅构建 Chrome
+# 输出：browser/dist/<target>/ (解压目录) + browser/dist/easy-prompt-<target>.zip
+
+# Chrome 开发者模式加载：
+# chrome://extensions → 开启「开发者模式」→ 加载已解压的扩展 → 选择 browser/dist/chrome/
+```
 
 ### Web 在线版（v4.0 新增）
 
@@ -39,7 +57,7 @@
 
 # 方式 2：本地打包安装
 npx @vscode/vsce package --allow-missing-repository
-code --install-extension easy-prompt-ai-4.1.0.vsix
+code --install-extension easy-prompt-ai-5.0.0.vsix
 
 # 方式 3：开发调试
 code .  # 按 F5 启动调试
@@ -54,7 +72,7 @@ code .  # 按 F5 启动调试
 # 方式 2：本地构建安装（需要 JDK 17）
 cd intellij && ./gradlew buildPlugin
 # Settings → Plugins → ⚙️ → Install Plugin from Disk
-# 选择 intellij/build/distributions/easy-prompt-4.1.0.zip
+# 选择 intellij/build/distributions/easy-prompt-5.0.0.zip
 ```
 
 ## ⚙️ 配置
@@ -307,6 +325,15 @@ easy-prompt/
 │   ├── style.css            # 样式（暗色主题 + 响应式）
 │   ├── app.js               # 应用逻辑（路由 + 场景 + API 调用）
 │   └── scenes.json          # 85 场景数据（由 core 生成）
+├── browser/                 # 浏览器扩展（v5.0 新增，Chrome/Firefox/Safari MV3）
+│   ├── manifest.*.json      # 三平台 manifest（chrome/firefox/safari）
+│   ├── build.js             # 构建脚本（自动打包 + zip）
+│   ├── popup/               # Popup 面板（输入/增强/场景/历史）
+│   ├── options/             # 设置页（API 配置 + 测试连接）
+│   ├── background/          # Service Worker（上下文菜单 + 快捷键）
+│   ├── content/             # Content Script（浮动增强按钮）
+│   ├── shared/              # 共享模块（Storage/API/Router/Scenes/Defaults/Icons）
+│   └── scenes.json          # 85 场景数据
 ├── README.md
 ├── CHANGELOG.md
 └── .github/
@@ -387,6 +414,22 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ./gradl
 
 # 启动调试 IDE
 JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ./gradlew runIde
+```
+
+### 浏览器扩展开发
+
+```bash
+cd browser
+
+# 构建所有平台
+node build.js
+
+# 仅构建指定平台
+node build.js chrome
+node build.js firefox
+node build.js safari
+
+# 输出目录：browser/dist/<target>/ + browser/dist/easy-prompt-<target>.zip
 ```
 
 ## 🤝 贡献

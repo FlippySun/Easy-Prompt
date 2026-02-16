@@ -4,6 +4,9 @@ intellij/**
 # Web 端（独立部署，不属于 VSCode 插件）
 web/**
 
+# 浏览器扩展（独立构建，不属于 VSCode 插件）
+browser/**
+
 # 旧的 VSCode 子目录（已迁移到根目录）
 vscode/**
 
