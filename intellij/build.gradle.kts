@@ -16,15 +16,14 @@ repositories {
 
 dependencies {
     intellijPlatform {
-        intellijIdeaCommunity("2024.1")
+        intellijIdeaCommunity("2024.3")
         bundledPlugin("com.intellij.java")
-        instrumentationTools()
     }
     implementation("com.google.code.gson:gson:2.11.0")
 }
 
 kotlin {
-    jvmToolchain(17)
+    jvmToolchain(21)
 }
 
 intellijPlatform {
@@ -50,8 +49,7 @@ intellijPlatform {
             url = "https://github.com/FlippySun/Easy-Prompt"
         }
         ideaVersion {
-            sinceBuild = "241"
-            untilBuild = "252.*"
+            sinceBuild = "243"
         }
         changeNotes = """
             <h3>v5.0.1 — 浏览器扩展稳定性修复 + Web 端 Bug 修复</h3>

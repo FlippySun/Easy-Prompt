@@ -58,13 +58,13 @@ Easy Prompt AI does **not** sell, share, or transfer user data to any third part
 
 ## Permissions Usage
 
-| Permission | Purpose |
-|---|---|
-| `storage` | Store API config, enhancement history, UI state, and theme preference locally |
-| `contextMenus` | Add a right-click "Easy Prompt 增强" option for selected text |
-| `activeTab` | Read selected text from the active tab when keyboard shortcut is triggered |
-| `scripting` | Execute `window.getSelection()` on the active tab to retrieve selected text via keyboard shortcut |
-| Content Scripts (`<all_urls>`) | Display a floating enhance button near selected text on any webpage |
+| Permission                     | Purpose                                                                                           |
+| ------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `storage`                      | Store API config, enhancement history, UI state, and theme preference locally                     |
+| `contextMenus`                 | Add a right-click "Easy Prompt 增强" option for selected text                                     |
+| `activeTab`                    | Read selected text from the active tab when keyboard shortcut is triggered                        |
+| `scripting`                    | Execute `window.getSelection()` on the active tab to retrieve selected text via keyboard shortcut |
+| Content Scripts (`<all_urls>`) | Display a floating enhance button near selected text on any webpage                               |
 
 ## User Control
 
