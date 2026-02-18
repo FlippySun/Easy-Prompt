@@ -2,6 +2,7 @@ package com.easyprompt.actions
 
 import com.easyprompt.settings.EasyPromptSettings
 import com.easyprompt.settings.HistoryRecord
+import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.ide.CopyPasteManager
@@ -25,6 +26,8 @@ import javax.swing.border.MatteBorder
  * @since 4.1.0
  */
 class ShowHistoryAction : AnAction() {
+
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return

@@ -41,14 +41,13 @@ class EasyPromptStatusBarWidget(private val project: Project) : StatusBarWidget,
         statusBar = null
     }
 
-    override fun getPresentation(): StatusBarWidget.WidgetPresentation = this
-
     override fun getText(): String = "✨ Easy Prompt"
 
     override fun getTooltipText(): String = "Easy Prompt — 点击打开快捷菜单"
 
     override fun getAlignment(): Float = Component.CENTER_ALIGNMENT
 
+    @Suppress("DEPRECATION")
     override fun getClickConsumer(): Consumer<MouseEvent> = Consumer { mouseEvent ->
         val action = ActionManager.getInstance().getAction("EasyPrompt.StatusBarMenu") ?: return@Consumer
         // 使用编辑器组件提供 DataContext（包含 PROJECT + EDITOR），回退到点击组件

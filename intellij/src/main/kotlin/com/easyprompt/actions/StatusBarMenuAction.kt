@@ -1,11 +1,14 @@
 package com.easyprompt.actions
 
 import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.ui.popup.JBPopupFactory
 
 class StatusBarMenuAction : AnAction() {
+
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
     private data class MenuItem(
         val label: String,
