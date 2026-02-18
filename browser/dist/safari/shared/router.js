@@ -7,6 +7,38 @@
 let cachedRouterPrompt = null;
 let cachedScenesRef = null;
 
+/**
+ * 检查输入文本是否适合进行 Prompt 增强
+ * @param {string} text
+ * @returns {boolean}
+ */
+function isValidInput(text) {
+  if (!text) return false;
+  const trimmed = text.trim();
+  if (trimmed.length < 2) return false;
+
+  const meaningful = trimmed.replace(/[^\p{L}\p{N}]/gu, "");
+  if (meaningful.length < 2) return false;
+
+  if (!/\p{L}/u.test(trimmed)) return false;
+
+  const uniqueChars = new Set([...meaningful.toLowerCase()]);
+  if (uniqueChars.size < 2) return false;
+
+  if (/^\s*(https?:\/\/\S+|ftp:\/\/\S+|www\.\S+)\s*$/i.test(trimmed))
+    return false;
+
+  if (/^\s*[\w.+-]+@[\w.-]+\.\w{2,}\s*$/i.test(trimmed)) return false;
+
+  if (
+    /^\s*(\/[\w.@-]+){2,}\s*$/.test(trimmed) ||
+    /^\s*[A-Z]:\\[\w\\.~-]+\s*$/i.test(trimmed)
+  )
+    return false;
+
+  return true;
+}
+
 function buildRouterPrompt() {
   const scenes = Scenes.getScenes();
   // Invalidate cache when scenes reference changes
@@ -179,6 +211,9 @@ function callGenerationApi(
 }
 
 async function smartRoute(config, userInput, onProgress, signal) {
+  if (!isValidInput(userInput)) {
+    throw new Error("输入内容无效，请输入有意义的文本内容");
+  }
   const sceneNames = Scenes.getSceneNames();
   const onRetry = (attempt, maxRetries, delayMs) => {
     if (onProgress)
@@ -256,6 +291,7 @@ async function directGenerate(config, userInput, sceneId, onProgress, signal) {
 
 // eslint-disable-next-line no-unused-vars
 const Router = {
+  isValidInput,
   buildRouterPrompt,
   parseRouterResult,
   buildGenerationPrompt,

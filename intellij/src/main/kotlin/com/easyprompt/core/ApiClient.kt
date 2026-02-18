@@ -351,9 +351,46 @@ object ApiClient {
     }
 
     /**
+     * 检查输入文本是否适合进行 Prompt 增强
+     * 过滤空内容、过短文本、重复字符、纯数字、纯 URL / 邮箱 / 文件路径等无意义输入
+     */
+    fun isValidInput(text: String?): Boolean {
+        if (text.isNullOrBlank()) return false
+        val trimmed = text.trim()
+        if (trimmed.length < 2) return false
+
+        // 有效字符：字母 + 数字
+        val meaningful = trimmed.replace(Regex("[^\\p{L}\\p{N}]"), "")
+        if (meaningful.length < 2) return false
+
+        // 必须包含至少 1 个字母字符（拒绝纯数字）
+        if (!trimmed.contains(Regex("\\p{L}"))) return false
+
+        // 拒绝单一字符重复
+        val uniqueChars = meaningful.lowercase().toSet()
+        if (uniqueChars.size < 2) return false
+
+        // 拒绝纯 URL
+        if (trimmed.matches(Regex("^\\s*(https?://\\S+|ftp://\\S+|www\\.\\S+)\\s*$", RegexOption.IGNORE_CASE))) return false
+
+        // 拒绝纯邮箱
+        if (trimmed.matches(Regex("^\\s*[\\w.+\\-]+@[\\w.\\-]+\\.\\w{2,}\\s*$", RegexOption.IGNORE_CASE))) return false
+
+        // 拒绝纯文件路径
+        if (trimmed.matches(Regex("^\\s*(/[\\w.@\\-]+){2,}\\s*$")) ||
+            trimmed.matches(Regex("^\\s*[A-Z]:\\\\[\\w\\\\.~\\-]+\\s*$", RegexOption.IGNORE_CASE))) return false
+
+        return true
+    }
+
+    /**
      * 两步智能路由
      */
     fun smartRoute(userInput: String, onProgress: ((String) -> Unit)? = null, indicator: ProgressIndicator? = null): SmartRouteResult {
+        if (!isValidInput(userInput)) {
+            throw IllegalArgumentException("输入内容无效，请输入有意义的文本内容")
+        }
+
         onProgress?.invoke("🔍 正在识别意图...")
 
         val onRetry: ((Int, String) -> Unit)? = onProgress?.let { progress ->

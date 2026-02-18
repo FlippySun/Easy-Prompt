@@ -5,6 +5,7 @@
 
 const { SCENES, SCENE_NAMES, SCENE_NAMES_EN } = require("./scenes");
 const {
+  isValidInput,
   buildRouterPrompt,
   parseRouterResult,
   buildGenerationPrompt,
@@ -23,6 +24,9 @@ module.exports = {
   SCENES,
   SCENE_NAMES,
   SCENE_NAMES_EN,
+
+  // 输入验证
+  isValidInput,
 
   // 路由
   buildRouterPrompt,

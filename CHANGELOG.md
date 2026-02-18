@@ -5,6 +5,39 @@ All notable changes to the Easy Prompt project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.1.0] - 2025-07-25
+
+### 智能输入验证增强
+
+全面升级输入内容校验引擎，从 3 条基础规则升级为 7 条智能规则，有效过滤无意义输入、避免浪费 API 调用。
+
+#### 验证规则升级（3 → 7 条）
+
+- **最小长度放宽**：从 4 字符降至 2 字符，适配 CJK 双字词（如"翻译"、"总结"）
+- **有效字符检测**：使用 Unicode `\p{L}\p{N}` 类别，支持全球脚本（CJK/拉丁/阿拉伯/西里尔等）
+- **字母必须性检测**：拒绝纯数字输入（如 "12345"），要求至少包含 1 个字母字符
+- **重复字符检测**：拒绝单一字符重复（如 "aaa"、"111"、"哈哈哈"），要求至少 2 个不同有效字符
+- **纯 URL 检测**：拒绝仅包含 URL 的输入（如 "https://example.com"），但 "帮我解析 https://example.com" 可通过
+- **纯邮箱检测**：拒绝仅包含邮箱地址的输入
+- **纯文件路径检测**：拒绝仅包含 Unix/Windows 文件路径的输入
+
+#### 五端同步
+
+- VSCode：`extension.js` 增强选中/指定场景增强入口校验
+- IntelliJ：`ApiClient.kt` 使用 Kotlin 原生正则实现等效 7 规则
+- Web：`app.js` smartRoute 入口校验
+- Browser Popup：使用 `Router.isValidInput()` 统一验证，消除行内重复逻辑
+- Browser Content Script：AI 聊天框 inline 增强入口校验
+- Browser Service Worker：`handleInlineEnhance` 入口校验
+
+#### 其他改进
+
+- 清理：移除 content.js 中 8 个 debugger 语句
+- 清理：移除未使用的 `MIN_TEXT_LENGTH` 常量
+- 优化：错误提示文案统一为"输入内容无效，请输入有意义的文本内容"
+
+---
+
 ## [5.0.1] - 2025-07-24
 
 ### Bug 修复与稳定性改进

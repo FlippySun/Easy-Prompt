@@ -1,6 +1,7 @@
 const vscode = require("vscode");
 const {
   smartRoute,
+  isValidInput,
   SCENES,
   SCENE_NAMES,
   getBuiltinDefaults,
@@ -416,6 +417,10 @@ async function enhanceSelected() {
   if (!text.trim()) {
     // 没有选中文本 → 自动转发到智能增强（处理文件/剪贴板）
     return smartEnhance();
+  }
+  if (!isValidInput(text)) {
+    vscode.window.showWarningMessage("选中的内容无效，请选择有意义的文本内容");
+    return;
   }
 
   let config;
@@ -877,7 +882,12 @@ async function enhanceWithScene() {
       })) || "";
   }
 
-  if (!text.trim()) return;
+  if (!isValidInput(text)) {
+    if (text.trim()) {
+      vscode.window.showWarningMessage("输入内容无效，请输入有意义的文本内容");
+    }
+    return;
+  }
 
   let config;
   try {

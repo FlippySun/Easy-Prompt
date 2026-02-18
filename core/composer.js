@@ -4,6 +4,7 @@
  */
 
 const {
+  isValidInput,
   buildRouterPrompt,
   parseRouterResult,
   buildGenerationPrompt,
@@ -19,6 +20,10 @@ const { SCENE_NAMES } = require("./scenes");
  * @returns {Promise<{result: string, scenes: string[], composite: boolean}>}
  */
 async function smartRoute(config, userInput, onProgress) {
+  if (!isValidInput(userInput)) {
+    throw new Error("输入内容无效，请输入有意义的文本内容");
+  }
+
   // 重试回调 — 通过 onProgress 通知用户
   const onRetry = (attempt, maxRetries, delayMs) => {
     if (onProgress) {

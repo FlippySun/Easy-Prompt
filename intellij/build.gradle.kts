@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.easyprompt"
-version = "5.0.1"
+version = "5.1.0"
 
 repositories {
     mavenCentral()
@@ -52,6 +52,13 @@ intellijPlatform {
             sinceBuild = "243"
         }
         changeNotes = """
+            <h3>v5.1.0 — 智能输入验证增强</h3>
+            <ul>
+                <li>增强：输入验证升级为 7 规则引擎 — 最小长度/有效字符/字母检测/重复字符/纯URL/纯邮箱/纯路径</li>
+                <li>增强：支持 Unicode 全脚本字符检测（CJK/拉丁/阿拉伯等）</li>
+                <li>优化：放宽最小长度至 2 字符，适配 CJK 双字词（如"翻译"）</li>
+                <li>同步：五端（VSCode/IntelliJ/Web/Browser/Content Script）验证逻辑完全一致</li>
+            </ul>
             <h3>v5.0.1 — IntelliJ 兼容性升级 + 浏览器扩展稳定性修复</h3>
             <ul>
                 <li>升级：SDK 2024.1 → 2024.3，解决 CredentialAttributes 废弃构造函数警告</li>
