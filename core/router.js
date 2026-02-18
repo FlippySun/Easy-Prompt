@@ -5,6 +5,57 @@
 
 const { SCENES, SCENE_NAMES } = require("./scenes");
 
+/**
+ * 检查输入文本是否适合进行 Prompt 增强
+ * 过滤空内容、过短文本、重复字符、纯数字、纯 URL / 邮箱 / 文件路径等无意义输入
+ *
+ * 规则：
+ * 1. 非空且去空格后长度 ≥ 2
+ * 2. 有效字符（字母 + 数字）≥ 2
+ * 3. 至少包含 1 个字母（拒绝纯数字）
+ * 4. 至少 2 个不同有效字符（拒绝 "aaa" / "111" / "哈哈哈"）
+ * 5. 拒绝连续重复字符 4+ 次（如 "hellooooo"、"aaabbbcccc"）
+ * 6. 拒绝同一词语高频重复（同一词 ≥3 次且占比 ≥60%）
+ * 7. 拒绝纯 URL（但 "帮我解析 https://..." 通过）
+ * 8. 拒绝纯邮箱地址
+ * 9. 拒绝纯文件路径
+ *
+ * @param {string} text
+ * @returns {boolean}
+ */
+function isValidInput(text) {
+  if (!text) return false;
+  const trimmed = text.trim();
+  if (trimmed.length < 2) return false;
+
+  // 有效字符：字母 + 数字（Unicode 全脚本）
+  const meaningful = trimmed.replace(/[^\p{L}\p{N}]/gu, "");
+  if (meaningful.length < 2) return false;
+
+  // 必须包含至少 1 个字母字符（拒绝纯数字如 "12345"）
+  if (!/\p{L}/u.test(trimmed)) return false;
+
+  // 拒绝单一字符重复（"aaa"、"111"、"哈哈哈"）
+  const uniqueChars = new Set([...meaningful.toLowerCase()]);
+  if (uniqueChars.size < 2) return false;
+
+  // 拒绝纯 URL 输入（但 "帮我解析 https://example.com" 可以通过）
+  if (/^\s*(https?:\/\/\S+|ftp:\/\/\S+|www\.\S+)\s*$/i.test(trimmed))
+    return false;
+
+  // 拒绝纯邮箱地址
+  if (/^\s*[\w.+-]+@[\w.-]+\.\w{2,}\s*$/i.test(trimmed)) return false;
+
+  // 拒绝纯文件路径（Unix / Windows）
+  if (
+    /^\s*(\/[\w.@-]+){2,}\s*$/.test(trimmed) ||
+    /^\s*[A-Z]:\\[\w\\.~-]+\s*$/i.test(trimmed)
+  )
+    return false;
+
+  return true;
+}
+
 // 缓存路由器 Prompt（场景不变时可复用）
 let cachedRouterPrompt = null;
 
@@ -163,6 +214,7 @@ ${SCENES[sceneId].prompt}
 }
 
 module.exports = {
+  isValidInput,
   buildRouterPrompt,
   parseRouterResult,
   buildGenerationPrompt,

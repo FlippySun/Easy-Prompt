@@ -203,8 +203,9 @@ function updateCharCount() {
 }
 
 function updateGenerateButton() {
-  const hasText = ($("#input-text").value || "").trim().length > 0;
-  $("#btn-generate").disabled = !hasText && !isGenerating;
+  const text = ($("#input-text").value || "").trim();
+  const hasValidText = Router.isValidInput(text);
+  $("#btn-generate").disabled = !hasValidText && !isGenerating;
 }
 
 /* ═══ Header Events ═══ */
