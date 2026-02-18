@@ -52,17 +52,15 @@ intellijPlatform {
             sinceBuild = "243"
         }
         changeNotes = """
-            <h3>v5.0.1 — 浏览器扩展稳定性修复 + Web 端 Bug 修复</h3>
+            <h3>v5.0.1 — IntelliJ 兼容性升级 + 浏览器扩展稳定性修复</h3>
             <ul>
-                <li>修复：Browser Popup debounce 状态丢失，新增 cancel + pagehide flush 机制</li>
-                <li>修复：Browser Popup selectScene 恢复时重复保存，新增 skipSave 参数</li>
-                <li>修复：Browser Popup handleGenerate 场景方法调用错误（getScenes → getSceneNames）</li>
-                <li>修复：Browser Popup 动画 class 残留，添加 animationend 清理 + 定时器泄漏防护</li>
-                <li>修复：Browser Popup 清空按钮未隐藏状态提示 + is-entering class 残留</li>
-                <li>修复：Browser Popup 场景模态框事件穿透（stopPropagation → stopImmediatePropagation）</li>
-                <li>修复：Web 端清空按钮未隐藏进度条</li>
-                <li>修复：Web 端 CSS 未定义变量 --text-tertiary → --text-muted</li>
-                <li>修复：Web 端缺少 #btn-copy.is-copied 选择器样式</li>
+                <li>升级：SDK 2024.1 → 2024.3，解决 CredentialAttributes 废弃构造函数警告</li>
+                <li>修复：全部 8 个 Action 添加 getActionUpdateThread()，解决 Marketplace 验证警告</li>
+                <li>修复：StatusBarWidget 移除废弃 getPresentation() 覆写</li>
+                <li>升级：构建工具链 JDK 17 → 21，sinceBuild 241 → 243</li>
+                <li>修复：Browser Popup debounce 状态丢失 + selectScene 恢复重复保存</li>
+                <li>修复：Browser Popup 动画 class 残留 + 定时器泄漏 + 事件穿透</li>
+                <li>修复：Web 端清空按钮进度条残留 + CSS 变量 + 复制按钮样式</li>
             </ul>
             <h3>v5.0.0 — 浏览器扩展正式上线，四端覆盖</h3>
             <ul>

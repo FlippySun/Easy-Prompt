@@ -28,10 +28,17 @@ v5.0.0 发布后的 Bug 修复和稳定性改进，主要集中在浏览器扩�
 - **CSS 变量修复**：修复未定义变量 `--text-tertiary` → 正确引用 `--text-muted`
 - **复制按钮样式修复**：补充 `#btn-copy.is-copied` 选择器，复制成功时正确显示样式变化
 
+#### IntelliJ 插件兼容性升级（4 项）
+
+- **SDK 升级 2024.1 -> 2024.3**：解决 `CredentialAttributes` 构造函数废弃警告，`requestor` 参数版本已在 2024.3 中标记为 ERROR 级别废弃
+- **ActionUpdateThread 补全**：全部 8 个 Action 类添加 `getActionUpdateThread() = ActionUpdateThread.BGT`，解决 JetBrains Marketplace 验证警告
+- **StatusBarWidget API 更新**：移除废弃的 `getPresentation()` 覆写，`getClickConsumer()` 添加 `@Suppress("DEPRECATION")`
+- **构建工具链升级**：`jvmToolchain(17)` -> `jvmToolchain(21)`，`sinceBuild` 从 `241` 提升至 `243`，兼容 IntelliJ 2024.3+
+
 #### 四端同步
 
 - VSCode：版本号更新
-- IntelliJ：版本号 + changeNotes 更新
+- IntelliJ：版本号 + changeNotes + SDK 升级 + 废弃 API 修复
 - Web：版本号 + Bug 修复
 - Browser：三平台 manifest 版本号 + Popup Bug 修复
 
