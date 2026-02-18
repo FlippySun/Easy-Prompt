@@ -138,15 +138,26 @@ async function handleInlineEnhance(text, tabId) {
     return { ok: false, error: "输入内容无效，请输入有意义的文本内容" };
   }
   if (text.length > Api.MAX_INPUT_LENGTH) {
-    return { ok: false, error: `输入文本过长（最多 ${Api.MAX_INPUT_LENGTH} 字）` };
+    return {
+      ok: false,
+      error: `输入文本过长（最多 ${Api.MAX_INPUT_LENGTH} 字）`,
+    };
   }
 
   // Progress callback — send updates to content script
-  const onProgress = tabId ? (stage, message) => {
-    try {
-      chrome.tabs.sendMessage(tabId, { type: "ENHANCE_PROGRESS", stage, message });
-    } catch { /* tab may have closed */ }
-  } : null;
+  const onProgress = tabId
+    ? (stage, message) => {
+        try {
+          chrome.tabs.sendMessage(tabId, {
+            type: "ENHANCE_PROGRESS",
+            stage,
+            message,
+          });
+        } catch {
+          /* tab may have closed */
+        }
+      }
+    : null;
 
   try {
     // Ensure scenes are loaded
@@ -167,11 +178,19 @@ async function handleInlineEnhance(text, tabId) {
   } catch (err) {
     // Provide user-friendly error messages
     let errorMsg = err.message || "增强失败";
-    if (errorMsg.includes("fetch") || errorMsg.includes("network") || errorMsg.includes("Failed")) {
+    if (
+      errorMsg.includes("fetch") ||
+      errorMsg.includes("network") ||
+      errorMsg.includes("Failed")
+    ) {
       errorMsg = "网络连接失败\n\n请检查网络连接后重试";
     } else if (errorMsg.includes("401") || errorMsg.includes("Unauthorized")) {
       errorMsg = "API Key 无效\n\n请在扩展设置中检查 API 配置";
-    } else if (errorMsg.includes("429") || errorMsg.includes("rate") || errorMsg.includes("quota")) {
+    } else if (
+      errorMsg.includes("429") ||
+      errorMsg.includes("rate") ||
+      errorMsg.includes("quota")
+    ) {
       errorMsg = "API 调用频率超限\n\n请稍后重试";
     } else if (errorMsg.includes("timeout") || errorMsg.includes("Timeout")) {
       errorMsg = "请求超时\n\n服务器响应过慢，请重试";
