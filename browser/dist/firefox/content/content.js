@@ -201,13 +201,19 @@
     {
       name: "Kimi",
       urlPattern: /kimi\.moonshot\.cn|kimi\.com/,
-      selectors: ['.chat-input-editor[contenteditable="true"]', '[data-lexical-editor="true"]'],
+      selectors: [
+        '.chat-input-editor[contenteditable="true"]',
+        '[data-lexical-editor="true"]',
+      ],
       type: "contenteditable",
     },
     {
       name: "Perplexity",
       urlPattern: /perplexity\.ai/,
-      selectors: ['#ask-input[contenteditable="true"]', '[data-lexical-editor="true"]'],
+      selectors: [
+        '#ask-input[contenteditable="true"]',
+        '[data-lexical-editor="true"]',
+      ],
       type: "contenteditable",
     },
     // textarea
@@ -353,7 +359,11 @@
     if (el.tagName === "TEXTAREA") type = "textarea";
     else if (el.tagName === "INPUT") type = "input";
     else if (el.hasAttribute("data-slate-node")) type = "slate";
-    else if (el.hasAttribute("data-lexical-editor") || el.closest("[data-lexical-editor]")) type = "lexical";
+    else if (
+      el.hasAttribute("data-lexical-editor") ||
+      el.closest("[data-lexical-editor]")
+    )
+      type = "lexical";
     else type = currentSite.type; // prosemirror/quill/codemirror/contenteditable — all use execCommand
 
     if (type === "textarea" || type === "input") {
@@ -441,7 +451,7 @@
   function isVisibleAndEnabled(el) {
     if (!el) return false;
     if (el.disabled) return false;
-    if (el.getAttribute('aria-disabled') === 'true') return false;
+    if (el.getAttribute("aria-disabled") === "true") return false;
     if (el.offsetParent !== null) return true;
     const rect = el.getBoundingClientRect();
     return rect.width > 0 && rect.height > 0;
@@ -495,11 +505,17 @@
   function getInputContainer(el) {
     let node = el;
     const elRect = el.getBoundingClientRect();
-    for (let i = 0; i < 6 && node.parentElement && node.parentElement !== document.body; i++) {
+    for (
+      let i = 0;
+      i < 6 && node.parentElement && node.parentElement !== document.body;
+      i++
+    ) {
       node = node.parentElement;
       const st = window.getComputedStyle(node);
       const hasBorder = parseFloat(st.borderWidth) > 0;
-      const hasBg = st.backgroundColor !== "rgba(0, 0, 0, 0)" && st.backgroundColor !== "transparent";
+      const hasBg =
+        st.backgroundColor !== "rgba(0, 0, 0, 0)" &&
+        st.backgroundColor !== "transparent";
       // Must have a VISIBLE background or border to count as the visual container
       // (border-radius alone with transparent bg is just an internal layout detail)
       if ((hasBg || hasBorder) && node.offsetWidth >= elRect.width * 0.9) {
@@ -663,17 +679,18 @@
 
   function hidePreviewPanel() {
     if (!previewPanel) return;
-    previewPanel.classList.remove("is-visible", "is-loading", "is-loaded", "is-error");
+    previewPanel.classList.remove(
+      "is-visible",
+      "is-loading",
+      "is-loaded",
+      "is-error",
+    );
   }
 
   function setPreviewLoaded(originalText, enhancedText) {
     if (!previewPanel) return;
-    previewPanel
-      .querySelector("#ep-original-text")
-      .textContent = originalText;
-    previewPanel
-      .querySelector("#ep-enhanced-text")
-      .textContent = enhancedText;
+    previewPanel.querySelector("#ep-original-text").textContent = originalText;
+    previewPanel.querySelector("#ep-enhanced-text").textContent = enhancedText;
     previewPanel.classList.remove("is-loading", "is-error");
     previewPanel.classList.add("is-loaded");
 
@@ -693,27 +710,30 @@
   /* ─── Actions ─── */
   function handleCopy() {
     if (!_enhancedResult) return;
-    navigator.clipboard.writeText(_enhancedResult).then(() => {
-      // Brief feedback
-      const btn = previewPanel.querySelector("#ep-btn-copy");
-      const origHTML = btn.innerHTML;
-      btn.innerHTML = `${ICON_CHECK}<span>已复制</span>`;
-      btn.classList.add("is-copied");
-      setTimeout(() => {
-        btn.innerHTML = origHTML;
-        btn.classList.remove("is-copied");
-      }, 1500);
-    }).catch(() => {
-      // Clipboard API failed — fallback: select text for manual copy
-      const textEl = previewPanel?.querySelector("#ep-enhanced-text");
-      if (textEl) {
-        const range = document.createRange();
-        range.selectNodeContents(textEl);
-        const sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
-      }
-    });
+    navigator.clipboard
+      .writeText(_enhancedResult)
+      .then(() => {
+        // Brief feedback
+        const btn = previewPanel.querySelector("#ep-btn-copy");
+        const origHTML = btn.innerHTML;
+        btn.innerHTML = `${ICON_CHECK}<span>已复制</span>`;
+        btn.classList.add("is-copied");
+        setTimeout(() => {
+          btn.innerHTML = origHTML;
+          btn.classList.remove("is-copied");
+        }, 1500);
+      })
+      .catch(() => {
+        // Clipboard API failed — fallback: select text for manual copy
+        const textEl = previewPanel?.querySelector("#ep-enhanced-text");
+        if (textEl) {
+          const range = document.createRange();
+          range.selectNodeContents(textEl);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      });
   }
 
   function handleReplace() {
@@ -828,20 +848,24 @@
     `;
 
     // Enhance button
-    nudgeBubble.querySelector("#ep-nudge-enhance").addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      hideNudgeBubble();
-      triggerEnhance();
-    });
+    nudgeBubble
+      .querySelector("#ep-nudge-enhance")
+      .addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        hideNudgeBubble();
+        triggerEnhance();
+      });
 
     // Dismiss permanently
-    nudgeBubble.querySelector("#ep-nudge-dismiss").addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      hideNudgeBubble();
-      dismissNudgePermanently();
-    });
+    nudgeBubble
+      .querySelector("#ep-nudge-dismiss")
+      .addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        hideNudgeBubble();
+        dismissNudgePermanently();
+      });
 
     document.body.appendChild(nudgeBubble);
     return nudgeBubble;
@@ -1026,7 +1050,8 @@
     if (inputResizeObserver) inputResizeObserver.disconnect();
     inputResizeObserver = new ResizeObserver(() => {
       positionTriggerIcon();
-      if (previewPanel?.classList.contains("is-visible")) positionPreviewPanel();
+      if (previewPanel?.classList.contains("is-visible"))
+        positionPreviewPanel();
       if (undoBar?.classList.contains("is-visible")) {
         const r = trackedInput?.getBoundingClientRect();
         if (r) {
@@ -1047,14 +1072,20 @@
     trackedInput.removeEventListener("keyup", onInputActivity);
     trackedInput.removeEventListener("focus", onFocusInput);
     trackedInput.removeEventListener("blur", onBlurInput);
-    if (inputResizeObserver) { inputResizeObserver.disconnect(); inputResizeObserver = null; }
+    if (inputResizeObserver) {
+      inputResizeObserver.disconnect();
+      inputResizeObserver = null;
+    }
     trackedInput = null;
     hideTriggerIcon();
     // Clean up any open UI to prevent orphaned panels
     hidePreviewPanel();
     hideUndoBar();
     hideNudgeBubble();
-    if (nudgeTimer) { clearTimeout(nudgeTimer); nudgeTimer = null; }
+    if (nudgeTimer) {
+      clearTimeout(nudgeTimer);
+      nudgeTimer = null;
+    }
   }
 
   function onFocusInput() {
@@ -1125,7 +1156,11 @@
     if (observerThrottleTimer) return;
     observerThrottleTimer = setTimeout(() => {
       observerThrottleTimer = null;
-      if (!trackedInput || !trackedInput.isConnected || !isVisibleAndEnabled(trackedInput)) {
+      if (
+        !trackedInput ||
+        !trackedInput.isConnected ||
+        !isVisibleAndEnabled(trackedInput)
+      ) {
         tryAttachInput();
       }
     }, 300);
@@ -1143,7 +1178,11 @@
     if (newUrl !== _lastUrl) {
       _lastUrl = newUrl;
       setTimeout(() => {
-        if (!trackedInput || !trackedInput.isConnected || !isVisibleAndEnabled(trackedInput)) {
+        if (
+          !trackedInput ||
+          !trackedInput.isConnected ||
+          !isVisibleAndEnabled(trackedInput)
+        ) {
           detachInputListeners();
           tryAttachInput();
         }
@@ -1158,7 +1197,10 @@
   /* ─── Progress Updates from Service Worker ─── */
   if (chrome.runtime?.onMessage) {
     chrome.runtime.onMessage.addListener((message) => {
-      if (message.type === "ENHANCE_PROGRESS" && previewPanel?.classList.contains("is-visible")) {
+      if (
+        message.type === "ENHANCE_PROGRESS" &&
+        previewPanel?.classList.contains("is-visible")
+      ) {
         const loadingText = previewPanel.querySelector("#ep-loading-text");
         if (loadingText && message.message) {
           loadingText.textContent = message.message;
