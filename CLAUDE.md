@@ -64,9 +64,12 @@ This document provides project context and development guidance for Claude Code 
 - **Core Logic:** Node.js (CommonJS), platform-agnostic
 - **VSCode Extension:** VSCode Extension API, Webview
 - **IntelliJ Plugin:** Kotlin, Gradle, IntelliJ Platform SDK 2.3.0
+- **Web:** 原生 HTML/CSS/JS SPA，部署到 VPS
+- **Browser Extension:** Chrome/Firefox/Safari MV3，原生 JS
 - **API Layer (VSCode):** curl subprocess（避免 Cloudflare 拦截）, 含重试/响应限制/Kill Timer
 - **API Layer (IntelliJ):** HttpURLConnection, 含重试/响应限制
 - **Security:** AES-256-CBC 加密内置凭证（core/defaults.js + BuiltinDefaults.kt）
+- **CI/CD:** Bash + Node.js 本地脚本（deploy/），AES-256-CBC Provider 动态注入
 - **Package Manager:** npm
 
 ---
@@ -106,6 +109,11 @@ easy-prompt/
 │   ├── content/             # Content Script（浮动增强按钮）
 │   ├── shared/              # 共享模块（Storage/API/Router/Scenes/Defaults/Icons）
 │   └── scenes.json          # 85 场景数据
+├── deploy/                  # CI/CD 脚本（已 .gitignore，仅本地）
+│   ├── config.sh            # 凭证配置（Token/VPS/JAVA_HOME）
+│   ├── deploy.sh            # 全端构建 & 发布主脚本
+│   ├── inject-provider.js   # Provider 动态注入引擎
+│   └── providers/           # Provider 配置文件
 ├── README.md
 ├── CHANGELOG.md
 └── .github/
@@ -162,12 +170,41 @@ node --check extension.js && node --check welcomeView.js && node --check core/in
 # 打包 VSCode 插件
 npx @vscode/vsce package --allow-missing-repository
 
-# IntelliJ 编译验证（需 JDK 17）
-cd intellij && JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ./gradlew compileKotlin
+# IntelliJ 编译验证（需 JAVA_HOME）
+cd intellij && JAVA_HOME="$JAVA_HOME" ./gradlew compileKotlin
 
 # IntelliJ 构建插件
-cd intellij && JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ./gradlew buildPlugin
+cd intellij && JAVA_HOME="$JAVA_HOME" ./gradlew buildPlugin
+
+# 浏览器扩展构建
+cd browser && node build.js
 ```
+
+### CI/CD 命令（deploy/ 目录，已 .gitignore）
+
+```bash
+# 全端构建 + 发布 + 部署 + Git（一键发版）
+./deploy/deploy.sh all --bump patch --provider yyds168
+
+# 仅构建不发布（验证用）
+./deploy/deploy.sh build
+
+# 注入 Provider + 验证
+./deploy/deploy.sh inject --provider yyds168
+./deploy/deploy.sh verify
+
+# 列出可用 Provider
+./deploy/deploy.sh providers
+
+# 单平台操作
+./deploy/deploy.sh vscode      # VSCode 构建 + 发布
+./deploy/deploy.sh intellij    # IntelliJ 构建 + 发布
+./deploy/deploy.sh web         # Web 部署到 VPS
+./deploy/deploy.sh browser     # 浏览器扩展构建
+./deploy/deploy.sh git         # Git 提交 + 推送
+```
+
+> **详细 CI/CD 文档见 `copilot-instructions.md` 第 6 章。**
 
 ---
 
