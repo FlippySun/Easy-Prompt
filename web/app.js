@@ -211,9 +211,9 @@ function _dk() {
 
 // Pre-encrypted vault (AES-256-CBC, base64 iv:ciphertext)
 const _vault = {
-  _a: "nsyr2IS/y/d+/SjcQWWnMw==:QH+2F+3pvndj0tDx173pncFD8sjIXx7UVwJeFtOyTL4=",
-  _b: "dsTXcwfRJa0zhYDUl6QHFA==:hxcqQTO75KRuSwC/9FoijhfiK/aA1fmjdhdQUNaJJwMmE9RJew0tbaNpLxef62nIoBZ/OLAfPJfK6V09oSAF7Q==",
-  _c: "hStx3/BP4Pnf59dLvPg8VA==:kHqUSzkgftdvUmtb3K0eM6KC26J9s6gy7QvhcZi0x5c=",
+  _a: "tdTmIDzo/e1SKx7OKeGmnw==:YnsNFVSfArxjd/pFkA1d33NMk04G9K2zTcq6b0tfkmLnLyirIJ2zZ9taVb+vsMdw",
+  _b: "BasysF8Cpt+TnJ8IO/wFfw==:mJuKyQW4S0TkVYofyVpu1QABnR2WbwvhFYFbKBqrzh9b+S64hPoQ35eACQJI1RuEvNRrk86W5NeiIIXf2kui8Q==",
+  _c: "KTwUHAoztZ0gOdEWXQBvLQ==:FVc+zYn00kX5NNieli/yMFLsON/Xc1Um0/e0G69OO6A=",
 };
 
 let _builtinCache = null;

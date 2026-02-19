@@ -75,34 +75,30 @@ function _dec(ciphertext, key32) {
   // 如果已经有加密数据就跳过
   if (_vault._a) return;
 
-  // 原始值通过多层间接引用构造
+  // 原始值通过多层间接引用构造 [Provider: modelverse]
   const _p1 = [104, 116, 116, 112, 115, 58, 47, 47]; // https://
-  const _p2 = [97, 112, 105, 46]; // api.
-  const _p3 = [121, 121, 100, 115, 49, 54, 56]; // yyds168
-  const _p4 = [46, 110, 101, 116, 47, 118, 49]; // .net/v1
-  const _baseUrl = String.fromCharCode(..._p1, ..._p2, ..._p3, ..._p4);
+  const _p2 = [97, 112, 105, 46, 109, 111, 100, 101]; // api.mode
+  const _p3 = [108, 118, 101, 114, 115, 101, 46, 99]; // lverse.c
+  const _p4 = [110, 47, 118, 49, 47, 99, 104, 97]; // n/v1/cha
+  const _p5 = [116, 47, 99, 111, 109, 112, 108, 101]; // t/comple
+  const _p6 = [116, 105, 111, 110, 115]; // tions
+  const _baseUrl = String.fromCharCode(..._p1, ..._p2, ..._p3, ..._p4, ..._p5, ..._p6);
 
-  const _s1 = [115, 107, 45]; // sk-
-  const _s2 = [76, 100, 78, 85, 84, 71, 118, 51]; // LdNUTGv3
-  const _s3 = [120, 110, 109, 74, 101, 118, 115, 115]; // xnmJevss
-  const _s4 = [50, 81, 97, 90, 78, 81, 117, 81]; // 2QaZNQuQ
-  const _s5 = [66, 57, 51, 71, 84, 112, 112, 121]; // B93GTppy
-  const _s6 = [56, 110, 98, 111, 50, 87, 71, 106]; // 8nbo2WGj
-  const _s7 = [115, 89, 48, 85, 117, 114, 109, 55]; // sY0Uurm7
+  const _s1 = [104, 119, 102, 80, 119, 68, 100, 70]; // hwfPwDdF
+  const _s2 = [108, 54, 54, 118, 107, 80, 119, 121]; // l66vkPwy
+  const _s3 = [51, 57, 49, 99, 69, 52, 55, 98]; // 391cE47b
+  const _s4 = [45, 99, 56, 51, 52, 45, 52, 50]; // -c834-42
+  const _s5 = [55, 52, 45, 98, 65, 97, 51, 45]; // 74-bAa3-
+  const _s6 = [69, 101, 66, 97, 56, 55, 52, 48]; // EeBa8740
   const _apiKey = String.fromCharCode(
-    ..._s1,
-    ..._s2,
-    ..._s3,
-    ..._s4,
-    ..._s5,
-    ..._s6,
-    ..._s7,
+    ..._s1, ..._s2, ..._s3, ..._s4, ..._s5, ..._s6,
   );
 
-  const _m1 = [103, 101, 109, 105, 110, 105]; // gemini
-  const _m2 = [45, 51, 45, 112, 114, 111]; // -3-pro
-  const _m3 = [45, 112, 114, 101, 118, 105, 101, 119]; // -preview
-  const _model = String.fromCharCode(..._m1, ..._m2, ..._m3);
+  const _m1 = [99, 108, 97, 117, 100, 101, 45, 115]; // claude-s
+  const _m2 = [111, 110, 110, 101, 116, 45, 52, 45]; // onnet-4-
+  const _m3 = [53, 45, 50, 48, 50, 53, 48, 57]; // 5-202509
+  const _m4 = [50, 57]; // 29
+  const _model = String.fromCharCode(..._m1, ..._m2, ..._m3, ..._m4);
 
   _vault._a = _enc(_baseUrl, key);
   _vault._b = _enc(_apiKey, key);

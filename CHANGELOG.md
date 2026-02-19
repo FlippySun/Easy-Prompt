@@ -5,6 +5,15 @@ All notable changes to the Easy Prompt project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.2.0] - 2026-02-20
+
+### 默认模型升级
+
+- **升级**: 默认 AI 模型切换至 Claude Sonnet 4.5 (claude-sonnet-4-5-20250929)
+- **升级**: 默认 API 提供商切换至 ModelVerse (api.modelverse.cn)
+- **同步**: 全端（VSCode / IntelliJ / Web / Browser）默认配置统一更新
+- **同步**: 全端版本号统一升级至 5.2.0
+
 ## [5.1.1] - 2025-07-26
 
 ### 链接修正 & 多端同步
