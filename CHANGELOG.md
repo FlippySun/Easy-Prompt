@@ -5,6 +5,18 @@ All notable changes to the Easy Prompt project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.1.1] - 2025-07-26
+
+### 链接修正 & 多端同步
+
+- **修正**: README.md Web 在线版链接指向 `https://prompt.zhiz.chat`
+- **修正**: 浏览器扩展设置页 GitHub URL 修正为正确仓库地址
+- **新增**: 浏览器扩展设置页“关于”区域添加 Web 在线版链接
+- **新增**: VSCode Welcome 页面 footer 添加 Web 在线版链接
+- **修正**: Web 端 GitHub URL 大小写修正
+- **修正**: IntelliJ Marketplace 描述中 Web 添加超链接
+- **同步**: 全端版本号统一升级至 5.1.1
+
 ## [5.1.0] - 2025-07-25
 
 ### Smart Nudge - AI 站点智能提醒

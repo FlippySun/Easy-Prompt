@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.easyprompt"
-version = "5.1.0"
+version = "5.1.1"
 
 repositories {
     mavenCentral()
@@ -40,7 +40,7 @@ intellijPlatform {
                 <li>Composite Support: Handles multiple intents in a single input</li>
                 <li>Quick Enhance: Select text and press Ctrl+Alt+P to enhance instantly</li>
                 <li>85 Scenes + 10 Personas: Covers development, content creation, product, marketing, design, data, HR, service, startup, education</li>
-                <li>Multi-Platform: Available on VSCode, IntelliJ IDEA, Browser Extension, and Web</li>
+                <li>Multi-Platform: Available on VSCode, IntelliJ IDEA, Browser Extension, and <a href="https://prompt.zhiz.chat">Web</a></li>
                 <li>Zero Config: Built-in AI service, works out of the box</li>
             </ul>
         """.trimIndent()
@@ -52,6 +52,12 @@ intellijPlatform {
             sinceBuild = "243"
         }
         changeNotes = """
+            <h3>v5.1.1 — 链接修正 & 多端同步</h3>
+            <ul>
+                <li>修正：多端 Web 在线版链接统一指向 https://prompt.zhiz.chat</li>
+                <li>新增：浏览器扩展 + VSCode Welcome 页添加 Web 在线版入口</li>
+                <li>修正：IntelliJ Marketplace 描述中 Web 添加超链接</li>
+            </ul>
             <h3>v5.1.0 — 智能输入验证增强</h3>
             <ul>
                 <li>增强：输入验证升级为 7 规则引擎 — 最小长度/有效字符/字母检测/重复字符/纯URL/纯邮箱/纯路径</li>
