@@ -40,7 +40,7 @@ intellijPlatform {
                 <li>Composite Support: Handles multiple intents in a single input</li>
                 <li>Quick Enhance: Select text and press Ctrl+Alt+P to enhance instantly</li>
                 <li>85 Scenes + 10 Personas: Covers development, content creation, product, marketing, design, data, HR, service, startup, education</li>
-                <li>Multi-Platform: Available on VSCode, IntelliJ IDEA, and Web</li>
+                <li>Multi-Platform: Available on VSCode, IntelliJ IDEA, Browser Extension, and Web</li>
                 <li>Zero Config: Built-in AI service, works out of the box</li>
             </ul>
         """.trimIndent()
