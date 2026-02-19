@@ -22,6 +22,9 @@ out/
 .env
 *.key
 
+# Local deploy scripts (tokens, credentials)
+deploy/
+
 # Local AI/MCP tool configs (not for repo)
 .mcp.json
 .mcp.json.*
