@@ -44,7 +44,7 @@
 
   /* Typography */
   --font-sans:
-    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    "MiSans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono:
     "JetBrains Mono", "SF Mono", "Fira Code", "Cascadia Code", monospace;
 
@@ -74,25 +74,27 @@
 [data-theme="light"] {
   --bg-base: #fafafa;
   --bg-subtle: #f5f5f5;
-  --bg-muted: #e5e5e5;
+  --bg-muted: rgba(0, 0, 0, 0.015);
   --bg-elevated: #fff;
-  --bg-overlay: rgba(0, 0, 0, 0.4);
-  --border: rgba(0, 0, 0, 0.08);
-  --border-hover: rgba(0, 0, 0, 0.15);
+  --bg-overlay: rgba(0, 0, 0, 0.35);
+  --border: rgba(0, 0, 0, 0.06);
+  --border-hover: rgba(0, 0, 0, 0.12);
   --border-active: rgba(139, 92, 246, 0.5);
   --text-primary: #09090b;
-  --text-secondary: #52525b;
+  --text-secondary: #3f3f46;
   --text-muted: #71717a;
   --text-faint: #a1a1aa;
-  --accent-subtle: rgba(139, 92, 246, 0.08);
-  --accent-glow: rgba(139, 92, 246, 0.1);
+  --accent-subtle: rgba(139, 92, 246, 0.06);
+  --accent-glow: rgba(139, 92, 246, 0.12);
   --success-subtle: rgba(34, 197, 94, 0.08);
   --error-subtle: rgba(239, 68, 68, 0.08);
   --warning-subtle: rgba(245, 158, 11, 0.08);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
-  --shadow-glow: 0 0 40px rgba(139, 92, 246, 0.04);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.03);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.03);
+  --shadow-glow: 0 0 40px rgba(139, 92, 246, 0.06);
+  --gradient-start: #a78bfa;
+  --gradient-end: #818cf8;
 }
 
 /* ─── 2. Reset & Base ─── */
@@ -120,6 +122,37 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
   position: relative;
+}
+
+/* Theme transition — activated via .theme-transitioning class */
+html.theme-transitioning,
+html.theme-transitioning *,
+html.theme-transitioning *::before,
+html.theme-transitioning *::after {
+  transition:
+    background-color 0.5s ease,
+    border-color 0.5s ease,
+    color 0.3s ease,
+    box-shadow 0.5s ease,
+    fill 0.3s ease,
+    stroke 0.3s ease !important;
+}
+
+/* Scroll-triggered reveal */
+.reveal-on-scroll {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 0.6s var(--ease-out),
+    transform 0.6s var(--ease-out),
+    filter 0.6s var(--ease-out);
+  filter: blur(3px);
+}
+
+.reveal-on-scroll.is-revealed {
+  opacity: 1;
+  transform: translateY(0);
+  filter: blur(0);
 }
 
 ::selection {
@@ -152,38 +185,182 @@ a {
 .ambient-orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.12;
+  filter: blur(100px);
+  opacity: 0.15;
   will-change: transform;
 }
 
+/* 右上角主光晕 — 紫蓝锥形旋转渐变 */
 .ambient-orb--1 {
-  width: 500px;
-  height: 500px;
-  background: var(--gradient-start);
-  top: -200px;
-  right: -100px;
+  width: 600px;
+  height: 600px;
+  background: conic-gradient(
+    from 180deg at 50% 50%,
+    var(--gradient-start),
+    #6366f1,
+    #818cf8,
+    var(--gradient-end),
+    var(--gradient-start)
+  );
+  top: -240px;
+  right: -150px;
+  opacity: 0.22;
+  filter: blur(80px);
+  animation: orbDrift1 12s ease-in-out infinite;
 }
 
+/* 左下角光晕 — 青粉锥形渐变 */
 .ambient-orb--2 {
-  width: 400px;
-  height: 400px;
-  background: var(--gradient-end);
-  bottom: -150px;
-  left: -100px;
+  width: 520px;
+  height: 520px;
+  background: conic-gradient(
+    from 0deg at 50% 50%,
+    #06b6d4,
+    var(--gradient-end),
+    #ec4899,
+    #06b6d4
+  );
+  bottom: -200px;
+  left: -130px;
+  opacity: 0.18;
+  filter: blur(80px);
+  animation: orbDrift2 16s ease-in-out infinite;
 }
 
+/* 中心微光 — 品红脉冲 */
 .ambient-orb--3 {
-  width: 250px;
-  height: 250px;
-  background: #ec4899;
-  top: 40%;
-  left: calc(50% - 125px);
-  opacity: 0.05;
+  width: 300px;
+  height: 300px;
+  background: conic-gradient(
+    from 90deg at 50% 50%,
+    #ec4899,
+    #a855f7,
+    #6366f1,
+    #ec4899
+  );
+  top: 35%;
+  left: calc(50% - 150px);
+  opacity: 0.1;
+  filter: blur(80px);
+  animation: orbDrift3 10s ease-in-out infinite;
 }
 
+/* 网格覆盖层 — 科技感 */
+.ambient-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(139, 92, 246, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(139, 92, 246, 0.06) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(
+    ellipse 80% 60% at 50% 0%,
+    black 20%,
+    transparent 70%
+  );
+  -webkit-mask-image: radial-gradient(
+    ellipse 80% 60% at 50% 0%,
+    black 20%,
+    transparent 70%
+  );
+  animation: gridPulse 6s ease-in-out infinite alternate;
+}
+
+@keyframes gridPulse {
+  from {
+    opacity: 0.5;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 顶部光线扫描效果 */
+.ambient-bg::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(139, 92, 246, 0.6),
+    rgba(99, 102, 241, 0.4),
+    transparent
+  );
+  box-shadow: 0 0 20px 2px rgba(139, 92, 246, 0.3);
+  animation: ambientScanline 8s ease-in-out infinite;
+}
+
+@keyframes ambientScanline {
+  0% {
+    left: -60%;
+  }
+  50% {
+    left: 100%;
+  }
+  100% {
+    left: -60%;
+  }
+}
+
+/* 亮色主题——光球使用高饱和色调，透明度显著提高 */
 [data-theme="light"] .ambient-orb {
-  opacity: 0.05;
+  filter: blur(80px);
+}
+
+[data-theme="light"] .ambient-orb--1 {
+  background: conic-gradient(
+    from 180deg at 50% 50%,
+    #8b5cf6,
+    #3b82f6,
+    #6366f1,
+    #a78bfa,
+    #8b5cf6
+  );
+  opacity: 0.35;
+}
+
+[data-theme="light"] .ambient-orb--2 {
+  background: conic-gradient(
+    from 0deg at 50% 50%,
+    #06b6d4,
+    #8b5cf6,
+    #ec4899,
+    #06b6d4
+  );
+  opacity: 0.3;
+}
+
+[data-theme="light"] .ambient-orb--3 {
+  background: conic-gradient(
+    from 90deg at 50% 50%,
+    #ec4899,
+    #8b5cf6,
+    #3b82f6,
+    #ec4899
+  );
+  opacity: 0.25;
+}
+
+[data-theme="light"] .ambient-bg::before {
+  background-image:
+    linear-gradient(rgba(139, 92, 246, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(139, 92, 246, 0.04) 1px, transparent 1px);
+}
+
+[data-theme="light"] .ambient-bg::after {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(139, 92, 246, 0.3),
+    rgba(99, 102, 241, 0.2),
+    transparent
+  );
+  box-shadow: 0 0 15px 1px rgba(139, 92, 246, 0.15);
 }
 
 /* ─── 4. Header ─── */
@@ -192,7 +369,9 @@ a {
   top: 0;
   z-index: 100;
   height: var(--header-height);
-  background: color-mix(in srgb, var(--bg-base) 92%, transparent);
+  background: color-mix(in srgb, var(--bg-base) 72%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
   border-bottom: 1px solid var(--border);
 }
 
@@ -324,12 +503,27 @@ a {
     135deg,
     var(--gradient-start),
     var(--gradient-end),
-    #ec4899
+    #ec4899,
+    var(--gradient-start),
+    var(--gradient-end)
   );
-  background-size: 200% 200%;
+  background-size: 300% 300%;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+  animation: gradientFlow 6s ease-in-out infinite;
+}
+
+@keyframes gradientFlow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 .hero__subtitle {
@@ -343,6 +537,17 @@ a {
 /* ─── 7. Input Section ─── */
 .input-section {
   margin-bottom: 16px;
+  transition:
+    opacity var(--duration-slow) var(--ease-out),
+    transform var(--duration-slow) var(--ease-out),
+    filter var(--duration-slow) var(--ease-out);
+}
+
+.input-section.is-generating {
+  opacity: 0.6;
+  transform: scale(0.98) translateY(-4px);
+  filter: blur(1px);
+  pointer-events: none;
 }
 
 .input-box {
@@ -353,15 +558,68 @@ a {
   box-shadow: var(--shadow-sm), var(--shadow-glow);
   transition:
     border-color var(--duration-normal) var(--ease-out),
-    box-shadow var(--duration-normal) var(--ease-out);
+    box-shadow var(--duration-slow) var(--ease-out);
   overflow: hidden;
 }
 
+.input-box::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    transparent 40%,
+    rgba(139, 92, 246, 0) 40%,
+    rgba(139, 92, 246, 0) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--duration-slow) var(--ease-out);
+  z-index: 1;
+}
+
+.input-box:focus-within::before {
+  background: linear-gradient(
+    135deg,
+    var(--gradient-start),
+    var(--gradient-end),
+    #ec4899,
+    var(--gradient-end),
+    var(--gradient-start)
+  );
+  background-size: 300% 300%;
+  animation: borderGlow 4s ease-in-out infinite;
+  opacity: 1;
+}
+
+@keyframes borderGlow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
 .input-box:focus-within {
-  border-color: var(--border-active);
+  border-color: transparent;
   box-shadow:
     var(--shadow-md),
     0 0 0 3px var(--accent-glow),
+    0 0 60px -10px rgba(139, 92, 246, 0.15),
     var(--shadow-glow);
 }
 
@@ -376,6 +634,23 @@ a {
   background: transparent;
   color: var(--text-primary);
   font-size: 15px;
+  transition: color var(--duration-normal) var(--ease-out);
+}
+
+.input-box__textarea::placeholder {
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.input-box__textarea:focus::placeholder {
+  opacity: 0.4;
+}
+
+.input-box.has-content {
+  border-color: var(--border-hover);
+  background: color-mix(in srgb, var(--bg-elevated) 97%, var(--accent) 3%);
+}
+
+.input-box__textarea {
   line-height: 1.7;
   resize: vertical;
   font-family: var(--font-sans);
@@ -454,18 +729,62 @@ a {
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.btn--primary::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 25%,
+    rgba(255, 255, 255, 0.15) 50%,
+    transparent 75%
+  );
+  background-size: 250% 100%;
+  background-position: 200% 0;
+  transition: background-position 0.6s var(--ease-out);
+  z-index: 0;
+}
+
+.btn--primary:not(:disabled):hover::before {
+  background-position: -50% 0;
 }
 
 .btn--primary:not(:disabled):hover {
-  opacity: 0.9;
   transform: translateY(-1px);
   box-shadow:
-    0 4px 12px rgba(139, 92, 246, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    0 4px 16px rgba(139, 92, 246, 0.35),
+    0 0 40px -8px rgba(139, 92, 246, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
 .btn--primary:not(:disabled):active {
-  transform: translateY(0);
+  transform: translateY(0) scale(0.97);
+  box-shadow:
+    0 1px 4px rgba(139, 92, 246, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.btn--generating {
+  animation: generatingPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes generatingPulse {
+  0%,
+  100% {
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.2),
+      0 0 20px -4px rgba(239, 68, 68, 0.3);
+  }
+  50% {
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.2),
+      0 0 40px -4px rgba(239, 68, 68, 0.5);
+  }
 }
 
 .btn--ghost {
@@ -537,10 +856,27 @@ a {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 16px 4px;
+  padding: 16px 4px 16px 4px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  mask-image: linear-gradient(
+    to right,
+    black calc(100% - 48px),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    black calc(100% - 48px),
+    transparent 100%
+  );
+}
+
+/* 右侧占位空间，让最后一个标签滑动后不被淡出遮挡 */
+.scene-tags::after {
+  content: "";
+  flex-shrink: 0;
+  width: 48px;
 }
 
 .scene-tags::-webkit-scrollbar {
@@ -570,7 +906,9 @@ a {
   transition:
     color var(--duration-fast),
     background-color var(--duration-fast),
-    border-color var(--duration-fast);
+    border-color var(--duration-fast),
+    transform var(--duration-fast) var(--ease-spring),
+    box-shadow var(--duration-fast);
   user-select: none;
 }
 
@@ -582,13 +920,32 @@ a {
 }
 
 .scene-tag:active {
-  transform: translateY(0);
+  transform: translateY(0) scale(0.95);
 }
 
 .scene-tag.is-active {
   background: var(--accent-subtle);
   border-color: var(--accent);
   color: var(--accent);
+  animation: tagSelect 0.35s var(--ease-spring);
+  box-shadow:
+    0 0 0 2px rgba(139, 92, 246, 0.15),
+    0 2px 8px rgba(139, 92, 246, 0.12);
+}
+
+@keyframes tagSelect {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(0.9);
+  }
+  70% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 /* ─── 10. Progress ─── */
@@ -596,6 +953,27 @@ a {
   padding: 24px 0;
   display: flex;
   justify-content: center;
+}
+
+#progress {
+  transition:
+    opacity var(--duration-slow) var(--ease-out),
+    transform var(--duration-slow) var(--ease-spring);
+}
+
+#progress.is-entering {
+  animation: progressEnter 0.4s var(--ease-spring) forwards;
+}
+
+@keyframes progressEnter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .progress__inner {
@@ -607,6 +985,65 @@ a {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.progress__inner::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--accent) 30%,
+    #ec4899 50%,
+    var(--gradient-end) 70%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: progressPulse 2s ease-in-out infinite;
+}
+
+.progress__inner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(139, 92, 246, 0.03),
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: progressGlow 3s ease-in-out infinite;
+}
+
+@keyframes progressPulse {
+  0% {
+    background-position: 200% 0;
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    background-position: -200% 0;
+    opacity: 0.7;
+  }
+}
+
+@keyframes progressGlow {
+  0%,
+  100% {
+    background-position: 200% 0;
+  }
+  50% {
+    background-position: -200% 0;
+  }
 }
 
 .progress__spinner {
@@ -634,14 +1071,37 @@ a {
   animation: slideUp 0.5s var(--ease-out);
 }
 
+.output-section.is-entering {
+  animation: outputEnter 0.6s var(--ease-spring) forwards;
+}
+
+@keyframes outputEnter {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.97);
+    filter: blur(6px);
+  }
+  60% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
 @keyframes slideUp {
   from {
     opacity: 0;
     transform: translateY(20px);
+    filter: blur(4px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
+    filter: blur(0);
   }
 }
 
@@ -715,7 +1175,7 @@ a {
   position: fixed;
   bottom: 24px;
   left: 50%;
-  transform: translateX(-50%) translateY(20px);
+  transform: translateX(-50%) translateY(20px) scale(0.9);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -729,21 +1189,66 @@ a {
   z-index: 1000;
   opacity: 0;
   transition:
-    opacity var(--duration-normal) var(--ease-out),
-    transform var(--duration-normal) var(--ease-out);
+    opacity var(--duration-slow) var(--ease-spring),
+    transform var(--duration-slow) var(--ease-spring);
   box-shadow: var(--shadow-lg);
   max-width: 90vw;
+  backdrop-filter: blur(12px);
 }
 
 .toast.is-visible {
   opacity: 1;
-  transform: translateX(-50%) translateY(0);
+  transform: translateX(-50%) translateY(0) scale(1);
+}
+
+.toast.is-dismissing {
+  opacity: 0;
+  transform: translateX(-50%) translateY(10px) scale(0.95);
 }
 
 .toast.is-success {
   background: var(--success-subtle);
   border-color: rgba(34, 197, 94, 0.2);
   color: var(--success);
+}
+
+.toast svg {
+  flex-shrink: 0;
+  animation: toastIconPop 0.4s var(--ease-spring) 0.1s both;
+}
+
+@keyframes toastIconPop {
+  from {
+    transform: scale(0) rotate(-45deg);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+.toast::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  width: 100%;
+  background: currentColor;
+  opacity: 0.3;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  animation: toastProgress 5s linear forwards;
+  transform-origin: left;
+}
+
+@keyframes toastProgress {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
 }
 
 /* ─── 13. Footer ─── */
@@ -771,12 +1276,25 @@ a {
   background: var(--bg-overlay);
   z-index: 200;
   opacity: 0;
-  transition: opacity var(--duration-normal);
+  transition:
+    opacity 0.4s var(--ease-out),
+    backdrop-filter 0.5s var(--ease-out);
   cursor: pointer;
+  backdrop-filter: blur(0px) saturate(100%);
 }
 
 .overlay.is-visible {
   opacity: 1;
+  backdrop-filter: blur(12px) saturate(140%);
+}
+
+/* Overlay关闭时快速退出 */
+.overlay.is-dismissing {
+  opacity: 0;
+  backdrop-filter: blur(0px) saturate(100%);
+  transition:
+    opacity 0.25s var(--ease-out),
+    backdrop-filter 0.25s var(--ease-out);
 }
 
 /* ─── 15. Settings Panel (Slide-over) ─── */
@@ -790,15 +1308,58 @@ a {
   background: var(--bg-subtle);
   border-left: 1px solid var(--border);
   z-index: 300;
-  transform: translateX(100%);
-  transition: transform var(--duration-slow) var(--ease-out);
+  transform: perspective(1200px) translateX(105%) rotateY(-15deg);
+  transform-origin: right center;
+  transition:
+    transform 0.5s cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 0.4s var(--ease-out),
+    box-shadow 0.5s var(--ease-out);
   display: flex;
   flex-direction: column;
   box-shadow: -8px 0 32px rgba(0, 0, 0, 0.3);
+  opacity: 0;
 }
 
 .panel.is-visible {
-  transform: translateX(0);
+  transform: perspective(1200px) translateX(0) rotateY(0deg);
+  opacity: 1;
+  box-shadow:
+    -16px 0 64px rgba(0, 0, 0, 0.4),
+    -4px 0 24px rgba(139, 92, 246, 0.08);
+}
+
+/* Panel内容交错入场 */
+.panel.is-visible .panel__header {
+  animation: panelContentReveal 0.4s cubic-bezier(0.32, 0.72, 0, 1) 0.1s both;
+}
+.panel.is-visible .panel__body {
+  animation: panelContentReveal 0.4s cubic-bezier(0.32, 0.72, 0, 1) 0.18s both;
+}
+.panel.is-visible .panel__actions,
+.panel.is-visible .panel__hint {
+  animation: panelContentReveal 0.4s cubic-bezier(0.32, 0.72, 0, 1) 0.26s both;
+}
+
+@keyframes panelContentReveal {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+    filter: blur(0);
+  }
+}
+
+/* Panel关闭时的离场动画 */
+.panel.is-dismissing {
+  transform: perspective(1200px) translateX(110%) rotateY(-8deg);
+  opacity: 0;
+  transition:
+    transform 0.35s cubic-bezier(0.52, 0, 0.74, 0),
+    opacity 0.3s var(--ease-out);
 }
 
 .panel__header {
@@ -1206,7 +1767,7 @@ a {
   position: fixed;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%) scale(0.96);
+  transform: translate(-50%, -50%) perspective(1000px) scale(0.85) rotateX(8deg);
   width: 640px;
   max-width: calc(100vw - 32px);
   max-height: calc(100vh - 64px);
@@ -1216,16 +1777,63 @@ a {
   z-index: 300;
   opacity: 0;
   transition:
-    opacity var(--duration-normal) var(--ease-out),
-    transform var(--duration-normal) var(--ease-out);
+    opacity 0.4s var(--ease-out),
+    transform 0.55s cubic-bezier(0.32, 0.72, 0, 1),
+    filter 0.4s var(--ease-out),
+    box-shadow 0.5s var(--ease-out);
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow-lg);
+  filter: blur(8px);
 }
 
 .modal.is-visible {
   opacity: 1;
-  transform: translate(-50%, -50%) scale(1);
+  transform: translate(-50%, -50%) perspective(1000px) scale(1) rotateX(0deg);
+  filter: blur(0);
+  box-shadow:
+    0 32px 80px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(139, 92, 246, 0.1),
+    0 0 60px rgba(139, 92, 246, 0.06);
+}
+
+/* Modal内容交错入场 */
+.modal.is-visible .modal__header {
+  animation: modalItemReveal 0.4s cubic-bezier(0.32, 0.72, 0, 1) 0.08s both;
+}
+.modal.is-visible .modal__search {
+  animation: modalItemReveal 0.4s cubic-bezier(0.32, 0.72, 0, 1) 0.14s both;
+}
+.modal.is-visible .modal__categories {
+  animation: modalItemReveal 0.4s cubic-bezier(0.32, 0.72, 0, 1) 0.2s both;
+}
+.modal.is-visible .modal__grid {
+  animation: modalItemReveal 0.5s cubic-bezier(0.32, 0.72, 0, 1) 0.26s both;
+}
+
+@keyframes modalItemReveal {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+/* Modal关闭时的离场动画 */
+.modal.is-dismissing {
+  transform: translate(-50%, -50%) perspective(1000px) scale(0.92)
+    rotateX(-4deg);
+  opacity: 0;
+  filter: blur(6px);
+  transition:
+    opacity 0.25s var(--ease-out),
+    transform 0.3s cubic-bezier(0.52, 0, 0.74, 0),
+    filter 0.25s var(--ease-out);
 }
 
 .modal__header {
@@ -1383,6 +1991,8 @@ a {
   border: 1px solid var(--border);
   background: var(--bg-elevated);
   cursor: pointer;
+  position: relative;
+  overflow: hidden;
   transition:
     border-color var(--duration-fast),
     background-color var(--duration-fast),
@@ -1390,10 +2000,33 @@ a {
     box-shadow var(--duration-fast);
 }
 
+.scene-card::after {
+  content: "";
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(139, 92, 246, 0.12) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  transition: opacity var(--duration-fast);
+  z-index: 0;
+}
+
+.scene-card:hover::after {
+  opacity: 1;
+}
+
 .scene-card:hover {
   border-color: var(--border-active);
   background: var(--accent-subtle);
   box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
 }
 
 .scene-card__name {
@@ -1496,6 +2129,142 @@ a {
   font-size: 11.5px;
   color: var(--text-muted);
   margin-top: 1px;
+}
+
+/* ─── 18b. Model Combobox ─── */
+.combo {
+  position: relative;
+}
+
+.combo__input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.combo__input-wrap .combo__input {
+  padding-right: 36px;
+}
+
+.combo__toggle {
+  position: absolute;
+  right: 1px;
+  top: 1px;
+  bottom: 1px;
+  width: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  transition:
+    color var(--duration-fast),
+    background var(--duration-fast);
+}
+
+.combo__toggle:hover {
+  color: var(--text-primary);
+  background: var(--border);
+}
+
+.combo__toggle svg {
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.combo.is-open .combo__toggle svg {
+  transform: rotate(180deg);
+}
+
+.combo__dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 280px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+  pointer-events: none;
+  z-index: 400;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.combo.is-open .combo__dropdown {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.combo__list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.combo__group {
+  padding: 6px 10px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  user-select: none;
+}
+
+.combo__separator {
+  height: 1px;
+  border: none;
+  background: var(--border);
+  margin: 4px 10px;
+}
+
+.combo__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--duration-fast);
+}
+
+.combo__option:hover,
+.combo__option.is-focused {
+  background: var(--accent-subtle);
+}
+
+.combo__option.is-selected {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.combo__option-id {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.combo__option-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.combo__empty {
+  padding: 16px 10px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-faint);
 }
 
 /* ─── 19. Responsive ─── */
@@ -1659,54 +2428,63 @@ body,
     border-color var(--duration-normal) var(--ease-out);
 }
 
-/* 26.2 Ambient orb gentle drift */
+/* 26.2 Ambient orb drift — 位移 + 旋转 + 缩放融合动画 */
 @keyframes orbDrift1 {
-  0%,
+  0% {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+  }
+  25% {
+    transform: translate(80px, -60px) rotate(90deg) scale(1.12);
+  }
+  50% {
+    transform: translate(-40px, 40px) rotate(180deg) scale(0.92);
+  }
+  75% {
+    transform: translate(50px, 20px) rotate(270deg) scale(1.06);
+  }
   100% {
-    transform: translate(0, 0) scale(1);
-  }
-  33% {
-    transform: translate(30px, -20px) scale(1.05);
-  }
-  66% {
-    transform: translate(-20px, 15px) scale(0.95);
+    transform: translate(0, 0) rotate(360deg) scale(1);
   }
 }
 
 @keyframes orbDrift2 {
-  0%,
+  0% {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+  }
+  25% {
+    transform: translate(-70px, 50px) rotate(-90deg) scale(0.94);
+  }
+  50% {
+    transform: translate(50px, -40px) rotate(-180deg) scale(1.1);
+  }
+  75% {
+    transform: translate(-30px, -20px) rotate(-270deg) scale(0.96);
+  }
   100% {
-    transform: translate(0, 0) scale(1);
-  }
-  33% {
-    transform: translate(-25px, 25px) scale(0.97);
-  }
-  66% {
-    transform: translate(20px, -15px) scale(1.03);
+    transform: translate(0, 0) rotate(-360deg) scale(1);
   }
 }
 
 @keyframes orbDrift3 {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-    opacity: 0.05;
+  0% {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+    opacity: 0.1;
   }
-  50% {
-    transform: translate(15px, -10px) scale(1.08);
-    opacity: 0.08;
+  33% {
+    transform: translate(40px, -30px) rotate(120deg) scale(1.2);
+    opacity: 0.16;
+  }
+  66% {
+    transform: translate(-25px, 20px) rotate(240deg) scale(0.85);
+    opacity: 0.06;
+  }
+  100% {
+    transform: translate(0, 0) rotate(360deg) scale(1);
+    opacity: 0.1;
   }
 }
 
-.ambient-orb--1 {
-  animation: orbDrift1 20s ease-in-out infinite;
-}
-.ambient-orb--2 {
-  animation: orbDrift2 25s ease-in-out infinite;
-}
-.ambient-orb--3 {
-  animation: orbDrift3 18s ease-in-out infinite;
-}
+/* orb drift animations now applied inline on .ambient-orb--1/2/3 */
 
 /* 26.3 Hero section entrance stagger */
 @keyframes heroFadeUp {
@@ -1847,41 +2625,32 @@ body,
   animation: copyPulse 0.35s var(--ease-spring);
 }
 
-/* 26.10 Panel slide enhanced */
-.panel {
-  transition:
-    transform var(--duration-slow) var(--ease-out),
-    opacity var(--duration-slow) var(--ease-out);
+#btn-copy .icon-check {
+  animation: copyCheckDraw 0.4s var(--ease-spring) forwards;
 }
 
-/* 26.11 Modal enhanced enter */
-@keyframes modalBackdropFadeIn {
+@keyframes copyCheckDraw {
   from {
+    transform: scale(0) rotate(-90deg);
     opacity: 0;
   }
+  50% {
+    transform: scale(1.2) rotate(0deg);
+    opacity: 1;
+  }
   to {
+    transform: scale(1) rotate(0deg);
     opacity: 1;
   }
 }
 
-@keyframes modalContentEnter {
-  from {
-    opacity: 0;
-    transform: scale(0.94) translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
+#btn-copy.is-copied {
+  background: var(--success-subtle) !important;
+  border-color: rgba(34, 197, 94, 0.3) !important;
+  color: var(--success) !important;
 }
 
-.overlay.is-visible {
-  animation: modalBackdropFadeIn var(--duration-normal) var(--ease-out);
-}
-
-.modal {
-  animation: modalContentEnter var(--duration-normal) var(--ease-out);
-}
+/* 26.10-11 — Legacy panel/modal overrides removed, now in §14/§15/§17 */
 
 /* 26.12 Progress shimmer */
 @keyframes progressShimmer {
@@ -1991,6 +2760,245 @@ body,
   animation: footerFadeIn 0.5s var(--ease-out) 0.5s both;
 }
 
+/* ─── 28. Cursor Light Effect ─── */
+.cursor-light {
+  position: fixed;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(139, 92, 246, 0.06) 0%,
+    rgba(99, 102, 241, 0.03) 35%,
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: 0;
+  transform: translate(-50%, -50%);
+  transition: opacity 0.3s ease;
+  will-change: left, top;
+}
+
+[data-theme="light"] .cursor-light {
+  background: radial-gradient(
+    circle,
+    rgba(139, 92, 246, 0.06) 0%,
+    rgba(99, 102, 241, 0.03) 35%,
+    transparent 70%
+  );
+}
+
+/* ─── 29. Button Ripple Effect ─── */
+.btn-ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(0);
+  animation: rippleExpand 0.6s ease-out forwards;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes rippleExpand {
+  to {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+/* ─── 30. Output Line Reveal ─── */
+.output-line {
+  opacity: 0;
+  transform: translateY(6px);
+  animation: lineReveal 0.4s var(--ease-out) forwards;
+}
+
+@keyframes lineReveal {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ─── 31. Scene Card Spotlight (JS-driven) ─── */
+.scene-card {
+  --spotlight-x: 50%;
+  --spotlight-y: 50%;
+}
+
+.scene-card::after {
+  left: var(--spotlight-x);
+  top: var(--spotlight-y);
+}
+
+/* ─── 32. Enhanced Ghost Button Hover ─── */
+.btn--ghost {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn--ghost::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    transparent 30%,
+    rgba(139, 92, 246, 0.04) 50%,
+    transparent 70%
+  );
+  background-size: 250% 100%;
+  background-position: 200% 0;
+  transition: background-position 0.5s var(--ease-out);
+  z-index: 0;
+}
+
+.btn--ghost:not(:disabled):hover::before {
+  background-position: -50% 0;
+}
+
+/* ─── 33. Input Section entrance ─── */
+@keyframes inputSectionEnter {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+.input-section {
+  animation: inputSectionEnter 0.6s var(--ease-out) 0.35s both;
+}
+
+/* ─── 34. Output card enhanced ─── */
+.output-card {
+  position: relative;
+}
+
+.output-card::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(139, 92, 246, 0.2),
+    rgba(99, 102, 241, 0.1),
+    rgba(236, 72, 153, 0.1),
+    rgba(139, 92, 246, 0.2)
+  );
+  background-size: 300% 300%;
+  animation: borderGlow 6s ease-in-out infinite;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ─── 35. Hero badge shimmer ─── */
+.hero__badge {
+  position: relative;
+  overflow: hidden;
+}
+
+.hero__badge::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(139, 92, 246, 0.15),
+    transparent
+  );
+  animation: badgeShimmer 4s ease-in-out 1s infinite;
+}
+
+@keyframes badgeShimmer {
+  0% {
+    left: -60%;
+  }
+  40% {
+    left: 120%;
+  }
+  100% {
+    left: 120%;
+  }
+}
+
+/* ─── 36. 3D Card Tilt ─── */
+.tilt-card {
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+  --tilt-scale: 1;
+  --tilt-glow-x: 50%;
+  --tilt-glow-y: 50%;
+  transform: perspective(800px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y))
+    scale(var(--tilt-scale));
+  transition: transform 0.15s ease-out;
+  will-change: transform;
+}
+
+/* 鼠标离开后平滑复位 */
+.tilt-card.tilt-resetting {
+  transition: transform 0.6s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* 3D 光泽反射层 */
+.tilt-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    ellipse 50% 50% at var(--tilt-glow-x) var(--tilt-glow-y),
+    rgba(255, 255, 255, 0.08) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease-out;
+  z-index: 10;
+}
+
+.tilt-card:hover::before {
+  opacity: 1;
+}
+
+/* 输入框 3D tilt 特殊样式 */
+.input-box.tilt-card {
+  position: relative;
+}
+
+/* 输出卡片 3D tilt */
+.output-card.tilt-card {
+  position: relative;
+}
+
+/* 场景卡片增强 3D 效果 */
+.scene-card.tilt-card::before {
+  background: radial-gradient(
+    ellipse 40% 40% at var(--tilt-glow-x) var(--tilt-glow-y),
+    rgba(139, 92, 246, 0.12) 0%,
+    transparent 70%
+  );
+}
+
 /* ─── 27. Reduced Motion ─── */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -2001,7 +3009,12 @@ body,
     transition-duration: 0.01ms !important;
   }
 
-  .ambient-bg {
+  .ambient-bg,
+  .cursor-light {
     display: none;
+  }
+
+  .tilt-card {
+    transform: none !important;
   }
 }

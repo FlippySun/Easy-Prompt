@@ -2,7 +2,7 @@
   "name": "easy-prompt-ai",
   "displayName": "Easy Prompt — AI 智能 Prompt 增强器",
   "description": "两步 AI 意图识别 + 85 个专业场景 + 10 大用户画像，将简单描述扩写为专业 Prompt。Two-step AI intent routing with 85 scenes & 10 personas for professional prompt generation (VSCode / IntelliJ / Browser / Web).",
-  "version": "5.2.1",
+  "version": "5.2.2",
   "publisher": "FlippySun",
   "license": "MIT",
   "engines": {

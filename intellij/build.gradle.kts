@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.easyprompt"
-version = "5.2.1"
+version = "5.2.2"
 
 repositories {
     mavenCentral()
@@ -143,6 +143,16 @@ intellijPlatform {
             sinceBuild = "243"
         }
         changeNotes = """
+            <h3>v5.2.2 — Web 端视觉重构</h3>
+            <b>Web 在线版高端动效升级</b>
+            <ul>
+                <li>8 类核心动效：光标追踪、按钮涟漪、逐行揭示、聚光灯、幽灵边框、入场动画等</li>
+                <li>3D 面板/弹窗入场 + 卡片倾斜效果</li>
+                <li>环境背景升级：三层锥形渐变光球 + 网格叠加 + 扫描线装饰</li>
+                <li>Model 下拉搜索框：39 个模型 / 9 大供应商 / 键盘导航</li>
+                <li>Light 主题全面调优</li>
+                <li>字体系统切换至 MiSans（4 档精确权重）</li>
+            </ul>
             <h3>v5.2.1 — IntelliJ 可发现性提升 & 全端描述双语化</h3>
             <b>IntelliJ 插件体验升级</b>
             <ul>
