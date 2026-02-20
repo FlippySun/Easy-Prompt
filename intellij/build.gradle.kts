@@ -31,8 +31,8 @@ intellijPlatform {
         id = "com.easyprompt.plugin"
         name = "Easy Prompt"
         version = project.version.toString()
-        description = """
-            <b>Easy Prompt</b> 是一款面向 IntelliJ IDEA 的 AI Prompt 增强插件：基于“两步意图识别 → 专业 Prompt 生成”，把你的简单描述自动扩写为结构化、高质量的 Prompt。
+        description = """            <b>Easy Prompt</b> — AI-powered prompt enhancer for IntelliJ IDEA. Two-step intent recognition + 85 professional scenes + 10 personas → turn rough text into structured, high-quality prompts.
+            <br/><br/>            <b>Easy Prompt</b> 是一款面向 IntelliJ IDEA 的 AI Prompt 增强插件：基于“两步意图识别 → 专业 Prompt 生成”，把你的简单描述自动扩写为结构化、高质量的 Prompt。
             <br/><br/>
             <b>30 秒快速开始</b>
             <ul>
