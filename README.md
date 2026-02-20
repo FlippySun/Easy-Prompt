@@ -2,7 +2,7 @@
 
 > 两步 AI 意图识别 + 85 个专业场景 + 10 大用户画像，将你的简单描述自动扩写为大师级 Prompt。
 
-![Version](https://img.shields.io/badge/version-5.2.0-blue)
+![Version](https://img.shields.io/badge/version-5.2.1-blue)
 ![VSCode](https://img.shields.io/badge/VSCode-1.85%2B-blue)
 ![IntelliJ](https://img.shields.io/badge/IntelliJ-2024.1%2B-orange)
 ![Browser](https://img.shields.io/badge/Browser-Chrome%20%7C%20Firefox%20%7C%20Safari-yellow)
@@ -18,10 +18,24 @@
 - 🧑‍💼 **10 大画像**：软件工程师/内容创作者/产品经理/市场运营/设计师/数据分析师/HR/客服/创业者/学生教育
 - 🕐 **增强历史**：查看历史记录，支持 before/after 对比、一键复制、删除
 - 🌐 **四端覆盖**：VSCode 扩展 + IntelliJ 插件 + 浏览器扩展（Chrome/Firefox/Safari） + Web 在线版，全场景使用
-- � **Smart Nudge**：浏览器扩展在 AI 网站（ChatGPT/Claude/Gemini 等 22 站）输入暂停后自动弹出增强提醒，一键增强
+- ✨ **Smart Nudge**：浏览器扩展在 AI 网站（ChatGPT/Claude/Gemini 等 22 站）输入暂停后自动弹出增强提醒，一键增强
 - 🔑 **多供应商兼容**：OpenAI / Azure / Gemini / DeepSeek / Ollama
 - 🎯 **开箱即用**：内置 AI 服务，零配置即可使用
 - 🔒 **安全加固**：AES-256-CBC 加密内置凭证、2MB 响应限制、7 规则智能输入验证、竞态保护
+
+## ✨ Key Features (English)
+
+- 🧠 **Two-step Smart Routing**: detect intent/scene first, then generate a specialized professional prompt
+- 🔀 **Composite Intents**: accurately handles multiple intents in a single sentence
+- ⚡ **Smart Enhance**: automatically enhances selection / current file / clipboard
+- 📦 **85 Scenes**: covers the full dev lifecycle + content + product + marketing + design + data + HR + support + startup + education
+- 🧑‍💼 **10 Personas**: engineer / creator / PM / growth / designer / analyst / HR / support / founder / student-educator
+- 🕐 **History**: before/after comparison, copy, delete
+- 🌐 **Multi-platform**: VSCode extension + IntelliJ plugin + Browser extension (Chrome/Firefox/Safari) + Web
+- ✨ **Smart Nudge**: (Browser Extension) pops an enhancement reminder when you pause typing on AI sites (ChatGPT/Claude/Gemini, etc.)
+- 🔑 **Multi-provider**: OpenAI / Azure / Gemini / DeepSeek / Ollama
+- 🎯 **Works out of the box**: built-in AI service, zero config required
+- 🔒 **Hardened**: AES-256-CBC encrypted defaults, 2MB response cap, 7-rule input validation, race-condition protection
 
 ## 📦 安装
 
@@ -58,7 +72,7 @@ cd browser && node build.js chrome   # 仅构建 Chrome
 
 # 方式 2：本地打包安装
 npx @vscode/vsce package --allow-missing-repository
-code --install-extension easy-prompt-ai-5.2.0.vsix
+code --install-extension easy-prompt-ai-5.2.1.vsix
 
 # 方式 3：开发调试
 code .  # 按 F5 启动调试
@@ -73,8 +87,50 @@ code .  # 按 F5 启动调试
 # 方式 2：本地构建安装（需要 JDK 17）
 cd intellij && ./gradlew buildPlugin
 # Settings → Plugins → ⚙️ → Install Plugin from Disk
-# 选择 intellij/build/distributions/easy-prompt-intellij-5.2.0.zip
+# 选择 intellij/build/distributions/easy-prompt-intellij-5.2.1.zip
 ```
+
+## 📦 Installation (English)
+
+### Browser Extension (v5.0+)
+
+Supports Chrome, Firefox and Safari.
+
+- Option 1 (recommended): install from the extension stores — search "Easy Prompt"
+- Option 2: build locally:
+
+```bash
+cd browser && node build.js
+cd browser && node build.js chrome
+```
+
+### Web (v4.0+)
+
+No installation required:
+
+- Open https://prompt.zhiz.chat
+- Or deploy the `web/` folder to any static host (pure frontend SPA)
+
+### VSCode
+
+- Option 1 (recommended): install from VSCode Marketplace — search "Easy Prompt"
+- Option 2: package & install locally:
+
+```bash
+npx @vscode/vsce package --allow-missing-repository
+code --install-extension easy-prompt-ai-5.2.1.vsix
+```
+
+### IntelliJ IDEA
+
+- Option 1 (recommended): Settings → Plugins → Marketplace → search "Easy Prompt"
+- Option 2: build & install from disk:
+
+```bash
+cd intellij && ./gradlew buildPlugin
+```
+
+Then: Settings → Plugins → ⚙️ → Install Plugin from Disk → select `intellij/build/distributions/easy-prompt-intellij-5.2.1.zip`
 
 ## ⚙️ 配置
 
@@ -95,6 +151,26 @@ cd intellij && ./gradlew buildPlugin
 Settings → Tools → Easy Prompt（支持一键「测试并保存」）
 
 📖 **详细配置指南:** 查看 [API_CONFIG.md](./API_CONFIG.md) 了解各 API 提供商的配置示例（OpenAI / Azure / Gemini / DeepSeek / Ollama）
+
+## ⚙️ Configuration (English)
+
+### VSCode
+
+Open Settings (`Cmd+,`) and search for `Easy Prompt`.
+
+> 💡 **Works out of the box**: leave everything empty to use the built-in service. To use your own API, run the Command Palette action `Easy Prompt: 配置自定义 API` (includes connection test).
+
+| Setting                 | Meaning                     | Default  | Example                     |
+| ----------------------- | --------------------------- | -------- | --------------------------- |
+| `easyPrompt.apiKey`     | (optional) Custom API Key   | Built-in | `sk-xxxx`                   |
+| `easyPrompt.apiBaseUrl` | (optional) API Base URL     | Built-in | `https://api.openai.com/v1` |
+| `easyPrompt.model`      | (optional) Model name       | Built-in | `gpt-4o` / `deepseek-chat`  |
+
+### IntelliJ IDEA
+
+Settings → Tools → Easy Prompt (one-click “Test & Save”).
+
+📖 Detailed guide: see [API_CONFIG.md](./API_CONFIG.md) for provider examples (OpenAI / Azure / Gemini / DeepSeek / Ollama).
 
 ## 🎯 使用方式
 
@@ -121,6 +197,32 @@ Settings → Tools → Easy Prompt（支持一键「测试并保存」）
    - ✍️ Step 2：专业 Prompt 生成（~3-5 秒）
 4. 选中文本被自动替换为专业级 Prompt
 5. 将生成的 Prompt 发给 Copilot / ChatGPT 获得高质量回答
+
+## 🎯 Usage (English)
+
+### Shortcuts (8 commands · 6 keybindings)
+
+| Shortcut     | Action | Notes |
+| ------------ | ------ | ----- |
+| `Ctrl+Alt+I` | Smart Enhance | Auto-pick selection / current file / clipboard; choose when multiple sources exist |
+| `Ctrl+Alt+P` | Enhance Selection | Replace selection with a professional prompt (falls back to Smart Enhance when nothing is selected) |
+| `Ctrl+Alt+O` | Enhance Input | Popup input → generate → show in a new tab |
+| `Ctrl+Alt+L` | Browse Scenes | Browse all 85 scenes (grouped by personas, with pain points) |
+| `Ctrl+Alt+M` | Enhance with Scene | Choose a scene manually to skip intent recognition |
+| `Ctrl+Alt+H` | Tutorial | Open the onboarding page anytime |
+| `Ctrl+Alt+Y` | History | Before/after comparison, copy, delete |
+| —            | Configure API | Command Palette → `Easy Prompt: 配置自定义 API` (test & save) |
+| —            | Quick Menu | Status bar `✨ Easy Prompt` → open quick actions menu |
+
+### Workflow
+
+1. Write your request in the editor (it can be short and messy).
+2. Select the text and press `Ctrl+Alt+I` (Smart Enhance) or `Ctrl+Alt+P` (Enhance Selection).
+3. Wait for the two-step pipeline:
+    - 🔍 Step 1: intent/scene recognition (~1–2s)
+    - ✍️ Step 2: professional prompt generation (~3–5s)
+4. Your selected text will be replaced with the enhanced prompt.
+5. Send the generated prompt to Copilot / ChatGPT for a much better answer.
 
 ## 📋 85 个场景
 

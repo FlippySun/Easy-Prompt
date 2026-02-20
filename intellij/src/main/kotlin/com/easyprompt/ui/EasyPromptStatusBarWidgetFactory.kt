@@ -41,7 +41,7 @@ class EasyPromptStatusBarWidget(private val project: Project) : StatusBarWidget,
         statusBar = null
     }
 
-    override fun getText(): String = "✨ Easy Prompt"
+    override fun getText(): String = "Easy Prompt"
 
     override fun getTooltipText(): String = "Easy Prompt — 点击打开快捷菜单"
 

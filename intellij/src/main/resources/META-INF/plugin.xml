@@ -22,24 +22,36 @@
                 id="EasyPrompt.StatusBar"
                 implementation="com.easyprompt.ui.EasyPromptStatusBarWidgetFactory"
                 order="after encodingWidget"/>
+
+        <toolWindow
+            id="Easy Prompt"
+            anchor="right"
+            icon="/icons/easyPromptToolWindow.svg"
+            factoryClass="com.easyprompt.ui.EasyPromptToolWindowFactory"/>
     </extensions>
 
     <actions>
         <group id="EasyPrompt.Group" text="Easy Prompt" popup="true">
-            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
 
             <action id="EasyPrompt.EnhanceSelected"
                     class="com.easyprompt.actions.EnhanceSelectedAction"
-                    text="增强选中文本"
+                    text="Easy Prompt：增强选中文本"
                     description="将选中文本通过 AI 智能增强为专业 Prompt">
                 <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt P"/>
+                <keyboard-shortcut keymap="Mac OS X 10.5+" first-keystroke="ctrl alt P"/>
+                <keyboard-shortcut keymap="Mac OS X" first-keystroke="ctrl alt P"/>
+                <add-to-group group-id="EditorPopupMenu" anchor="first"/>
             </action>
 
             <action id="EasyPrompt.SmartEnhance"
                     class="com.easyprompt.actions.SmartEnhanceAction"
-                    text="智能增强"
+                    text="Easy Prompt：智能增强"
                     description="自动判断增强选中/文件/剪贴板内容，无需手动选择">
                 <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt I"/>
+                <keyboard-shortcut keymap="Mac OS X 10.5+" first-keystroke="ctrl alt I"/>
+                <keyboard-shortcut keymap="Mac OS X" first-keystroke="ctrl alt I"/>
+                <add-to-group group-id="EditorPopupMenu" anchor="first"/>
             </action>
 
             <action id="EasyPrompt.EnhanceInput"
@@ -47,6 +59,8 @@
                     text="快速输入增强"
                     description="通过输入框输入文本进行 AI Prompt 增强">
                 <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt O"/>
+                <keyboard-shortcut keymap="Mac OS X 10.5+" first-keystroke="ctrl alt O"/>
+                <keyboard-shortcut keymap="Mac OS X" first-keystroke="ctrl alt O"/>
             </action>
 
             <action id="EasyPrompt.ShowScenes"
@@ -54,6 +68,8 @@
                     text="浏览场景列表"
                     description="查看所有可用的 Prompt 增强场景">
                 <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt L"/>
+                <keyboard-shortcut keymap="Mac OS X 10.5+" first-keystroke="ctrl alt L"/>
+                <keyboard-shortcut keymap="Mac OS X" first-keystroke="ctrl alt L"/>
             </action>
 
             <action id="EasyPrompt.EnhanceWithScene"
@@ -61,6 +77,8 @@
                     text="指定场景增强"
                     description="手动选择场景进行精准定向 Prompt 增强">
                 <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt M"/>
+                <keyboard-shortcut keymap="Mac OS X 10.5+" first-keystroke="ctrl alt M"/>
+                <keyboard-shortcut keymap="Mac OS X" first-keystroke="ctrl alt M"/>
             </action>
 
             <action id="EasyPrompt.ShowWelcome"
@@ -68,6 +86,8 @@
                     text="查看使用教程"
                     description="显示 Easy Prompt 使用教程和场景列表">
                 <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt H"/>
+                <keyboard-shortcut keymap="Mac OS X 10.5+" first-keystroke="ctrl alt H"/>
+                <keyboard-shortcut keymap="Mac OS X" first-keystroke="ctrl alt H"/>
             </action>
 
             <action id="EasyPrompt.ShowHistory"
@@ -75,6 +95,8 @@
                     text="查看增强历史"
                     description="查看 Prompt 增强历史记录，支持对比和复制">
                 <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt Y"/>
+                <keyboard-shortcut keymap="Mac OS X 10.5+" first-keystroke="ctrl alt Y"/>
+                <keyboard-shortcut keymap="Mac OS X" first-keystroke="ctrl alt Y"/>
             </action>
 
             <action id="EasyPrompt.StatusBarMenu"
