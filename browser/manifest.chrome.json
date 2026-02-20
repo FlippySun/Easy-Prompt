@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Easy Prompt AI",
   "version": "5.2.1",
-  "description": "AI 智能 Prompt 增强工具 — 85 个专业场景 · 10 大画像 · 两步 AI 路由 · 一键增强你的 Prompt",
+  "description": "AI 智能 Prompt 增强工具 — 85 场景 · 10 画像 · 两步路由。AI Prompt Enhancer — 85 scenes, 10 personas, two-step routing.",
   "icons": {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",
