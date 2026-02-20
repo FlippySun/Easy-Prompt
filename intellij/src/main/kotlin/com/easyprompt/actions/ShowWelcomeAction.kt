@@ -10,6 +10,6 @@ class ShowWelcomeAction : AnAction() {
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        com.easyprompt.ui.WelcomeDialog(project).show()
+        com.easyprompt.ui.EasyPromptToolWindow.activate(project)
     }
 }

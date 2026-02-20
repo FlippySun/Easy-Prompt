@@ -4,7 +4,10 @@ import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.ui.popup.JBPopupFactory
+import com.intellij.ui.awt.RelativePoint
+import java.awt.event.MouseEvent
 
 class StatusBarMenuAction : AnAction() {
 
@@ -16,14 +19,14 @@ class StatusBarMenuAction : AnAction() {
     )
 
     private val menuItems = listOf(
-        MenuItem("⚡ 智能增强 (Ctrl+Alt+I)", "EasyPrompt.SmartEnhance"),
-        MenuItem("✏️ 快速输入增强 (Ctrl+Alt+O)", "EasyPrompt.EnhanceInput"),
-        MenuItem("📝 增强选中文本 (Ctrl+Alt+P)", "EasyPrompt.EnhanceSelected"),
-        MenuItem("🎯 指定场景增强 (Ctrl+Alt+M)", "EasyPrompt.EnhanceWithScene"),
-        MenuItem("📋 浏览场景大全 (Ctrl+Alt+L)", "EasyPrompt.ShowScenes"),
-        MenuItem("� 增强历史 (Ctrl+Alt+Y)", "EasyPrompt.ShowHistory"),
-        MenuItem("�📖 使用教程 (Ctrl+Alt+H)", "EasyPrompt.ShowWelcome"),
-        MenuItem("⚙️ API 配置", "ShowSettings"),
+        MenuItem("打开右侧面板 / 新手指引", "EasyPrompt.ShowWelcome"),
+        MenuItem("智能增强 (Ctrl+Alt+I)", "EasyPrompt.SmartEnhance"),
+        MenuItem("增强选中文本 (Ctrl+Alt+P)", "EasyPrompt.EnhanceSelected"),
+        MenuItem("快速输入增强 (Ctrl+Alt+O)", "EasyPrompt.EnhanceInput"),
+        MenuItem("指定场景增强 (Ctrl+Alt+M)", "EasyPrompt.EnhanceWithScene"),
+        MenuItem("浏览场景列表 (Ctrl+Alt+L)", "EasyPrompt.ShowScenes"),
+        MenuItem("增强历史 (Ctrl+Alt+Y)", "EasyPrompt.ShowHistory"),
+        MenuItem("打开设置 / API 配置", "ShowSettings"),
     )
 
     override fun actionPerformed(e: AnActionEvent) {
@@ -31,7 +34,7 @@ class StatusBarMenuAction : AnAction() {
 
         val labels = menuItems.map { it.label }
 
-        JBPopupFactory.getInstance()
+        val popup = JBPopupFactory.getInstance()
             .createPopupChooserBuilder(labels)
             .setTitle("Easy Prompt — 快捷菜单")
             .setItemChosenCallback { chosen ->
@@ -44,12 +47,16 @@ class StatusBarMenuAction : AnAction() {
                     } else {
                         val action = ActionManager.getInstance().getAction(item.actionId)
                         if (action != null) {
-                            ActionManager.getInstance().tryToExecute(action, e.inputEvent, null, "EasyPromptMenu", true)
+                            val currentEditor = FileEditorManager.getInstance(project).selectedTextEditor
+                            val contextComponent = currentEditor?.component ?: e.inputEvent?.component
+                            ActionManager.getInstance().tryToExecute(action, e.inputEvent, contextComponent, "EasyPromptMenu", true)
                         }
                     }
                 }
             }
             .createPopup()
-            .showInFocusCenter()
+
+        val mouseEvent = e.inputEvent as? MouseEvent
+        if (mouseEvent != null) popup.show(RelativePoint(mouseEvent)) else popup.showInFocusCenter()
     }
 }

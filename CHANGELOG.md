@@ -5,6 +5,31 @@ All notable changes to the Easy Prompt project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.2.1] - 2026-02-20
+
+### IntelliJ 可发现性提升 & 全端描述双语化
+
+#### IntelliJ 插件体验升级（重点）
+
+- **新增：ToolWindow 侧边栏面板** — 右侧 "Easy Prompt" 面板（JCEF 渲染），新手指引 + 一键触发所有功能
+- **新增：右键菜单顶层入口** — 编辑器中选中文本右键，"Easy Prompt：智能增强 / 增强选中文本" 直接出现在顶层（无需子菜单）
+- **新增：Tools 菜单入口** — Tools → Easy Prompt 子菜单（全部 7 个 Action）
+- **新增：状态栏快捷菜单** — 右下角状态栏 "Easy Prompt"，点击弹出 7 项快捷操作
+- **新增：首次安装指引通知** — 安装后自动打开 ToolWindow + 弹出通知（含多入口提示）
+- **优化：插件图标** — Marketplace / 已安装列表 / ToolWindow 侧边栏均使用统一 Sparkles 风格 SVG 图标
+- **优化：快捷键** — 全部统一为 Ctrl+Alt+X（含 Mac OS X keymap），与 VSCode 完全一致
+
+#### 全端市场描述双语化
+
+- **IntelliJ Marketplace 描述**：扩写为完整中英双语（CN 在前 + EN 在后），补齐 Smart Nudge / 多供应商 / 安全加固等卖点
+- **VSCode Marketplace（README）**：核心功能 / 安装 / 配置 / 使用方式章节追加英文翻译（不改动原中文）
+- **VSCode 短描述（package.json）**：更新为中英双语
+
+#### 其他
+
+- **修复**: README.md 中 Smart Nudge 行的乱码字符
+- **同步**: 全端版本号统一升级至 5.2.1
+
 ## [5.2.0] - 2026-02-20
 
 ### 默认模型升级
