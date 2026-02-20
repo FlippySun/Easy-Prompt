@@ -1122,6 +1122,13 @@ function initApp() {
 
   // Populate settings fields from saved config
   populateSettings();
+
+  // Initialize visual effects
+  initCursorLight();
+  initButtonRipples();
+  initCardSpotlight();
+  initScrollReveal();
+  initCardTilt();
 }
 
 /* ─── Header ─── */
@@ -1135,8 +1142,14 @@ function bindHeaderEvents() {
 function toggleTheme() {
   const current = document.documentElement.getAttribute("data-theme");
   const next = current === "dark" ? "light" : "dark";
+  // Enable theme transition
+  document.documentElement.classList.add("theme-transitioning");
   document.documentElement.setAttribute("data-theme", next);
   localStorage.setItem(THEME_KEY, next);
+  // Remove transition class after animation completes
+  setTimeout(() => {
+    document.documentElement.classList.remove("theme-transitioning");
+  }, 600);
 }
 
 /* ─── Input ─── */
@@ -1153,10 +1166,30 @@ function bindInputEvents() {
     counter.classList.toggle("is-danger", len > 9500);
     // Show/hide clear button based on content
     clearBtn.hidden = len === 0;
+    // Toggle has-content class for visual state
+    textarea.closest(".input-box").classList.toggle("has-content", len > 0);
   });
 
   clearBtn.addEventListener("click", handleClear);
   $("#btn-generate").addEventListener("click", handleGenerate);
+
+  // 输入框聚焦时复位 3D 倾斜
+  const inputBox = textarea.closest(".input-box");
+  textarea.addEventListener("focus", () => {
+    if (inputBox && inputBox.classList.contains("tilt-card")) {
+      inputBox.classList.add("tilt-resetting");
+      inputBox.style.setProperty("--tilt-x", "0deg");
+      inputBox.style.setProperty("--tilt-y", "0deg");
+      inputBox.style.setProperty("--tilt-scale", "1");
+      inputBox.dataset.tiltLocked = "1";
+    }
+  });
+  textarea.addEventListener("blur", () => {
+    if (inputBox) {
+      delete inputBox.dataset.tiltLocked;
+      inputBox.classList.remove("tilt-resetting");
+    }
+  });
 }
 
 function handleClear() {
@@ -1168,6 +1201,7 @@ function handleClear() {
   // Clear input
   const textarea = $("#input-textarea");
   textarea.value = "";
+  textarea.closest(".input-box").classList.remove("has-content");
   $("#char-counter").textContent = "0 / 10,000";
   $("#char-counter").classList.remove("is-warning", "is-danger");
 
@@ -1226,6 +1260,9 @@ async function handleGenerate() {
   showProgress("正在连接 AI 服务...");
   hideOutput();
 
+  // Transition: dim input section
+  $(".input-section").classList.add("is-generating");
+
   const config = await getEffectiveConfig();
 
   try {
@@ -1269,6 +1306,7 @@ async function handleGenerate() {
     btn.disabled = false;
     btn.classList.remove("btn--generating");
     btnText.textContent = origText;
+    $(".input-section").classList.remove("is-generating");
   }
 }
 
@@ -1277,6 +1315,10 @@ async function handleGenerate() {
 function showProgress(text) {
   const el = $("#progress");
   el.hidden = false;
+  el.classList.remove("is-entering");
+  // Trigger reflow for re-animation
+  void el.offsetWidth;
+  el.classList.add("is-entering");
   $("#progress-text").textContent = text;
 }
 
@@ -1285,7 +1327,9 @@ function updateProgress(text) {
 }
 
 function hideProgress() {
-  $("#progress").hidden = true;
+  const el = $("#progress");
+  el.classList.remove("is-entering");
+  el.hidden = true;
 }
 
 /* ─── Output ─── */
@@ -1297,6 +1341,9 @@ function bindOutputEvents() {
 function showOutput(content, sceneIds, composite) {
   const section = $("#output-section");
   section.hidden = false;
+  section.classList.remove("is-entering");
+  void section.offsetWidth;
+  section.classList.add("is-entering");
 
   // Render scene badges
   const badgesEl = $("#output-badges");
@@ -1308,11 +1355,27 @@ function showOutput(content, sceneIds, composite) {
     badgesEl.appendChild(badge);
   }
 
-  // Render content
-  $("#output-content").textContent = content;
+  // Render content with line-by-line reveal
+  const outputEl = $("#output-content");
+  outputEl.innerHTML = "";
+  const lines = content.split("\n");
+  lines.forEach((line, i) => {
+    const span = document.createElement("div");
+    span.className = "output-line";
+    span.textContent = line || "\u200B"; // zero-width space for empty lines
+    span.style.animationDelay = `${Math.min(i * 60, 3000)}ms`;
+    outputEl.appendChild(span);
+  });
 
-  // Scroll to output
-  section.scrollIntoView({ behavior: "smooth", block: "start" });
+  // Scroll to output with offset for header spacing
+  setTimeout(() => {
+    const rect = section.getBoundingClientRect();
+    const offset = 80; // header height + breathing room
+    window.scrollTo({
+      top: window.scrollY + rect.top - offset,
+      behavior: "smooth",
+    });
+  }, 100);
 }
 
 function hideOutput() {
@@ -1360,7 +1423,7 @@ function showToast(message, type = "error") {
 
   clearTimeout(toastTimer);
   toast.hidden = false;
-  toast.classList.remove("is-success");
+  toast.classList.remove("is-success", "is-dismissing");
   if (type === "success") toast.classList.add("is-success");
 
   text.textContent = message;
@@ -1372,10 +1435,12 @@ function showToast(message, type = "error") {
   });
 
   toastTimer = setTimeout(() => {
+    toast.classList.add("is-dismissing");
     toast.classList.remove("is-visible");
     setTimeout(() => {
+      toast.classList.remove("is-dismissing");
       toast.hidden = true;
-    }, 300);
+    }, 400);
   }, 5000);
 }
 
@@ -1391,6 +1456,191 @@ function bindSettingsEvents() {
   $("#btn-toggle-key").addEventListener("click", toggleKeyVisibility);
   $("#btn-test-api").addEventListener("click", handleTestApi);
   $("#btn-save-settings").addEventListener("click", handleSaveSettings);
+  initModelCombo();
+}
+
+/* ─── Model Combobox ─── */
+
+const MODEL_LIST = [
+  { group: "Anthropic" },
+  { id: "claude-opus-4-6", desc: "Opus 4.6 最智能" },
+  { id: "claude-sonnet-4-5", desc: "Sonnet 4.5 均衡" },
+  { id: "claude-haiku-4-5", desc: "Haiku 4.5 最快" },
+  { id: "claude-opus-4-1", desc: "Opus 4.1" },
+  { id: "claude-sonnet-4", desc: "Sonnet 4" },
+  { group: "OpenAI" },
+  { id: "gpt-5.2", desc: "最新旗舰" },
+  { id: "gpt-5.2-pro", desc: "更智能更精准" },
+  { id: "gpt-5-mini", desc: "快速高效" },
+  { id: "gpt-5-nano", desc: "极致性价比" },
+  { id: "gpt-5", desc: "上一代推理" },
+  { id: "gpt-4.1", desc: "最强非推理" },
+  { id: "gpt-4.1-mini", desc: "轻量快速" },
+  { id: "gpt-4o", desc: "灵活智能" },
+  { id: "gpt-4o-mini", desc: "经济实惠" },
+  { id: "o3", desc: "复杂推理" },
+  { id: "o4-mini", desc: "快速推理" },
+  { group: "Google" },
+  { id: "gemini-3-pro-preview", desc: "最强多模态" },
+  { id: "gemini-3-flash-preview", desc: "速度与智能" },
+  { id: "gemini-3.0-pro", desc: "Gemini 3.0" },
+  { id: "gemini-2.5-pro", desc: "高级思维" },
+  { id: "gemini-2.5-flash", desc: "高性价比" },
+  { group: "DeepSeek" },
+  { id: "deepseek-v3.2-chat", desc: "V3.2 通用对话" },
+  { id: "deepseek-v3.2-reasoner", desc: "V3.2 深度推理" },
+  { id: "deepseek-r1", desc: "R1 推理" },
+  { group: "xAI" },
+  { id: "grok-4", desc: "Grok 4" },
+  { id: "grok-3", desc: "Grok 3" },
+  { group: "智谱 GLM" },
+  { id: "glm-5", desc: "GLM-5" },
+  { id: "glm-4.7", desc: "GLM-4.7" },
+  { group: "Kimi" },
+  { id: "kimi-k2.5", desc: "K2.5" },
+  { id: "kimi-k2", desc: "K2" },
+  { group: "通义千问" },
+  { id: "qwen3-max", desc: "Qwen3 Max" },
+  { id: "qwen3-235b", desc: "Qwen3 235B" },
+  { group: "MiniMax" },
+  { id: "minimax-m2.5", desc: "M2.5" },
+];
+
+function initModelCombo() {
+  const combo = $("#model-combo");
+  const input = $("#setting-model");
+  const toggle = combo.querySelector(".combo__toggle");
+  const list = $("#model-list");
+  let focusIdx = -1;
+
+  // 渲染模型列表
+  function renderList(filter) {
+    list.innerHTML = "";
+    const q = (filter || "").toLowerCase();
+    let hasResults = false;
+    let currentGroup = null;
+
+    MODEL_LIST.forEach((item) => {
+      if (item.group) {
+        currentGroup = item.group;
+        return;
+      }
+      if (
+        q &&
+        !item.id.toLowerCase().includes(q) &&
+        !item.desc.toLowerCase().includes(q)
+      )
+        return;
+
+      // 插入分组标题
+      if (currentGroup) {
+        const groupEl = document.createElement("div");
+        groupEl.className = "combo__group";
+        groupEl.textContent = currentGroup;
+        list.appendChild(groupEl);
+        currentGroup = null;
+      }
+
+      const opt = document.createElement("div");
+      opt.className = "combo__option";
+      if (item.id === input.value) opt.classList.add("is-selected");
+      opt.innerHTML = `<span class="combo__option-id">${item.id}</span><span class="combo__option-desc">${item.desc}</span>`;
+      opt.addEventListener("click", () => {
+        input.value = item.id;
+        closeCombo();
+      });
+      list.appendChild(opt);
+      hasResults = true;
+    });
+
+    if (!hasResults) {
+      const empty = document.createElement("div");
+      empty.className = "combo__empty";
+      empty.textContent = q ? "无匹配模型，可直接输入自定义名称" : "无可用模型";
+      list.appendChild(empty);
+    }
+    focusIdx = -1;
+  }
+
+  function openCombo() {
+    renderList(input.value);
+    combo.classList.add("is-open");
+    // 滚动到选中项
+    const selected = list.querySelector(".is-selected");
+    if (selected) selected.scrollIntoView({ block: "nearest" });
+  }
+
+  function closeCombo() {
+    combo.classList.remove("is-open");
+    focusIdx = -1;
+  }
+
+  function isOpen() {
+    return combo.classList.contains("is-open");
+  }
+
+  // 点击展开按钮
+  toggle.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (isOpen()) closeCombo();
+    else {
+      openCombo();
+      input.focus();
+    }
+  });
+
+  // 输入过滤
+  input.addEventListener("input", () => {
+    if (!isOpen()) openCombo();
+    renderList(input.value);
+  });
+
+  // 聚焦打开
+  input.addEventListener("focus", () => {
+    if (!isOpen()) openCombo();
+  });
+
+  // 键盘导航
+  input.addEventListener("keydown", (e) => {
+    if (!isOpen()) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        openCombo();
+        return;
+      }
+      return;
+    }
+    const options = list.querySelectorAll(".combo__option");
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      focusIdx = Math.min(focusIdx + 1, options.length - 1);
+      updateFocus(options);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      focusIdx = Math.max(focusIdx - 1, 0);
+      updateFocus(options);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (focusIdx >= 0 && options[focusIdx]) options[focusIdx].click();
+      else closeCombo();
+    } else if (e.key === "Escape") {
+      closeCombo();
+    }
+  });
+
+  function updateFocus(options) {
+    options.forEach((o, i) => o.classList.toggle("is-focused", i === focusIdx));
+    if (options[focusIdx])
+      options[focusIdx].scrollIntoView({ block: "nearest" });
+  }
+
+  // 点击外部关闭
+  document.addEventListener("click", (e) => {
+    if (!combo.contains(e.target)) closeCombo();
+  });
+
+  // 初始渲染
+  renderList("");
 }
 
 function populateSettings() {
@@ -1456,6 +1706,21 @@ function handleSaveSettings() {
 
 /* ─── Panels & Modals ─── */
 
+/**
+ * 锁定/解锁 body 滚动 — 补偿滚动条宽度防止布局跳动
+ */
+function lockBodyScroll() {
+  const scrollbarWidth =
+    window.innerWidth - document.documentElement.clientWidth;
+  document.body.style.overflow = "hidden";
+  document.body.style.paddingRight = scrollbarWidth + "px";
+}
+
+function unlockBodyScroll() {
+  document.body.style.overflow = "";
+  document.body.style.paddingRight = "";
+}
+
 function openPanel(name) {
   const panel = $(`#${name}-panel`);
   const overlay = $(`#${name}-overlay`);
@@ -1465,18 +1730,23 @@ function openPanel(name) {
     panel.classList.add("is-visible");
     overlay.classList.add("is-visible");
   });
-  document.body.style.overflow = "hidden";
+  lockBodyScroll();
 }
 
 function closePanel(name) {
   const panel = $(`#${name}-panel`);
   const overlay = $(`#${name}-overlay`);
+  // 添加离场动画类
+  panel.classList.add("is-dismissing");
+  overlay.classList.add("is-dismissing");
   panel.classList.remove("is-visible");
   overlay.classList.remove("is-visible");
   setTimeout(() => {
     panel.hidden = true;
     overlay.hidden = true;
-    document.body.style.overflow = "";
+    panel.classList.remove("is-dismissing");
+    overlay.classList.remove("is-dismissing");
+    unlockBodyScroll();
   }, 400);
 }
 
@@ -1489,7 +1759,7 @@ function openModal(name) {
     modal.classList.add("is-visible");
     overlay.classList.add("is-visible");
   });
-  document.body.style.overflow = "hidden";
+  lockBodyScroll();
 
   // Focus search
   const searchInput = modal.querySelector('input[type="text"]');
@@ -1499,13 +1769,18 @@ function openModal(name) {
 function closeModal(name) {
   const modal = $(`#${name}-modal`);
   const overlay = $(`#${name}-overlay`);
+  // 添加离场动画类
+  modal.classList.add("is-dismissing");
+  overlay.classList.add("is-dismissing");
   modal.classList.remove("is-visible");
   overlay.classList.remove("is-visible");
   setTimeout(() => {
     modal.hidden = true;
     overlay.hidden = true;
-    document.body.style.overflow = "";
-  }, 300);
+    modal.classList.remove("is-dismissing");
+    overlay.classList.remove("is-dismissing");
+    unlockBodyScroll();
+  }, 350);
 }
 
 /* ─── Scene Tags (hot scenes) ─── */
@@ -1804,6 +2079,190 @@ function bindKeyboardShortcuts() {
       if (!$("#history-panel").hidden) closePanel("history");
       if (!$("#scenes-modal").hidden) closeModal("scenes");
     }
+  });
+}
+
+/* ═══════════════════════════════════════════════════
+   §8b. Visual Effects
+   ═══════════════════════════════════════════════════ */
+
+/**
+ * Cursor Light — 跟随鼠标的大型径向渐变光晕
+ * 动态创建 div.cursor-light 并跟随 mousemove 移动
+ */
+function initCursorLight() {
+  const light = document.createElement("div");
+  light.className = "cursor-light";
+  light.setAttribute("aria-hidden", "true");
+  document.body.appendChild(light);
+
+  let raf = null;
+  document.addEventListener("mousemove", (e) => {
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      light.style.left = e.clientX + "px";
+      light.style.top = e.clientY + "px";
+      light.style.opacity = "1";
+      raf = null;
+    });
+  });
+
+  document.addEventListener("mouseleave", () => {
+    light.style.opacity = "0";
+  });
+}
+
+/**
+ * Button Ripple — 主按钮点击涟漪
+ * 在点击位置生成 span.btn-ripple，动画结束后移除
+ */
+function initButtonRipples() {
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".btn--primary");
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const ripple = document.createElement("span");
+    ripple.className = "btn-ripple";
+    const size = Math.max(rect.width, rect.height) * 2;
+    ripple.style.width = size + "px";
+    ripple.style.height = size + "px";
+    ripple.style.left = e.clientX - rect.left - size / 2 + "px";
+    ripple.style.top = e.clientY - rect.top - size / 2 + "px";
+    btn.appendChild(ripple);
+    ripple.addEventListener("animationend", () => ripple.remove());
+  });
+}
+
+/**
+ * Card Spotlight — 场景卡片鼠标追光
+ * 更新 CSS 变量 --spotlight-x / --spotlight-y 驱动 ::after 径向渐变
+ */
+function initCardSpotlight() {
+  document.addEventListener("mousemove", (e) => {
+    const card = e.target.closest(".scene-card");
+    if (!card) return;
+    const rect = card.getBoundingClientRect();
+    card.style.setProperty("--spotlight-x", e.clientX - rect.left + "px");
+    card.style.setProperty("--spotlight-y", e.clientY - rect.top + "px");
+  });
+}
+
+/**
+ * Scroll Reveal — 滚动触发渐入动画
+ * 使用 IntersectionObserver 对 .reveal-on-scroll 元素做交叉检测
+ */
+function initScrollReveal() {
+  // Add reveal class to target sections
+  const targets = [".input-section", ".footer"];
+  targets.forEach((sel) => {
+    const el = document.querySelector(sel);
+    if (el) el.classList.add("reveal-on-scroll");
+  });
+
+  // Also add staggered reveal to scene tags
+  $$(".scene-tag").forEach((tag, i) => {
+    tag.classList.add("reveal-on-scroll");
+    tag.style.transitionDelay = `${i * 40}ms`;
+  });
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-revealed");
+          observer.unobserve(entry.target);
+        }
+      });
+    },
+    { threshold: 0.1, rootMargin: "0px 0px -40px 0px" },
+  );
+
+  $$(".reveal-on-scroll").forEach((el) => observer.observe(el));
+}
+
+/**
+ * 3D Card Tilt — 主界面板块鼠标联动 3D 倾斜
+ * 对 .input-box, .output-card, .scene-card 应用 perspective + rotateX/Y
+ * 倾斜角度: ±6deg, 鼠标离开平滑复位
+ */
+function initCardTilt() {
+  const MAX_TILT = 3; // 最大倾斜角度(deg)
+  const SCALE_HOVER = 1.01; // hover 微放大
+
+  // 为目标元素添加 tilt-card class
+  const selectors = [".input-box", ".output-card"];
+  selectors.forEach((sel) => {
+    const el = document.querySelector(sel);
+    if (el) el.classList.add("tilt-card");
+  });
+
+  // 场景卡片也参与（较小倾斜）
+  $$(".scene-card").forEach((card) => card.classList.add("tilt-card"));
+
+  let raf = null;
+
+  document.addEventListener("mousemove", (e) => {
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      const card = e.target.closest(".tilt-card");
+      // 清除所有非 hover 的 tilt-card
+      $$(".tilt-card").forEach((el) => {
+        if (el !== card && !el.classList.contains("tilt-resetting")) {
+          el.classList.add("tilt-resetting");
+          el.style.setProperty("--tilt-x", "0deg");
+          el.style.setProperty("--tilt-y", "0deg");
+          el.style.setProperty("--tilt-scale", "1");
+          // 复位动画结束后移除标记
+          el.addEventListener("transitionend", function handler() {
+            el.classList.remove("tilt-resetting");
+            el.removeEventListener("transitionend", handler);
+          });
+        }
+      });
+
+      if (card) {
+        // 输入框聚焦时跳过倾斜
+        if (card.dataset.tiltLocked) {
+          raf = null;
+          return;
+        }
+        card.classList.remove("tilt-resetting");
+        const rect = card.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        // 归一化到 [-1, 1]
+        const normX = (e.clientX - centerX) / (rect.width / 2);
+        const normY = (e.clientY - centerY) / (rect.height / 2);
+        // 场景卡片用较小倾斜
+        const isSmall = card.classList.contains("scene-card");
+        const maxTilt = isSmall ? MAX_TILT * 0.6 : MAX_TILT;
+        // rotateY 由水平偏移驱动，rotateX 由垂直偏移驱动（反向）
+        const tiltY = (normX * maxTilt).toFixed(2);
+        const tiltX = (-normY * maxTilt).toFixed(2);
+        card.style.setProperty("--tilt-x", tiltX + "deg");
+        card.style.setProperty("--tilt-y", tiltY + "deg");
+        card.style.setProperty(
+          "--tilt-scale",
+          String(isSmall ? 1.03 : SCALE_HOVER),
+        );
+        // 光泽位置
+        const glowX = (((normX + 1) / 2) * 100).toFixed(1);
+        const glowY = (((normY + 1) / 2) * 100).toFixed(1);
+        card.style.setProperty("--tilt-glow-x", glowX + "%");
+        card.style.setProperty("--tilt-glow-y", glowY + "%");
+      }
+      raf = null;
+    });
+  });
+
+  // 鼠标离开视口时全部复位
+  document.addEventListener("mouseleave", () => {
+    $$(".tilt-card").forEach((el) => {
+      el.classList.add("tilt-resetting");
+      el.style.setProperty("--tilt-x", "0deg");
+      el.style.setProperty("--tilt-y", "0deg");
+      el.style.setProperty("--tilt-scale", "1");
+    });
   });
 }
 

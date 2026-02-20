@@ -11,14 +11,13 @@
     <meta name="theme-color" content="#09090b" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src *; img-src 'self' data:;"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src https://cdn.jsdelivr.net; connect-src *; img-src 'self' data:;"
     />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
-      rel="stylesheet"
-    />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link href="https://cdn.jsdelivr.net/npm/misans-webfont@4.3.1/misans/misans-regular/result.css" rel="stylesheet" />
+    <link href="misans-500.css" rel="stylesheet" />
+    <link href="misans-600.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/misans-webfont@4.3.1/misans/misans-bold/result.css" rel="stylesheet" />
     <link
       rel="icon"
       type="image/svg+xml"
@@ -444,7 +443,7 @@
 
     <!-- ═══════════ Footer ═══════════ -->
     <footer class="footer">
-      <span>Easy Prompt v5.2.1</span>
+      <span>Easy Prompt v5.2.2</span>
       <span class="footer__dot">·</span>
       <span>85 个专业场景</span>
       <span class="footer__dot">·</span>
@@ -586,14 +585,26 @@
 
         <div class="form-group">
           <label class="form-label" for="setting-model">模型</label>
-          <input
-            class="form-input"
-            id="setting-model"
-            type="text"
-            placeholder="gpt-4o / claude-3.5-sonnet / ..."
-            spellcheck="false"
-            autocomplete="off"
-          />
+          <div class="combo" id="model-combo">
+            <div class="combo__input-wrap">
+              <input
+                class="form-input combo__input"
+                id="setting-model"
+                type="text"
+                placeholder="输入或选择模型..."
+                spellcheck="false"
+                autocomplete="off"
+              />
+              <button class="combo__toggle" type="button" aria-label="展开模型列表">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m6 9 6 6 6-6"/>
+                </svg>
+              </button>
+            </div>
+            <div class="combo__dropdown" id="model-dropdown">
+              <div class="combo__list" id="model-list"></div>
+            </div>
+          </div>
         </div>
 
         <div class="panel__actions">

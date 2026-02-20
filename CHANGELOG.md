@@ -5,6 +5,70 @@ All notable changes to the Easy Prompt project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.2.2] - 2026-02-20
+
+### Web 端视觉重构 — 高端动效升级
+
+#### 8 类核心动效
+
+- **新增：光标追踪光晕** — 鼠标移动时产生柔和跟随光效（rAF 节流）
+- **新增：按钮涟漪效果** — 点击按钮时从点击位置扩散涟漪
+- **新增：输出内容逐行揭示** — 结果面板内容逐行 DOM 插入 + 60ms 延迟动画
+- **新增：场景卡片聚光灯** — 鼠标悬停时卡片产生动态聚光效果
+- **新增：幽灵按钮边框动画** — 次要按钮 hover 时渐变边框流动
+- **新增：输入区入场动画** — 页面加载时输入区域分步揭示
+- **新增：输出卡片边框微光** — 结果卡片顶部渐变装饰线
+- **新增：Hero 徽章微光** — 首屏标签微光扫过动画
+
+#### 过渡动画系统
+
+- **新增：输入框状态过渡** — focus/blur 时边框、阴影、光晕的弹簧曲线过渡
+- **新增：页面区块过渡** — 滚动时各区块渐入揭示（IntersectionObserver）
+- **新增：面板/弹窗 3D 入场** — Settings 面板 perspective(1200px) + rotateY(-15deg)，Modal perspective(1000px) + rotateX(8deg)，含 staggered 子元素动画和 dismissing 退场
+
+#### 附加效果
+
+- **新增：Toast 通知滑入动画** — 顶部滑入 + 弹簧曲线 + 自动消失
+- **新增：主题切换过渡** — 暗/亮主题切换时 0.5s 全局过渡
+- **新增：滚动揭示** — .reveal-on-scroll + IntersectionObserver 驱动
+- **新增：复制按钮反馈** — 复制成功时按钮缩放 + 图标切换动画
+- **新增：场景标签选中态** — 渐变底色 + 缩放 + 弹簧曲线
+
+#### 3D 卡片倾斜效果
+
+- **新增：3D 悬浮倾斜** — 场景卡片跟随鼠标 3° 透视倾斜 + 光泽层
+- **优化：输入聚焦锁定** — 输入框 focus 时锁定倾斜，防止打字时抖动
+
+#### 环境背景升级
+
+- **新增：三层锥形渐变光球** — 600px/520px/300px 尺寸，12s/16s/10s 漂移动画
+- **新增：网格叠加层** — ::before 伪元素 1px 网格 + 6s gridPulse 呼吸
+- **新增：扫描线装饰** — ::after 伪元素 2px 高亮扫描线 + box-shadow 辉光
+- **优化：亮色主题光球** — 高饱和度配色（#8b5cf6/#3b82f6/#ec4899），opacity 0.35/0.3/0.25
+
+#### Model 下拉搜索框
+
+- **新增：Combobox 组件** — 替换原始 input，支持下拉选择 + 搜索过滤
+- **新增：39 个模型预设** — 9 大供应商（Anthropic/OpenAI/Google/DeepSeek/xAI/智谱/Kimi/通义/MiniMax）
+- **新增：键盘导航** — 上下键选择 + Enter 确认 + Escape 关闭
+- **新增：分组展示** — 按供应商分组，带 provider 标题行
+
+#### Light 主题全面升级
+
+- **优化：设计令牌** — 渐变色、边框、阴影、bg-muted 等全面调优
+- **优化：微边框阴影** — 所有阴影追加 0 0 0 1px 微边框层
+- **优化：场景标签渐隐** — mask-image 右侧 48px 渐隐 + ::after 间距占位
+
+#### 字体系统
+
+- **新增：MiSans 小米字体** — 汉仪字库设计，现代干净微圆润
+- **新增：4 档精确权重** — Regular(400) / Medium(500) / Semibold(600) / Bold(700)
+- **技术：CDN 分片加载** — jsdelivr + cn-font-split 188 块子集，按需加载
+
+#### 其他
+
+- **同步**: 全端版本号统一升级至 5.2.2
+
 ## [5.2.1] - 2026-02-20
 
 ### IntelliJ 可发现性提升 & 全端描述双语化
