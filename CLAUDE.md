@@ -56,6 +56,7 @@ This document provides project context and development guidance for Claude Code 
 - **Response Style:** Concise and focused, provide solutions directly
 - **Modification Warning:** Exercise extra caution when modifying core modules (scenes.js, router.js, composer.js) and extension entry points
 - **Multi-Platform Sync (CRITICAL):** Any change to core logic, bug fixes, or feature additions MUST be synced to ALL registered platforms (see Platform Registry in copilot-instructions.md Rule 4). After completing changes, output a 「多端同步报告」 listing sync status for every platform. Forgetting to sync = incomplete task.
+- **web-hub Isolation:** `web-hub/` is an **independent product** (PromptHub). It does NOT participate in multi-platform sync. Changes to `core/` do NOT affect web-hub, and vice versa. See §8 in copilot-instructions.md.
 
 ---
 
@@ -66,6 +67,7 @@ This document provides project context and development guidance for Claude Code 
 - **IntelliJ Plugin:** Kotlin, Gradle, IntelliJ Platform SDK 2.3.0
 - **Web:** 原生 HTML/CSS/JS SPA，部署到 VPS
 - **Browser Extension:** Chrome/Firefox/Safari MV3，原生 JS
+- **PromptHub (web-hub):** React 18 + TypeScript + Vite + Tailwind CSS v4（🟣 独立产品，与 core/ 无依赖）
 - **API Layer (VSCode):** curl subprocess（避免 Cloudflare 拦截）, 含重试/响应限制/Kill Timer
 - **API Layer (IntelliJ):** HttpURLConnection, 含重试/响应限制
 - **Security:** AES-256-CBC 加密内置凭证（core/defaults.js + BuiltinDefaults.kt）
@@ -80,7 +82,7 @@ This document provides project context and development guidance for Claude Code 
 easy-prompt/
 ├── core/                    # 共享核心逻辑（CommonJS，平台无关）
 │   ├── index.js             # 入口 — 导出所有模块
-│   ├── scenes.js            # 85 个场景定义（含痛点和示例）
+│   ├── scenes.js            # 97 个场景定义（含痛点和示例）
 │   ├── router.js            # 意图识别路由器 + Prompt 构建
 │   ├── composer.js          # 两步路由编排器（smartRoute）
 │   ├── api.js               # API 调用层（curl subprocess + 重试 + 安全限制）
@@ -99,7 +101,7 @@ easy-prompt/
 │   ├── index.html           # 主页面（SPA 入口）
 │   ├── style.css            # 样式（暗色主题 + 响应式）
 │   ├── app.js               # 应用逻辑（路由 + 场景 + API 调用）
-│   └── scenes.json          # 85 场景数据（由 core 生成）
+│   └── scenes.json          # 97 场景数据（由 core 生成）
 ├── browser/                 # 浏览器扩展（Chrome/Firefox/Safari MV3）
 │   ├── manifest.*.json      # 三平台 manifest
 │   ├── build.js             # 构建脚本（自动打包 + zip）
@@ -108,7 +110,12 @@ easy-prompt/
 │   ├── background/          # Service Worker（上下文菜单 + 快捷键）
 │   ├── content/             # Content Script（浮动增强按钮）
 │   ├── shared/              # 共享模块（Storage/API/Router/Scenes/Defaults/Icons）
-│   └── scenes.json          # 85 场景数据
+│   └── scenes.json          # 97 场景数据
+├── web-hub/                 # 🟣 PromptHub 独立 Web 应用（React + TypeScript + Vite）
+│   ├── package.json         # 独立依赖（与根 package.json 无关）
+│   ├── tsconfig.json        # strict: true
+│   ├── vite.config.ts       # Vite 构建配置
+│   └── src/                 # React SPA 源码
 ├── deploy/                  # CI/CD 脚本（已 .gitignore，仅本地）
 │   ├── config.sh            # 凭证配置（Token/VPS/JAVA_HOME）
 │   ├── deploy.sh            # 全端构建 & 发布主脚本
@@ -124,7 +131,7 @@ easy-prompt/
 
 | File               | Purpose                                                                                                                |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| `core/scenes.js`   | 85 个场景定义，含 name/keywords/description/painPoint/example/prompt                                                   |
+| `core/scenes.js`   | 97 个场景定义，含 name/keywords/description/painPoint/example/prompt                                                   |
 | `core/router.js`   | 意图识别 Prompt + 解析 + 生成 Prompt 构建（单一/复合模式）                                                             |
 | `core/composer.js` | smartRoute() — 编排两步路由流程                                                                                        |
 | `core/api.js`      | callApi — curl 调用 OpenAI 兼容 API（含重试/响应限制 2MB/Kill Timer/curl 缓存）                                        |
@@ -178,6 +185,15 @@ cd intellij && JAVA_HOME="$JAVA_HOME" ./gradlew buildPlugin
 
 # 浏览器扩展构建
 cd browser && node build.js
+
+# PromptHub (web-hub) 开发
+cd web-hub && npm run dev
+
+# PromptHub 类型检查
+cd web-hub && npx tsc --noEmit
+
+# PromptHub 生产构建
+cd web-hub && npm run build
 ```
 
 ### CI/CD 命令（deploy/ 目录，已 .gitignore）
@@ -199,7 +215,8 @@ cd browser && node build.js
 # 单平台操作
 ./deploy/deploy.sh vscode      # VSCode 构建 + 发布
 ./deploy/deploy.sh intellij    # IntelliJ 构建 + 发布
-./deploy/deploy.sh web         # Web 部署到 VPS
+./deploy/deploy.sh web         # Web 部署到 VPS (prompt.zhiz.chat)
+./deploy/deploy.sh web-hub     # PromptHub 构建 + 部署到 VPS (zhiz.chat)
 ./deploy/deploy.sh browser     # 浏览器扩展构建
 ./deploy/deploy.sh git         # Git 提交 + 推送
 ```

@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.easyprompt"
-version = "5.2.2"
+version = "5.3.1"
 
 repositories {
     mavenCentral()
@@ -33,8 +33,15 @@ intellijPlatform {
         version = project.version.toString()
         description = """            <b>Easy Prompt</b> — AI-powered prompt enhancer for IntelliJ IDEA. Two-step intent recognition + 85 professional scenes + 10 personas → turn rough text into structured, high-quality prompts.
             <br/><br/>            <b>Easy Prompt</b> 是一款面向 IntelliJ IDEA 的 AI Prompt 增强插件：基于“两步意图识别 → 专业 Prompt 生成”，把你的简单描述自动扩写为结构化、高质量的 Prompt。
-            <br/><br/>
-            <b>30 秒快速开始</b>
+            <br/><br/>            <b>🟣 PromptHub — AI Prompt 精选库</b>
+            <br/>
+            配套推出 <a href="https://zhiz.chat">PromptHub</a>（zhiz.chat）—— 一个独立的 AI Prompt 精选库 Web 应用，帮助用户发现、收藏和分享高质量 Prompt。
+            <ul>
+                <li>Prompt 精选库首页 + 分类筛选 + 难度/模型标签 + 瀑布流卡片</li>
+                <li>热门榜单（Trending）+ Prompt 银河（Galaxy）可视化星图</li>
+                <li>7 个精选合集 + 合集详情页 + 收藏夹管理</li>
+                <li>暗色/亮色主题切换 + React 18 + TypeScript + Tailwind CSS v4</li>
+            </ul>            <b>30 秒快速开始</b>
             <ul>
                 <li>在编辑器里写下你的需求描述（可以很简短、很随意）。</li>
                 <li>选中文本后：右键菜单（顶层）→ 点击 “Easy Prompt：智能增强 / 增强选中文本”。</li>
@@ -52,7 +59,7 @@ intellijPlatform {
                 <li><b>多供应商兼容</b>：OpenAI / Azure / Gemini / DeepSeek / Ollama</li>
                 <li><b>开箱即用</b>：默认内置服务；也支持自定义 API（OpenAI/Gemini/DeepSeek/Ollama 等）</li>
                 <li><b>安全加固</b>：AES-256-CBC 加密内置凭证、2MB 响应限制、7 规则智能输入验证、竞态保护</li>
-                <li><b>多端覆盖</b>：同一套场景与路由思路也提供 VSCode / 浏览器扩展 / Web 在线版</li>
+                <li><b>多端覆盖</b>：同一套场景与路由思路也提供 VSCode / 浏览器扩展 / Web 在线版 / <a href="https://zhiz.chat">PromptHub 精选库</a></li>
             </ul>
             <b>如何触发（关键）</b>
             <ul>
@@ -80,6 +87,7 @@ intellijPlatform {
             <ul>
                 <li>GitHub：<a href="https://github.com/FlippySun/Easy-Prompt">https://github.com/FlippySun/Easy-Prompt</a></li>
                 <li>Web 在线版：<a href="https://prompt.zhiz.chat">https://prompt.zhiz.chat</a></li>
+                <li>PromptHub 精选库：<a href="https://zhiz.chat">https://zhiz.chat</a></li>
             </ul>
 
             <br/><br/>
@@ -87,6 +95,15 @@ intellijPlatform {
             <br/><br/>
             <b>Easy Prompt</b> is an AI prompt enhancer for IntelliJ IDEA. It uses a two-step pipeline (intent/scene recognition → professional prompt generation) to turn rough text into structured, high-quality prompts.
             <br/><br/>
+            <b>🟣 PromptHub — AI Prompt Curated Library</b>
+            <br/>
+            Also introducing <a href="https://zhiz.chat">PromptHub</a> (zhiz.chat) — a standalone AI prompt library web app for discovering, bookmarking and sharing high-quality prompts.
+            <ul>
+                <li>Curated prompt homepage + category filters + difficulty/model tags + masonry cards</li>
+                <li>Trending leaderboard + Galaxy interactive star-map visualization</li>
+                <li>7 curated collections + collection detail pages + favorites management</li>
+                <li>Dark/light theme + React 18 + TypeScript + Tailwind CSS v4</li>
+            </ul>
             <b>Quick Start (30 seconds)</b>
             <ul>
                 <li>Write your requirement in the editor (it can be short and messy — that's fine).</li>
@@ -98,14 +115,14 @@ intellijPlatform {
             <ul>
                 <li><b>Two-step AI routing</b>: detect intent/scene first, then generate a professional prompt</li>
                 <li><b>Composite intent support</b>: handles multiple intents in a single input</li>
-                <li><b>85 scenes + 10 personas</b>: covers dev, content, product, marketing, design, data, HR, support, startups, education</li>
+                <li><b>97 scenes + 10 personas</b>: covers dev, content, product, marketing, design, data, HR, support, startups, education</li>
                 <li><b>Smart enhance</b>: automatically picks from selection / current file / clipboard</li>
                 <li><b>History</b>: before/after comparison, copy, delete</li>
                 <li><b>Smart Nudge</b>: (Browser Extension) pops an enhancement reminder when you pause typing on AI sites (ChatGPT/Claude/Gemini, etc.)</li>
                 <li><b>Multi-provider</b>: OpenAI / Azure / Gemini / DeepSeek / Ollama</li>
                 <li><b>Works out of the box</b>: built-in provider; optional custom API (OpenAI/Gemini/DeepSeek/Ollama, etc.)</li>
                 <li><b>Hardened</b>: AES-256-CBC encrypted defaults, 2MB response cap, 7-rule input validation, race-condition protection</li>
-                <li><b>Multi-platform</b>: also available on VSCode / Browser Extension / Web</li>
+                <li><b>Multi-platform</b>: also available on VSCode / Browser Extension / Web / <a href="https://zhiz.chat">PromptHub Library</a></li>
             </ul>
             <b>How to Trigger</b>
             <ul>
@@ -133,6 +150,7 @@ intellijPlatform {
             <ul>
                 <li>GitHub: <a href="https://github.com/FlippySun/Easy-Prompt">https://github.com/FlippySun/Easy-Prompt</a></li>
                 <li>Web: <a href="https://prompt.zhiz.chat">https://prompt.zhiz.chat</a></li>
+                <li>PromptHub: <a href="https://zhiz.chat">https://zhiz.chat</a></li>
             </ul>
         """.trimIndent()
         vendor {
@@ -143,6 +161,36 @@ intellijPlatform {
             sinceBuild = "243"
         }
         changeNotes = """
+            <h3>v5.3.1 — 🟣 PromptHub 性能优化</h3>
+            <b>web-hub（PromptHub）深度性能优化</b>
+            <ul>
+                <li><b>canvas-confetti 动态导入</b>：拆分为独立 chunk（10.68KB），仅成就解锁时按需加载</li>
+                <li><b>首屏渐进式加载</b>：Prompt 卡片首批 12 张 + IntersectionObserver 滚动增量加载</li>
+                <li><b>Store 通知批处理</b>：queueMicrotask 合并多次通知为单次渲染</li>
+                <li><b>AuroraOrbs 合成层优化</b>：移除冗余 willChange，节省 ~4MB GPU 显存</li>
+                <li><b>分类计数预计算</b>：O(1) 查表替代 16 次 .filter() 全量扫描</li>
+            </ul>
+            <h3>v5.3.0 — 🟣 PromptHub 上线（zhiz.chat）</h3>
+            <b>PromptHub — AI Prompt 精选库</b>
+            <ul>
+                <li><b>新增：PromptHub Web 应用</b>（<a href="https://zhiz.chat">zhiz.chat</a>）— 独立的 AI Prompt 精选库，发现/收藏/分享高质量 Prompt</li>
+                <li><b>精选库首页</b>：分类筛选 + 难度/模型标签 + 瀑布流卡片布局</li>
+                <li><b>热门榜单</b>：统计图表（Recharts）+ 排行榜 + 趋势分析</li>
+                <li><b>Prompt 银河</b>：Canvas 星图可视化，交互式浏览所有 Prompt</li>
+                <li><b>合集系统</b>：7 个精选合集 + 合集详情页 + 收藏夹管理</li>
+                <li><b>合集详情页</b>：/collection/:id 路由，Hero 横幅 + 标签 + Prompt 列表</li>
+                <li><b>Prompt 详情抽屉</b>：右侧滑出面板，完整内容 + Playground 测试</li>
+                <li><b>提交 Prompt 抽屉</b>：底部滑出表单，分享 Prompt 到精选库</li>
+                <li><b>暗色/亮色主题</b>：oklch 色彩空间 CSS 变量</li>
+                <li><b>Favicon</b>：紫色渐变星星图标（SVG）</li>
+            </ul>
+            <b>无障碍修复</b>
+            <ul>
+                <li>vaul 抽屉组件添加 Drawer.Title + Drawer.Description（sr-only），消除 Radix Dialog 警告</li>
+                <li>修复 Radix Dialog 内部 ID 链接机制问题</li>
+            </ul>
+            <b>技术栈</b>：React 18 + TypeScript（严格模式）+ Vite 6 + Tailwind CSS v4 + Framer Motion
+            <br/><br/>
             <h3>v5.2.2 — Web 端视觉重构</h3>
             <b>Web 在线版高端动效升级</b>
             <ul>

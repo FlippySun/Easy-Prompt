@@ -32,7 +32,7 @@
 - [x] WriteCommandAction 支持撤销
 - [x] 竞态条件修复（选区偏移量保存）
 - [x] NotificationGroupManager 非阻塞通知
-- [x] WelcomeDialog 85 场景全覆盖
+- [x] WelcomeDialog 97 场景全覆盖
 - [ ] 测试所有 Action 功能（含智能增强 Ctrl+Alt+I）
 - [ ] 测试快捷键（6 个）
 - [ ] 检查资源文件（图标）

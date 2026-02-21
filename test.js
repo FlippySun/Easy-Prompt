@@ -15,7 +15,7 @@ console.log("测试 1: 场景定义");
 const sceneCount = Object.keys(SCENES).length;
 console.log(`  ✓ 场景总数: ${sceneCount}`);
 if (sceneCount !== 85) {
-  console.log(`  ⚠️  警告: 预期 85 个场景，实际 ${sceneCount} 个`);
+  console.log(`  ⚠️  警告: 预期 97 个场景，实际 ${sceneCount} 个`);
 }
 
 // 测试 2: 路由器 Prompt 构建

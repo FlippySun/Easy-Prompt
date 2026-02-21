@@ -5,6 +5,66 @@ All notable changes to the Easy Prompt project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.3.1] - 2026-02-23
+
+### 🟣 PromptHub 性能优化
+
+web-hub（PromptHub）端深度性能优化，所有视觉 UI、动效、视效保持不变。
+
+#### 加载性能
+
+- **优化：canvas-confetti 动态导入** — 将 `canvas-confetti`（10.68KB）从主 bundle 拆分为独立 chunk，仅在成就解锁时按需加载，减少首屏 JS 体积
+- **优化：首屏渐进式加载** — Home 页 Prompt 卡片由一次性渲染 50+ 张改为首批 12 张 + IntersectionObserver 滚动增量加载，大幅减少首屏 DOM 节点数
+
+#### 运行时性能
+
+- **优化：Store 通知批处理** — `usePromptStore` 的 `notifyListeners` 使用 `queueMicrotask` 合并同一事件循环内的多次通知为单次全局渲染，避免级联 re-render
+- **优化：分类计数预计算** — 导出 `CATEGORY_COUNTS` 预计算映射，Sidebar 和 CommandPalette 使用 O(1) 查表替代 16 次 `.filter()` 全量扫描
+
+#### GPU 性能
+
+- **优化：AuroraOrbs 合成层优化** — 移除 3 处冗余 `willChange: 'transform, filter'`，CSS `animation` 已自动提升至合成层，节省约 4MB GPU 显存
+
+## [5.3.0] - 2026-02-22
+
+### 🟣 PromptHub 上线 — AI Prompt 精选库（zhiz.chat）
+
+Easy Prompt 生态新成员：**PromptHub**（[https://zhiz.chat](https://zhiz.chat)），一个独立的 AI Prompt 精选库 Web 应用，帮助用户发现、收藏和分享高质量 Prompt。
+
+#### PromptHub 核心功能
+
+- **新增：Prompt 精选库首页** — Hero 区 + 分类筛选 + 难度/模型标签 + 瀑布流卡片布局
+- **新增：Prompt 详情抽屉** — 右侧滑出式详情面板（vaul），含完整内容、Playground 测试、版本对比
+- **新增：热门榜单（Trending）** — 统计图表（Recharts）+ 排行榜 + 趋势分析
+- **新增：Prompt 银河（Galaxy）** — Canvas 星图可视化，以交互式星空方式浏览所有 Prompt
+- **新增：合集系统（Collections）** — 7 个精选合集 + 合集详情页，按主题组织 Prompt
+- **新增：合集详情页** — `/collection/:id` 路由，Hero 横幅 + 标签 + Prompt 列表 + 404 回退
+- **新增：个人主页（Profile）** — 用户成就、贡献统计、活跃度日历
+- **新增：我的收藏（Favorites）** — 收藏夹管理 + 搜索 + 排序
+- **新增：提交 Prompt 抽屉** — 底部滑出式提交表单（vaul），分享 Prompt 到精选库
+- **新增：暗色/亮色主题** — oklch 色彩空间 CSS 变量，一键切换
+- **新增：Favicon** — 紫色渐变星星图标（SVG），与品牌视觉一致
+
+#### 技术架构
+
+- **技术栈**：React 18 + TypeScript（严格模式）+ Vite 6 + Tailwind CSS v4 + Framer Motion
+- **路由**：React Router 7，全页面 lazy 加载 + Suspense
+- **状态管理**：自定义 `usePromptStore` hook + localStorage 持久化
+- **代码分割**：Vite manualChunks 策略（React / Recharts / Motion / UI 独立 chunk）
+- **部署**：VPS 静态托管（zhiz.chat）
+
+#### 无障碍与质量
+
+- **修复：vaul 抽屉无障碍警告** — 添加 `Drawer.Title` + `Drawer.Description`（sr-only），消除 Radix Dialog DescriptionWarning
+- **深层修复**：发现并修复 Radix Dialog 内部 ID 链接机制问题 —— 自定义 `id` 会覆盖 Radix context 自动生成的 ID，导致 `DescriptionWarning` 误报警告
+- **零控制台错误/警告**：Playwright 全功能验证，0 error / 0 warning
+- **TypeScript 严格模式**：`strict: true`，全部类型检查通过
+
+#### 版本同步
+
+- **同步**：全端版本号统一升级至 5.3.0
+- **市场描述更新**：VSCode / IntelliJ / 浏览器扩展（Chrome/Firefox/Safari）描述追加 PromptHub 链接与功能介绍
+
 ## [5.2.2] - 2026-02-20
 
 ### Web 端视觉重构 — 高端动效升级
@@ -206,7 +266,7 @@ Easy Prompt 迎来 v5.0.0 大版本。全新浏览器扩展正式上线，支持
 #### 🧩 浏览器扩展功能
 
 - **Popup 快速增强面板**：输入文本 → AI 智能路由 → 生成专业 Prompt，支持场景选择 + 画像切换 + 历史记录
-- **场景选择器**：85 个场景按 15 分类 + 10 大画像分组浏览，热门标签快速选择
+- **场景选择器**：97 个场景按 15 分类 + 10 大画像分组浏览，热门标签快速选择
 - **Content Script 浮动按钮**：网页中选中文本自动显示增强按钮，一键发送到 Popup 增强
 - **Background Service Worker**：右键上下文菜单 + 键盘快捷键 + 消息中继
 - **Options 设置页**：支持自定义 API 配置（Base URL / API Key / Model）+ 一键测试连接

@@ -2,11 +2,12 @@
 
 > 两步 AI 意图识别 + 85 个专业场景 + 10 大用户画像，将你的简单描述自动扩写为大师级 Prompt。
 
-![Version](https://img.shields.io/badge/version-5.2.2-blue)
+![Version](https://img.shields.io/badge/version-5.3.1-blue)
 ![VSCode](https://img.shields.io/badge/VSCode-1.85%2B-blue)
 ![IntelliJ](https://img.shields.io/badge/IntelliJ-2024.1%2B-orange)
 ![Browser](https://img.shields.io/badge/Browser-Chrome%20%7C%20Firefox%20%7C%20Safari-yellow)
 ![Web](https://img.shields.io/badge/Web-Online-brightgreen)
+![PromptHub](https://img.shields.io/badge/PromptHub-zhiz.chat-purple)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 ## ✨ 核心功能
@@ -14,10 +15,11 @@
 - 🧠 **两步智能路由**：先识别意图场景，再用对应专业 Prompt 生成
 - 🔀 **复合意图支持**：一句话包含多个意图也能精准处理
 - ⚡ **智能增强**：自动判断增强选中文本 / 当前文件 / 剪贴板内容
-- 📦 **85 个场景**：覆盖开发全流程 + 内容创作 + 产品 + 营销 + 设计 + 数据 + HR + 客服 + 创业 + 教育
+- 📦 **97 个场景**：覆盖开发全流程 + 内容创作 + 产品 + 营销 + 设计 + 数据 + HR + 客服 + 创业 + 教育
 - 🧑‍💼 **10 大画像**：软件工程师/内容创作者/产品经理/市场运营/设计师/数据分析师/HR/客服/创业者/学生教育
 - 🕐 **增强历史**：查看历史记录，支持 before/after 对比、一键复制、删除
 - 🌐 **四端覆盖**：VSCode 扩展 + IntelliJ 插件 + 浏览器扩展（Chrome/Firefox/Safari） + Web 在线版，全场景使用
+- 🟣 **PromptHub 精选库**：独立 AI Prompt 精选库（[zhiz.chat](https://zhiz.chat)），发现/收藏/分享高质量 Prompt，含热门榜单、银河星图、7 大精选合集
 - ✨ **Smart Nudge**：浏览器扩展在 AI 网站（ChatGPT/Claude/Gemini 等 22 站）输入暂停后自动弹出增强提醒，一键增强
 - 🔑 **多供应商兼容**：OpenAI / Azure / Gemini / DeepSeek / Ollama
 - 🎯 **开箱即用**：内置 AI 服务，零配置即可使用
@@ -28,10 +30,11 @@
 - 🧠 **Two-step Smart Routing**: detect intent/scene first, then generate a specialized professional prompt
 - 🔀 **Composite Intents**: accurately handles multiple intents in a single sentence
 - ⚡ **Smart Enhance**: automatically enhances selection / current file / clipboard
-- 📦 **85 Scenes**: covers the full dev lifecycle + content + product + marketing + design + data + HR + support + startup + education
+- 📦 **97 Scenes**: covers the full dev lifecycle + content + product + marketing + design + data + HR + support + startup + education
 - 🧑‍💼 **10 Personas**: engineer / creator / PM / growth / designer / analyst / HR / support / founder / student-educator
 - 🕐 **History**: before/after comparison, copy, delete
 - 🌐 **Multi-platform**: VSCode extension + IntelliJ plugin + Browser extension (Chrome/Firefox/Safari) + Web
+- 🟣 **PromptHub Library**: Standalone AI prompt library ([zhiz.chat](https://zhiz.chat)) — discover, bookmark & share quality prompts with trending charts, Galaxy star-map & 7 curated collections
 - ✨ **Smart Nudge**: (Browser Extension) pops an enhancement reminder when you pause typing on AI sites (ChatGPT/Claude/Gemini, etc.)
 - 🔑 **Multi-provider**: OpenAI / Azure / Gemini / DeepSeek / Ollama
 - 🎯 **Works out of the box**: built-in AI service, zero config required
@@ -64,6 +67,21 @@ cd browser && node build.js chrome   # 仅构建 Chrome
 - 或将 `web/` 目录部署到任意静态服务器
 - 纯前端 SPA，零后端依赖，支持所有主流浏览器
 
+### 🟣 PromptHub — AI Prompt 精选库（v5.3 新增）
+
+独立的 AI Prompt 精选库 Web 应用，帮助发现、收藏和分享高质量 Prompt：
+
+- 访问 [PromptHub](https://zhiz.chat) 在线使用
+- **精选库首页**：分类筛选 + 难度/模型标签 + 瀑布流卡片布局
+- **热门榜单**：统计图表 + 排行榜 + 趋势分析
+- **Prompt 银河**：Canvas 交互式星图可视化，全新方式浏览 Prompt
+- **合集系统**：7 个精选合集（开发者全套工具包 / 小红书运营 / AI 写作 / 数据分析等）
+- **合集详情页**：Hero 横幅 + 分类标签 + Prompt 列表 + 一键复制
+- **收藏夹管理**：收藏/取消收藏 + 搜索 + 排序
+- **提交 Prompt**：分享你的高质量 Prompt 到精选库
+- **暗色/亮色主题**：一键切换，oklch 色彩空间
+- 技术栈：React 18 + TypeScript + Vite 6 + Tailwind CSS v4 + Framer Motion
+
 ### VSCode
 
 ```bash
@@ -72,7 +90,7 @@ cd browser && node build.js chrome   # 仅构建 Chrome
 
 # 方式 2：本地打包安装
 npx @vscode/vsce package --allow-missing-repository
-code --install-extension easy-prompt-ai-5.2.2.vsix
+code --install-extension easy-prompt-ai-5.3.1.vsix
 
 # 方式 3：开发调试
 code .  # 按 F5 启动调试
@@ -87,7 +105,7 @@ code .  # 按 F5 启动调试
 # 方式 2：本地构建安装（需要 JDK 17）
 cd intellij && ./gradlew buildPlugin
 # Settings → Plugins → ⚙️ → Install Plugin from Disk
-# 选择 intellij/build/distributions/easy-prompt-intellij-5.2.2.zip
+# 选择 intellij/build/distributions/easy-prompt-intellij-5.3.1.zip
 ```
 
 ## 📦 Installation (English)
@@ -111,6 +129,21 @@ No installation required:
 - Open https://prompt.zhiz.chat
 - Or deploy the `web/` folder to any static host (pure frontend SPA)
 
+### 🟣 PromptHub — AI Prompt Library (v5.3+)
+
+A standalone AI prompt curated library web app:
+
+- Open [https://zhiz.chat](https://zhiz.chat) to browse
+- **Curated homepage**: category filters + difficulty/model tags + masonry card layout
+- **Trending**: charts + leaderboard + trend analysis
+- **Prompt Galaxy**: Canvas interactive star-map for visual prompt exploration
+- **Collections**: 7 curated collections (Dev Toolkit / Xiaohongshu / AI Writing / Data Analysis, etc.)
+- **Collection detail pages**: Hero banner + tags + prompt list + one-click copy
+- **Favorites**: bookmark / search / sort
+- **Submit prompts**: share your quality prompts to the library
+- **Dark/light theme**: one-click toggle, oklch color space
+- Tech stack: React 18 + TypeScript + Vite 6 + Tailwind CSS v4 + Framer Motion
+
 ### VSCode
 
 - Option 1 (recommended): install from VSCode Marketplace — search "Easy Prompt"
@@ -118,7 +151,7 @@ No installation required:
 
 ```bash
 npx @vscode/vsce package --allow-missing-repository
-code --install-extension easy-prompt-ai-5.2.2.vsix
+code --install-extension easy-prompt-ai-5.3.1.vsix
 ```
 
 ### IntelliJ IDEA
@@ -130,7 +163,7 @@ code --install-extension easy-prompt-ai-5.2.2.vsix
 cd intellij && ./gradlew buildPlugin
 ```
 
-Then: Settings → Plugins → ⚙️ → Install Plugin from Disk → select `intellij/build/distributions/easy-prompt-intellij-5.2.2.zip`
+Then: Settings → Plugins → ⚙️ → Install Plugin from Disk → select `intellij/build/distributions/easy-prompt-intellij-5.3.1.zip`
 
 ## ⚙️ 配置
 
@@ -160,11 +193,11 @@ Open Settings (`Cmd+,`) and search for `Easy Prompt`.
 
 > 💡 **Works out of the box**: leave everything empty to use the built-in service. To use your own API, run the Command Palette action `Easy Prompt: 配置自定义 API` (includes connection test).
 
-| Setting                 | Meaning                     | Default  | Example                     |
-| ----------------------- | --------------------------- | -------- | --------------------------- |
-| `easyPrompt.apiKey`     | (optional) Custom API Key   | Built-in | `sk-xxxx`                   |
-| `easyPrompt.apiBaseUrl` | (optional) API Base URL     | Built-in | `https://api.openai.com/v1` |
-| `easyPrompt.model`      | (optional) Model name       | Built-in | `gpt-4o` / `deepseek-chat`  |
+| Setting                 | Meaning                   | Default  | Example                     |
+| ----------------------- | ------------------------- | -------- | --------------------------- |
+| `easyPrompt.apiKey`     | (optional) Custom API Key | Built-in | `sk-xxxx`                   |
+| `easyPrompt.apiBaseUrl` | (optional) API Base URL   | Built-in | `https://api.openai.com/v1` |
+| `easyPrompt.model`      | (optional) Model name     | Built-in | `gpt-4o` / `deepseek-chat`  |
 
 ### IntelliJ IDEA
 
@@ -202,29 +235,29 @@ Settings → Tools → Easy Prompt (one-click “Test & Save”).
 
 ### Shortcuts (8 commands · 6 keybindings)
 
-| Shortcut     | Action | Notes |
-| ------------ | ------ | ----- |
-| `Ctrl+Alt+I` | Smart Enhance | Auto-pick selection / current file / clipboard; choose when multiple sources exist |
-| `Ctrl+Alt+P` | Enhance Selection | Replace selection with a professional prompt (falls back to Smart Enhance when nothing is selected) |
-| `Ctrl+Alt+O` | Enhance Input | Popup input → generate → show in a new tab |
-| `Ctrl+Alt+L` | Browse Scenes | Browse all 85 scenes (grouped by personas, with pain points) |
-| `Ctrl+Alt+M` | Enhance with Scene | Choose a scene manually to skip intent recognition |
-| `Ctrl+Alt+H` | Tutorial | Open the onboarding page anytime |
-| `Ctrl+Alt+Y` | History | Before/after comparison, copy, delete |
-| —            | Configure API | Command Palette → `Easy Prompt: 配置自定义 API` (test & save) |
-| —            | Quick Menu | Status bar `✨ Easy Prompt` → open quick actions menu |
+| Shortcut     | Action             | Notes                                                                                               |
+| ------------ | ------------------ | --------------------------------------------------------------------------------------------------- |
+| `Ctrl+Alt+I` | Smart Enhance      | Auto-pick selection / current file / clipboard; choose when multiple sources exist                  |
+| `Ctrl+Alt+P` | Enhance Selection  | Replace selection with a professional prompt (falls back to Smart Enhance when nothing is selected) |
+| `Ctrl+Alt+O` | Enhance Input      | Popup input → generate → show in a new tab                                                          |
+| `Ctrl+Alt+L` | Browse Scenes      | Browse all 97 scenes (grouped by personas, with pain points)                                        |
+| `Ctrl+Alt+M` | Enhance with Scene | Choose a scene manually to skip intent recognition                                                  |
+| `Ctrl+Alt+H` | Tutorial           | Open the onboarding page anytime                                                                    |
+| `Ctrl+Alt+Y` | History            | Before/after comparison, copy, delete                                                               |
+| —            | Configure API      | Command Palette → `Easy Prompt: 配置自定义 API` (test & save)                                       |
+| —            | Quick Menu         | Status bar `✨ Easy Prompt` → open quick actions menu                                               |
 
 ### Workflow
 
 1. Write your request in the editor (it can be short and messy).
 2. Select the text and press `Ctrl+Alt+I` (Smart Enhance) or `Ctrl+Alt+P` (Enhance Selection).
 3. Wait for the two-step pipeline:
-    - 🔍 Step 1: intent/scene recognition (~1–2s)
-    - ✍️ Step 2: professional prompt generation (~3–5s)
+   - 🔍 Step 1: intent/scene recognition (~1–2s)
+   - ✍️ Step 2: professional prompt generation (~3–5s)
 4. Your selected text will be replaced with the enhanced prompt.
 5. Send the generated prompt to Copilot / ChatGPT for a much better answer.
 
-## 📋 85 个场景
+## 📋 97 个场景
 
 | 场景                  | ID                   | 说明                        | 痛点                     |
 | --------------------- | -------------------- | --------------------------- | ------------------------ |
@@ -408,7 +441,7 @@ Settings → Tools → Easy Prompt (one-click “Test & Save”).
 easy-prompt/
 ├── core/                    # 共享核心逻辑（CommonJS，平台无关）
 │   ├── index.js             # 统一导出
-│   ├── scenes.js            # 85 个场景定义（含痛点和示例）
+│   ├── scenes.js            # 97 个场景定义（含痛点和示例）
 │   ├── router.js            # 意图识别路由器 + Prompt 构建
 │   ├── composer.js          # 两步路由编排器（smartRoute）
 │   ├── api.js               # API 调用层（curl subprocess + 重试 + 安全限制）
@@ -427,7 +460,7 @@ easy-prompt/
 │   ├── index.html           # 主页面（SPA 入口）
 │   ├── style.css            # 样式（暗色主题 + 响应式）
 │   ├── app.js               # 应用逻辑（路由 + 场景 + API 调用）
-│   └── scenes.json          # 85 场景数据（由 core 生成）
+│   └── scenes.json          # 97 场景数据（由 core 生成）
 ├── browser/                 # 浏览器扩展（v5.0 新增，Chrome/Firefox/Safari MV3）
 │   ├── manifest.*.json      # 三平台 manifest（chrome/firefox/safari）
 │   ├── build.js             # 构建脚本（自动打包 + zip）
@@ -436,7 +469,15 @@ easy-prompt/
 │   ├── background/          # Service Worker（上下文菜单 + 快捷键）
 │   ├── content/             # Content Script（浮动增强按钮）
 │   ├── shared/              # 共享模块（Storage/API/Router/Scenes/Defaults/Icons）
-│   └── scenes.json          # 85 场景数据
+│   └── scenes.json          # 97 场景数据
+├── web-hub/                 # 🟣 PromptHub 独立 Web 应用（v5.3 新增）
+│   ├── package.json         # 独立依赖（React + TypeScript + Vite + Tailwind CSS v4）
+│   ├── vite.config.ts       # Vite 构建配置（代码分割策略）
+│   └── src/                 # React SPA 源码
+│       ├── app/components/  # UI 组件（Navbar/PromptCard/Drawer 等）
+│       ├── app/pages/       # 路由页面（Home/Trending/Galaxy/Collections/Profile 等）
+│       ├── app/hooks/       # 自定义 Hooks（usePromptStore 等）
+│       └── app/data/        # 数据层（prompts/collections/constants）
 ├── README.md
 ├── CHANGELOG.md
 └── .github/
@@ -445,6 +486,8 @@ easy-prompt/
 
 ## 📚 文档
 
+- **[PromptHub — AI Prompt 精选库](https://zhiz.chat)** — 在线浏览、收藏和分享高质量 Prompt
+- **[Easy Prompt Web 在线版](https://prompt.zhiz.chat)** — 无需安装，浏览器直接使用
 - **[API_CONFIG.md](./API_CONFIG.md)** — 各 API 提供商详细配置指南（OpenAI / Azure / Gemini / DeepSeek / Ollama）
 - **[FAQ.md](./FAQ.md)** — 常见问题与故障排查
 - **[CHANGELOG.md](./CHANGELOG.md)** — 版本更新日志
