@@ -19,6 +19,7 @@ import { MOCK_PROMPTS } from '../data/prompts';
 import { useLayoutContext } from '../components/Layout';
 import { usePromptStore } from '../hooks/usePromptStore';
 import { useOpenDrawer } from '../hooks/useDrawerContext';
+import { PromptDetailDrawer } from '../components/PromptDetailDrawer';
 import { CATEGORY_CONFIG, formatCount } from '../data/constants';
 import { ACHIEVEMENTS, RARITY_CONFIG, type Achievement } from '../data/achievements';
 import { motion, AnimatePresence } from 'motion/react';
