@@ -18,7 +18,7 @@ import { TrendingUp, Flame, Eye, Copy, Heart, ArrowUp, Trophy, Zap } from 'lucid
 import { MOCK_PROMPTS } from '../data/prompts';
 import { CATEGORY_CONFIG, formatCount } from '../data/constants';
 import { useLayoutContext } from '../components/Layout';
-import { useOpenDrawer } from '../hooks/useDrawerContext';
+import { PromptDetailDrawer } from '../components/PromptDetailDrawer';
 import { motion } from 'motion/react';
 
 // Derive color/label from centralized CATEGORY_CONFIG
@@ -59,7 +59,6 @@ const dailyData = generateDailyData();
 export function Trending() {
   const { darkMode } = useLayoutContext();
   const dm = darkMode;
-  const openDrawer = useOpenDrawer();
 
   const topByLikes = useMemo(() => [...MOCK_PROMPTS].sort((a, b) => b.likes - a.likes).slice(0, 10), []);
   const topByCopies = useMemo(() => [...MOCK_PROMPTS].sort((a, b) => b.copies - a.copies).slice(0, 5), []);

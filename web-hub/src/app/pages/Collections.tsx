@@ -140,6 +140,7 @@ interface CollectionDetailProps {
 
 function CollectionDetail({ collection, darkMode: dm, onBack, isSaved, onToggleSave }: CollectionDetailProps) {
   const store = usePromptStore();
+  const openDrawer = useOpenDrawer();
   const prompts = collection.promptIds.map((id) => MOCK_PROMPTS.find((p) => p.id === id)).filter(Boolean) as Prompt[];
   const diffConfig = DIFFICULTY_CONFIG[collection.difficulty];
 
@@ -324,7 +325,6 @@ export function Collections() {
   const { darkMode } = useLayoutContext();
   const dm = darkMode;
   const store = usePromptStore();
-  const openDrawer = useOpenDrawer();
   const saved = store.savedCollections;
   const toggle = (id: string) => {
     const wasSaved = store.isCollectionSaved(id);

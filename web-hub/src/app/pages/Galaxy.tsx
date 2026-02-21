@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, ZoomIn, ZoomOut, RefreshCw, Telescope, MousePointer2 } from 'lucide-react';
 import { MOCK_PROMPTS, type Prompt } from '../data/prompts';
-import { useOpenDrawer } from '../hooks/useDrawerContext';
+import { PromptDetailDrawer } from '../components/PromptDetailDrawer';
 import { CATEGORY_CONFIG } from '../data/constants';
 
 // ─── Data ────────────────────────────────────────────────────────────────────
@@ -641,7 +641,7 @@ export function Galaxy() {
           prompt={selectedPrompt}
           darkMode={true}
           externalOpen={drawerOpen}
-          onExternalOpenChange={(o) => {
+          onExternalOpenChange={(o: boolean) => {
             setDrawerOpen(o);
             if (!o) setSelectedPrompt(null);
           }}
