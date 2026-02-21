@@ -1920,7 +1920,7 @@ function showStatusBarMenu(context) {
       {
         label: "$(list-unordered) 浏览场景大全",
         description: "Ctrl+Alt+L",
-        detail: "查看 85 个场景的详情和 System Prompt",
+        detail: "查看 97 个场景的详情和 System Prompt",
         command: "easy-prompt.showScenes",
       },
       {

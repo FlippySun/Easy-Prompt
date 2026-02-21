@@ -56,7 +56,7 @@ assert(
 console.log("\n=== 2. 场景完整性检查 ===");
 const scenes = core.SCENES;
 const sceneIds = Object.keys(scenes);
-assert(sceneIds.length === 85, `场景总数 = ${sceneIds.length} (期望 85)`);
+assert(sceneIds.length === 97, `场景总数 = ${sceneIds.length} (期望 97)`);
 
 for (const [id, s] of Object.entries(scenes)) {
   const hasAll =
@@ -96,7 +96,7 @@ for (const id of sceneIds) {
     failed++;
   }
 }
-if (allInPrompt) assert(true, "85 个场景 ID 全部包含在 Router Prompt 中");
+if (allInPrompt) assert(true, "97 个场景 ID 全部包含在 Router Prompt 中");
 
 // 缓存测试
 const rp2 = core.buildRouterPrompt();

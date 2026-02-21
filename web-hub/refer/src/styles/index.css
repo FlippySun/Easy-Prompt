@@ -1,0 +1,107 @@
+@import './fonts.css';
+@import './tailwind.css';
+@import './theme.css';
+
+/* ─── Aurora orb keyframes (Vercel / Linear style) ──────────────────────── */
+@keyframes aurora-1 {
+  0%,100% { transform: translate(0,0) scale(1); }
+  33%      { transform: translate(40px,-30px) scale(1.06); }
+  66%      { transform: translate(-25px,35px) scale(0.94); }
+}
+@keyframes aurora-2 {
+  0%,100% { transform: translate(0,0) scale(1); }
+  33%      { transform: translate(-50px,25px) scale(1.08); }
+  66%      { transform: translate(35px,-40px) scale(0.92); }
+}
+@keyframes aurora-3 {
+  0%,100% { transform: translate(0,0) scale(1); }
+  50%      { transform: translate(25px,50px) scale(1.1); }
+}
+
+.aurora-orb-1 { animation: aurora-1 22s ease-in-out infinite; }
+.aurora-orb-2 { animation: aurora-2 28s ease-in-out infinite; }
+.aurora-orb-3 { animation: aurora-3 18s ease-in-out infinite; }
+
+/* ─── Text shimmer (Apple / Arc style) ──────────────────────────────────── */
+@keyframes text-shimmer {
+  0%   { background-position: -300% center; }
+  100% { background-position:  300% center; }
+}
+.text-shimmer {
+  background: linear-gradient(
+    90deg,
+    #6366f1 0%,
+    #8b5cf6 30%,
+    #c084fc 50%,
+    #8b5cf6 70%,
+    #6366f1 100%
+  );
+  background-size: 300% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: text-shimmer 4s linear infinite;
+}
+
+/* ─── Marquee (Linear / Framer style) ───────────────────────────────────── */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.marquee-track {
+  animation: marquee 35s linear infinite;
+  width: max-content;
+  will-change: transform;
+}
+.marquee-track:hover { animation-play-state: paused; }
+
+/* ─── Gradient border on card hover (Resend / Linear style) ─────────────── */
+@keyframes border-spin {
+  to { --gradient-angle: 360deg; }
+}
+@property --gradient-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+.card-glow-border {
+  position: relative;
+}
+.card-glow-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;                   /* stays INSIDE — won't be clipped by overflow:hidden */
+  border-radius: inherit;
+  border: 1.5px solid transparent;
+  background: conic-gradient(
+    from var(--gradient-angle),
+    #6366f1, #8b5cf6, #ec4899, #f59e0b, #6366f1
+  ) border-box;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) padding-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) padding-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  animation: border-spin 3s linear infinite;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+  z-index: 20;                /* above card content, below cursor */
+}
+.card-glow-border:hover::before {
+  opacity: 1;
+}
+
+/* ─── No scrollbar utility ───────────────────────────────────────────────── */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ─── Ping slow pulse ────────────────────────────────────────────────────── */
+@keyframes ping-slow {
+  0%,100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.15); opacity: 0.7; }
+}
+.ping-slow { animation: ping-slow 2.5s ease-in-out infinite; }
