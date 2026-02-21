@@ -1564,6 +1564,25 @@ function initModelCombo() {
 
   function openCombo() {
     renderList(input.value);
+
+    // 动态判断下拉框是向下展开还是向上展开，并限制高度
+    const rect = combo.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom - 12;
+    const spaceAbove = rect.top - 12;
+    const idealMax = 280;
+    const dropdown = combo.querySelector(".combo__dropdown");
+
+    if (spaceBelow >= Math.min(idealMax, 160)) {
+      combo.classList.remove("is-dropup");
+      dropdown.style.maxHeight = `${Math.min(idealMax, spaceBelow)}px`;
+    } else if (spaceAbove > spaceBelow) {
+      combo.classList.add("is-dropup");
+      dropdown.style.maxHeight = `${Math.min(idealMax, spaceAbove)}px`;
+    } else {
+      combo.classList.remove("is-dropup");
+      dropdown.style.maxHeight = `${Math.max(spaceBelow, 120)}px`;
+    }
+
     combo.classList.add("is-open");
     // 滚动到选中项
     const selected = list.querySelector(".is-selected");
@@ -1572,6 +1591,7 @@ function initModelCombo() {
 
   function closeCombo() {
     combo.classList.remove("is-open");
+    combo.classList.remove("is-dropup");
     focusIdx = -1;
   }
 
@@ -1979,12 +1999,33 @@ function openPicker() {
   const picker = $("#scene-picker");
   const btn = $("#btn-scene-select");
   const rect = btn.getBoundingClientRect();
+  const gap = 8;
+  const viewportH = window.innerHeight;
+  const spaceBelow = viewportH - rect.bottom - gap;
+  const spaceAbove = rect.top - gap;
+  const idealMax = 320;
 
   // Use fixed positioning to avoid scroll offset issues
   picker.style.position = "fixed";
-  picker.style.top = `${rect.bottom + 8}px`;
   picker.style.right = `${window.innerWidth - rect.right}px`;
   picker.style.left = "auto";
+
+  if (spaceBelow >= Math.min(idealMax, 200)) {
+    // 向下展开
+    picker.style.top = `${rect.bottom + gap}px`;
+    picker.style.bottom = "auto";
+    picker.style.maxHeight = `${Math.min(idealMax, spaceBelow - 12)}px`;
+  } else if (spaceAbove > spaceBelow) {
+    // 向上展开
+    picker.style.top = "auto";
+    picker.style.bottom = `${viewportH - rect.top + gap}px`;
+    picker.style.maxHeight = `${Math.min(idealMax, spaceAbove - 12)}px`;
+  } else {
+    // 空间都不够，向下展开并限制高度
+    picker.style.top = `${rect.bottom + gap}px`;
+    picker.style.bottom = "auto";
+    picker.style.maxHeight = `${Math.max(spaceBelow - 12, 120)}px`;
+  }
 
   picker.hidden = false;
   requestAnimationFrame(() => picker.classList.add("is-visible"));
@@ -2186,7 +2227,7 @@ function initScrollReveal() {
  * 倾斜角度: ±6deg, 鼠标离开平滑复位
  */
 function initCardTilt() {
-  const MAX_TILT = 3; // 最大倾斜角度(deg)
+  const MAX_TILT = 1; // 最大倾斜角度(deg)
   const SCALE_HOVER = 1.01; // hover 微放大
 
   // 为目标元素添加 tilt-card class
