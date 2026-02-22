@@ -26,6 +26,8 @@ export default defineConfig({
           'vendor-charts': ['recharts'],
           // 动画库 — 体积大，单独拆包
           'vendor-motion': ['motion'],
+          // 3D 引擎 — Three.js 生态
+          'vendor-three': ['three', '@react-three/fiber', '@react-three/drei', '@react-three/postprocessing'],
           // UI 工具库
           'vendor-ui': ['lucide-react', 'vaul', 'sonner', 'clsx', 'tailwind-merge'],
         },

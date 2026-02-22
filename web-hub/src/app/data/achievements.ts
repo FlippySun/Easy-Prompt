@@ -64,6 +64,24 @@ export const ACHIEVEMENTS: Achievement[] = [
     rarity: 'rare',
     category: 'explorer',
   },
+  {
+    id: 'eco_explorer',
+    title: '生态探索者',
+    description: '探索 Easy Prompt 生态系统，访问了 Prompt 增强工具',
+    icon: '🌐',
+    color: '#7c3aed',
+    rarity: 'rare',
+    category: 'explorer',
+  },
+  {
+    id: 'prompt_crafter',
+    title: 'Prompt 工匠',
+    description: '从 Prompt 增强工具回到 PromptHub，完成了生态闭环之旅',
+    icon: '🔗',
+    color: '#6366f1',
+    rarity: 'epic',
+    category: 'explorer',
+  },
   // Collector
   {
     id: 'first_save',

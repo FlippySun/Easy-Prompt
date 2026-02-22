@@ -42,14 +42,11 @@ function AchievementCard({
   unlocked: boolean;
   darkMode: boolean;
 }) {
-  const [hovered, setHovered] = useState(false);
   const rarityConfig = RARITY_CONFIG[achievement.rarity];
 
   return (
     <motion.div
-      whileHover={unlocked ? { scale: 1.03, y: -2 } : {}}
-      onHoverStart={() => setHovered(true)}
-      onHoverEnd={() => setHovered(false)}
+      whileHover={unlocked ? { scale: 1.04 } : {}}
       className={`relative flex flex-col items-center gap-2 overflow-hidden rounded-xl border p-3.5 text-center transition-all ${
         unlocked
           ? dm
@@ -78,15 +75,11 @@ function AchievementCard({
         >
           {achievement.title}
         </p>
-        {hovered && (
-          <motion.p
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            className={`mt-1 text-[10px] leading-tight ${dm ? 'text-gray-400' : 'text-gray-500'}`}
-          >
-            {achievement.description}
-          </motion.p>
-        )}
+        <p
+          className={`mt-1 min-h-[24px] text-[9px] leading-tight line-clamp-2 ${dm ? 'text-gray-400' : 'text-gray-500'}`}
+        >
+          {achievement.description}
+        </p>
       </div>
       {!unlocked && <Lock size={10} className={dm ? 'text-gray-600' : 'text-gray-300'} />}
     </motion.div>
@@ -252,21 +245,34 @@ export function Profile() {
 
       {/* Tabs */}
       <div
-        className={`flex gap-1 rounded-xl border p-1 ${dm ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-white'}`}
+        className={`relative flex gap-1 rounded-xl border p-1 ${dm ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-white'}`}
       >
+        {/* Sliding indicator */}
+        <motion.div
+          className={`absolute rounded-lg ${dm ? 'bg-indigo-500/15' : 'bg-indigo-50 shadow-sm'}`}
+          style={{
+            top: 4,
+            bottom: 4,
+            width: `calc((100% - 8px - ${(tabs.length - 1) * 4}px) / ${tabs.length})`,
+          }}
+          animate={{
+            left: `calc(4px + ${tabs.findIndex((t) => t.id === activeTab)} * (100% - 8px + 4px) / ${tabs.length})`,
+          }}
+          transition={{
+            type: 'spring',
+            stiffness: 400,
+            damping: 30,
+            mass: 0.8,
+          }}
+        />
         {tabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => setActiveTab(id)}
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium transition-all ${
-              activeTab === id
-                ? dm
-                  ? 'bg-indigo-500/15 text-indigo-400'
-                  : 'bg-indigo-50 text-indigo-600 shadow-sm'
-                : dm
-                  ? 'text-gray-400 hover:text-gray-200'
-                  : 'text-gray-500 hover:text-gray-800'
-            }`}
+            className="relative z-10 flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium transition-colors"
+            style={{
+              color: activeTab === id ? (dm ? '#818cf8' : '#4f46e5') : dm ? '#9ca3af' : '#6b7280',
+            }}
           >
             <Icon size={13} />
             <span className="hidden sm:inline">{label}</span>

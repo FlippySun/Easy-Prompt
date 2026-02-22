@@ -68,7 +68,7 @@ export function Sidebar({ darkMode: dm }: SidebarProps) {
   return (
     <aside
       className={cn(
-        'sticky top-16 hidden h-[calc(100vh-4rem)] w-60 shrink-0 flex-col overflow-y-auto border-r lg:flex',
+        'custom-scrollbar hidden w-60 shrink-0 flex-col overflow-y-auto overscroll-contain border-r lg:flex',
         dm ? 'border-gray-800 bg-gray-900' : 'border-gray-100 bg-white',
       )}
     >
@@ -214,7 +214,7 @@ export function Sidebar({ darkMode: dm }: SidebarProps) {
             }
           >
             <Telescope size={15} className="shrink-0" />
-            <span>🌌 银河探索模式</span>
+            <span className="whitespace-nowrap">🌌 银河探索模式</span>
             <span className="ml-auto rounded-full bg-linear-to-r from-violet-500 to-indigo-500 px-1.5 py-0.5 text-[9px] font-bold text-white">
               NEW
             </span>
