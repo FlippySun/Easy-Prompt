@@ -133,6 +133,42 @@
   scrollbar-width: none;
 }
 
+/* ─── Custom scrollbar (Linear / Vercel style) ──────────────────────────── */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99, 102, 241, 0.25) transparent;
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.2);
+  border-radius: 9999px;
+  transition: background 0.2s ease;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.4);
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:active {
+  background: rgba(99, 102, 241, 0.55);
+}
+/* Light mode variant */
+:root:not(.dark) .custom-scrollbar {
+  scrollbar-color: rgba(99, 102, 241, 0.15) transparent;
+}
+:root:not(.dark) .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.12);
+}
+:root:not(.dark) .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.25);
+}
+:root:not(.dark) .custom-scrollbar::-webkit-scrollbar-thumb:active {
+  background: rgba(99, 102, 241, 0.35);
+}
+
 /* ─── Ping slow pulse ────────────────────────────────────────────────────── */
 @keyframes ping-slow {
   0%,
@@ -147,4 +183,28 @@
 }
 .ping-slow {
   animation: ping-slow 2.5s ease-in-out infinite;
+}
+
+/* ─── Drawer close animation (vaul controlled-mode fix) ─────────────────── */
+@keyframes drawer-slide-out-right {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(100%, 0, 0);
+  }
+}
+@keyframes drawer-overlay-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.drawer-closing {
+  animation: drawer-slide-out-right 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards !important;
+}
+.drawer-overlay-closing {
+  animation: drawer-overlay-fade-out 0.3s ease forwards !important;
 }

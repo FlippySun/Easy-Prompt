@@ -3,7 +3,7 @@
  * Inspired by: Awwwards.com top sites, Framer.com, Resend.com
  * Direct DOM manipulation → no React re-renders during mouse movement.
  */
-import { useRef, useCallback, type ReactNode } from 'react';
+import { useRef, useCallback, useEffect, type ReactNode } from 'react';
 
 interface MagneticButtonProps {
   children: ReactNode;
@@ -17,6 +17,9 @@ export function MagneticButton({ children, strength = 25, className }: MagneticB
   const rafRef = useRef(0);
   const targetRef = useRef({ x: 0, y: 0 });
   const currentRef = useRef({ x: 0, y: 0 });
+
+  // Cleanup pending RAF on unmount to prevent null-ref access
+  useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
 
   const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 

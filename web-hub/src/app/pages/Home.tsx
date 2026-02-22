@@ -22,6 +22,8 @@ import {
   FileText,
   X,
   Zap,
+  Wand2,
+  ArrowRight,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
@@ -286,6 +288,22 @@ export function Home() {
                 <span className={dm ? 'text-gray-300' : 'text-gray-600'}>正在为你寻找：</span>
                 <TypewriterDisplay />
               </div>
+
+              {/* Cross-product CTA */}
+              <a
+                href="https://prompt.zhiz.chat?from=hub"
+                target="_blank"
+                rel="noopener"
+                className={`group inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-medium transition-all w-fit ${
+                  dm
+                    ? 'border-violet-500/20 bg-violet-500/10 text-violet-300 hover:border-violet-500/40 hover:bg-violet-500/20'
+                    : 'border-violet-200/80 bg-white/60 text-violet-600 hover:border-violet-300 hover:bg-white/80'
+                }`}
+              >
+                <Wand2 size={13} className="shrink-0" />
+                <span>有自己的需求？AI 智能扩写为专业 Prompt</span>
+                <ArrowRight size={13} className="shrink-0 transition-transform group-hover:translate-x-1" />
+              </a>
             </div>
 
             {/* CountUp stats */}

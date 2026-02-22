@@ -1,6 +1,11 @@
-import { Search, Plus, Sun, Moon, Sparkles, X, User, Command } from 'lucide-react';
+import { Search, Plus, Sun, Moon, Sparkles, X, User, Command, Wand2, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router';
+import { AnimatePresence, motion } from 'motion/react';
 import { CreatePromptDrawer } from './CreatePromptDrawer';
+import { unlockAchievementAction } from '../hooks/usePromptStore';
+import { useState, useEffect } from 'react';
+
+const BUBBLE_KEY = 'prompthub_enhance_bubble_dismissed';
 
 interface NavbarProps {
   darkMode: boolean;
@@ -11,6 +16,21 @@ interface NavbarProps {
 }
 
 export function Navbar({ darkMode, onToggleDark, searchValue, onSearchChange, onOpenCmdPalette }: NavbarProps) {
+  const [showBubble, setShowBubble] = useState(false);
+
+  useEffect(() => {
+    if (localStorage.getItem(BUBBLE_KEY)) return;
+    const timer = setTimeout(() => setShowBubble(true), 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const dismissBubble = () => {
+    setShowBubble(false);
+    try {
+      localStorage.setItem(BUBBLE_KEY, '1');
+    } catch {}
+  };
+
   const handleSearch = (value: string) => {
     onSearchChange(value);
   };
@@ -66,6 +86,58 @@ export function Navbar({ darkMode, onToggleDark, searchValue, onSearchChange, on
 
         {/* Right Actions */}
         <div className="flex items-center gap-2 shrink-0">
+          {/* Easy Prompt Tool Link */}
+          <div className="relative hidden sm:flex">
+            <a
+              href="https://prompt.zhiz.chat?from=hub"
+              target="_blank"
+              rel="noopener"
+              onClick={() => {
+                unlockAchievementAction('eco_explorer');
+                dismissBubble();
+              }}
+              className={`group flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-all ${
+                darkMode
+                  ? 'border-violet-500/20 bg-violet-500/10 text-violet-400 hover:border-violet-500/40 hover:bg-violet-500/15 hover:shadow-lg hover:shadow-violet-500/10'
+                  : 'border-violet-200 bg-violet-50 text-violet-600 hover:border-violet-300 hover:bg-violet-100 hover:shadow-md hover:shadow-violet-200/50'
+              }`}
+              title="AI 智能 Prompt 增强工具"
+            >
+              <Wand2 size={13} className="shrink-0" />
+              <span>Prompt 增强</span>
+              <ExternalLink size={11} className="shrink-0 opacity-40 transition-opacity group-hover:opacity-80" />
+            </a>
+
+            {/* Floating Bubble Tooltip */}
+            <AnimatePresence>
+              {showBubble && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -4, scale: 0.95 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                  onClick={dismissBubble}
+                  className={`absolute top-full right-0 mt-2.5 z-50 cursor-pointer whitespace-nowrap rounded-xl px-3.5 py-2 text-xs font-medium shadow-lg ${
+                    darkMode
+                      ? 'bg-linear-to-r from-violet-600 to-indigo-600 text-white shadow-violet-500/25'
+                      : 'bg-linear-to-r from-violet-500 to-indigo-500 text-white shadow-violet-300/40'
+                  }`}
+                >
+                  {/* Arrow pointing up */}
+                  <div
+                    className={`absolute -top-1.5 right-6 h-3 w-3 rotate-45 ${
+                      darkMode ? 'bg-violet-600' : 'bg-violet-500'
+                    }`}
+                  />
+                  <span className="relative flex items-center gap-1.5">
+                    <Wand2 size={12} className="animate-pulse" />
+                    AI 帮你写专业 Prompt
+                  </span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
           {/* Dark Mode Toggle */}
           <button
             onClick={onToggleDark}

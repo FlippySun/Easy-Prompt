@@ -1,4 +1,4 @@
-import { Sparkles, Github, Twitter, Heart } from 'lucide-react';
+import { Sparkles, Github, Twitter, Heart, Wand2 } from 'lucide-react';
 
 interface FooterProps {
   darkMode: boolean;
@@ -25,7 +25,7 @@ export function Footer({ darkMode }: FooterProps) {
           <div
             className={`flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs ${dm ? 'text-gray-500' : 'text-gray-400'}`}
           >
-            {['关于我们', '使用条款', '隐私政策', '联系我们', 'API 文档'].map((link) => (
+            {['关于我们', '使用条款', '隐私政策', '联系我们'].map((link) => (
               <a
                 key={link}
                 href="#"
@@ -34,6 +34,16 @@ export function Footer({ darkMode }: FooterProps) {
                 {link}
               </a>
             ))}
+            <span className={`${dm ? 'text-gray-700' : 'text-gray-200'}`}>|</span>
+            <a
+              href="https://prompt.zhiz.chat?from=hub"
+              target="_blank"
+              rel="noopener"
+              className={`inline-flex items-center gap-1 font-medium transition-colors ${dm ? 'text-violet-400/70 hover:text-violet-400' : 'text-violet-500/70 hover:text-violet-600'}`}
+            >
+              <Wand2 size={11} />
+              Prompt 增强工具
+            </a>
           </div>
 
           {/* Social + Credits */}

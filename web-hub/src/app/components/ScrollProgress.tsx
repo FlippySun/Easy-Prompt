@@ -9,14 +9,17 @@ export function ScrollProgress() {
   const barRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const container = document.getElementById('main-scroll-container');
+    if (!container) return;
+
     const tick = () => {
-      const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
+      const { scrollTop, scrollHeight, clientHeight } = container;
       const pct = scrollHeight - clientHeight > 0 ? scrollTop / (scrollHeight - clientHeight) : 0;
       if (barRef.current) barRef.current.style.transform = `scaleX(${pct})`;
     };
 
-    window.addEventListener('scroll', tick, { passive: true });
-    return () => window.removeEventListener('scroll', tick);
+    container.addEventListener('scroll', tick, { passive: true });
+    return () => container.removeEventListener('scroll', tick);
   }, []);
 
   return (

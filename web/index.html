@@ -191,9 +191,139 @@
               />
             </svg>
           </a>
+
+          <span class="header__nav-divider"></span>
+
+          <div class="header__hub-link-wrapper">
+            <a
+              class="header__hub-link"
+              href="https://zhiz.chat?from=web"
+              target="_blank"
+              rel="noopener"
+              title="探索 PromptHub — AI Prompt 精选库"
+            >
+              <svg
+                class="header__hub-link-icon"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"
+                />
+              </svg>
+              <span class="header__hub-link-text">Prompt 社区</span>
+              <svg
+                class="header__hub-link-arrow"
+                width="11"
+                height="11"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M15 3h6v6" />
+                <path d="M10 14 21 3" />
+                <path
+                  d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
+                />
+              </svg>
+            </a>
+            <!-- Bubble Tooltip -->
+            <div class="hub-bubble" id="hub-bubble" hidden>
+              <div class="hub-bubble__arrow"></div>
+              <svg
+                class="hub-bubble__icon"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"
+                />
+              </svg>
+              <span>200+ 精选 Prompt</span>
+            </div>
+          </div>
         </nav>
       </div>
     </header>
+
+    <!-- ═══════════ Cross-Product Guide Bar ═══════════ -->
+    <div class="guide-bar" id="guide-bar" hidden>
+      <div class="guide-bar__inner">
+        <div class="guide-bar__content">
+          <svg
+            class="guide-bar__icon"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"
+            />
+          </svg>
+          <span class="guide-bar__text">想要现成的优质 Prompt？</span>
+          <a
+            class="guide-bar__link"
+            href="https://zhiz.chat?from=web"
+            target="_blank"
+            rel="noopener"
+          >
+            探索 PromptHub 200+ 精选提示词库
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M5 12h14" />
+              <path d="m12 5 7 7-7 7" />
+            </svg>
+          </a>
+        </div>
+        <button
+          class="guide-bar__close"
+          id="guide-bar-close"
+          aria-label="关闭引导"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
 
     <!-- ═══════════ Main Content ═══════════ -->
     <main class="main">
@@ -221,6 +351,41 @@
         <p class="hero__subtitle">
           告别混乱的需求描述，AI 自动识别意图并生成结构化专业 Prompt
         </p>
+        <a
+          class="hero__cta-link"
+          href="https://zhiz.chat?from=web"
+          target="_blank"
+          rel="noopener"
+        >
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"
+            />
+          </svg>
+          <span>想要现成的优质 Prompt？探索 200+ 精选 Prompt 库</span>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M5 12h14" />
+            <path d="m12 5 7 7-7 7" />
+          </svg>
+        </a>
       </section>
 
       <!-- Input Section -->
@@ -449,11 +614,39 @@
 
     <!-- ═══════════ Footer ═══════════ -->
     <footer class="footer">
-      <span>Easy Prompt v5.3.1</span>
-      <span class="footer__dot">·</span>
-      <span>85 个专业场景</span>
-      <span class="footer__dot">·</span>
-      <span>开箱即用，无需配置</span>
+      <div class="footer__main">
+        <span>Easy Prompt v5.3.1</span>
+        <span class="footer__dot">·</span>
+        <span>85 个专业场景</span>
+        <span class="footer__dot">·</span>
+        <span>开箱即用，无需配置</span>
+      </div>
+      <div class="footer__ecosystem">
+        <span class="footer__eco-label">Easy Prompt 生态</span>
+        <span class="footer__eco-divider"></span>
+        <a
+          class="footer__eco-link"
+          href="https://zhiz.chat?from=web"
+          target="_blank"
+          rel="noopener"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"
+            />
+          </svg>
+          <span>PromptHub 精选库</span>
+        </a>
+      </div>
     </footer>
 
     <!-- ═══════════ Settings Panel (Slide-over) ═══════════ -->

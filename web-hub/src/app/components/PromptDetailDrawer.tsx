@@ -1,5 +1,5 @@
 import { Drawer } from 'vaul';
-import { useState, useMemo, type ReactNode } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect, type ReactNode } from 'react';
 import {
   X,
   Copy,
@@ -58,6 +58,8 @@ export function PromptDetailDrawer({
   const [tab, setTab] = useState<'content' | 'playground'>('content');
   const [varValues, setVarValues] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+  const closingTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   const store = usePromptStore();
   const catConfig = CATEGORY_CONFIG[prompt.category] || CATEGORY_CONFIG.coding;
@@ -97,6 +99,39 @@ export function PromptDetailDrawer({
   const isLiked = store.isLiked(prompt.id);
   const isSaved = store.isSaved(prompt.id);
 
+  // Intercept close to play exit animation before unmount
+  const handleOpenChange = useCallback(
+    (newOpen: boolean) => {
+      if (closingTimerRef.current) {
+        clearTimeout(closingTimerRef.current);
+        closingTimerRef.current = undefined;
+      }
+      if (newOpen) {
+        setIsClosing(false);
+        setOpen(true);
+      } else {
+        setIsClosing(true);
+        closingTimerRef.current = setTimeout(() => {
+          setOpen(false);
+          closingTimerRef.current = undefined;
+        }, 350);
+      }
+    },
+    [setOpen],
+  );
+
+  // Reset closing state when drawer opens
+  useEffect(() => {
+    if (open) setIsClosing(false);
+  }, [open]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (closingTimerRef.current) clearTimeout(closingTimerRef.current);
+    };
+  }, []);
+
   const inputCls = `w-full rounded-lg border px-3 py-2 text-sm outline-none transition-all ${
     dm
       ? 'border-gray-700 bg-gray-800 text-gray-100 placeholder:text-gray-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30'
@@ -104,23 +139,23 @@ export function PromptDetailDrawer({
   }`;
 
   return (
-    <Drawer.Root open={open} onOpenChange={setOpen} direction="right">
+    <Drawer.Root open={open || isClosing} onOpenChange={handleOpenChange} direction="right">
       {children && (
         <Drawer.Trigger asChild onClick={handleOpen}>
           {children}
         </Drawer.Trigger>
       )}
       <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" />
+        <Drawer.Overlay
+          className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm ${isClosing ? 'drawer-overlay-closing' : ''}`}
+        />
         <Drawer.Content
           className={`fixed bottom-0 right-0 top-0 z-50 flex w-full flex-col outline-none sm:w-[520px] ${
             dm ? 'bg-gray-900' : 'bg-white'
-          } shadow-2xl`}
+          } shadow-2xl ${isClosing ? 'drawer-closing' : ''}`}
         >
           <Drawer.Title className="sr-only">{prompt.title}</Drawer.Title>
-          <Drawer.Description className="sr-only">
-            {prompt.description}
-          </Drawer.Description>
+          <Drawer.Description className="sr-only">{prompt.description}</Drawer.Description>
           {/* Header */}
           <div
             className={`flex items-start justify-between gap-4 border-b p-5 ${dm ? 'border-gray-800' : 'border-gray-100'}`}
@@ -155,7 +190,7 @@ export function PromptDetailDrawer({
               </p>
             </div>
             <button
-              onClick={() => setOpen(false)}
+              onClick={() => handleOpenChange(false)}
               className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-colors ${
                 dm
                   ? 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'

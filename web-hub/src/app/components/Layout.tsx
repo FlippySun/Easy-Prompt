@@ -9,6 +9,7 @@ import { CustomCursor } from './CustomCursor';
 import { ParticleBurstRenderer } from './ParticleBurst';
 import { PromptDetailDrawer } from './PromptDetailDrawer';
 import { ScrollProgress } from './ScrollProgress';
+import { CrossProductGuide } from './CrossProductGuide';
 import { AuroraOrbs } from './AuroraOrbs';
 import { Toaster } from 'sonner';
 import { useState, useEffect, useCallback } from 'react';
@@ -87,6 +88,19 @@ export function Layout() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
+  // Detect cross-product referral: ?from=web → unlock prompt_crafter
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('from') === 'web') {
+      unlockAchievementAction('eco_explorer');
+      unlockAchievementAction('prompt_crafter');
+      // Clean up URL param without reload
+      const url = new URL(window.location.href);
+      url.searchParams.delete('from');
+      window.history.replaceState({}, '', url.pathname + url.search);
+    }
+  }, []);
+
   const handleOpenPrompt = useCallback(
     (prompt: Prompt) => {
       openDrawer(prompt);
@@ -109,7 +123,7 @@ export function Layout() {
 
   return (
     <div
-      className={`relative flex min-h-screen flex-col font-sans antialiased transition-colors duration-200 ${
+      className={`relative flex h-screen flex-col overflow-hidden font-sans antialiased transition-colors duration-200 ${
         darkMode ? 'dark bg-gray-950 text-gray-100' : 'bg-[#f5f6fa] text-gray-900'
       }`}
     >
@@ -131,14 +145,17 @@ export function Layout() {
       />
 
       <DrawerContext.Provider value={{ openDrawer }}>
-        <div className="relative z-10 mx-auto flex w-full max-w-[1400px] flex-1">
+        <div className="relative z-10 mx-auto flex w-full max-w-[1400px] flex-1 overflow-hidden">
           <Sidebar darkMode={darkMode} />
-          <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">
-            <AnimatedOutlet ctx={ctx} />
+          <main id="main-scroll-container" className="custom-scrollbar min-w-0 flex-1 flex flex-col overflow-y-auto">
+            <CrossProductGuide darkMode={darkMode} />
+            <div className="flex-1 px-4 py-6 sm:px-6">
+              <AnimatedOutlet ctx={ctx} />
+            </div>
+            <Footer darkMode={darkMode} />
           </main>
         </div>
 
-        <Footer darkMode={darkMode} />
         <FloatingActions darkMode={darkMode} />
 
         {/* Command Palette */}

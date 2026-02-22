@@ -59,8 +59,9 @@ export function CustomCursor({ darkMode }: CustomCursorProps) {
       }
 
       // Only continue looping while the ring is still catching up or scale is lerping
-      const scaleDelta = Math.abs(dotScaleRef.current - (isClick ? 0.6 : isHov ? 1.4 : 1))
-        + Math.abs(ringScaleRef.current - (isClick ? 0.7 : isHov ? 1.7 : 1));
+      const scaleDelta =
+        Math.abs(dotScaleRef.current - (isClick ? 0.6 : isHov ? 1.4 : 1)) +
+        Math.abs(ringScaleRef.current - (isClick ? 0.7 : isHov ? 1.7 : 1));
       if (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1 || scaleDelta > 0.005) {
         rafRef.current = requestAnimationFrame(animate);
       } else {
