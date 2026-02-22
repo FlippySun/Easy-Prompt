@@ -45,14 +45,14 @@ export function CustomCursor({ darkMode }: CustomCursorProps) {
 
       if (dot) {
         const targetDotScale = isClick ? 0.6 : isHov ? 1.4 : 1;
-        dotScaleRef.current += (targetDotScale - dotScaleRef.current) * 0.18;
+        dotScaleRef.current += (targetDotScale - dotScaleRef.current) * 0.3;
         dot.style.transform = `translate(${posRef.current.x}px, ${posRef.current.y}px) translate(-50%,-50%) scale(${dotScaleRef.current})`;
         dot.style.backgroundColor = isHov ? '#a78bfa' : '#6366f1';
       }
 
       if (ring) {
         const targetRingScale = isClick ? 0.7 : isHov ? 1.7 : 1;
-        ringScaleRef.current += (targetRingScale - ringScaleRef.current) * 0.18;
+        ringScaleRef.current += (targetRingScale - ringScaleRef.current) * 0.3;
         ring.style.transform = `translate(${ringPosRef.current.x}px, ${ringPosRef.current.y}px) translate(-50%,-50%) scale(${ringScaleRef.current})`;
         ring.style.opacity = isClick ? '0.4' : isHov ? '0.7' : '0.5';
         ring.style.borderColor = isHov ? (dm ? '#a78bfa' : '#7c3aed') : '#6366f1';
