@@ -76,8 +76,8 @@ export type WarpPhase =
 
 // ─── 展示模式 ────────────────────────────────────────────
 
-/** 主展示模式（5 种完全不同的视觉范式） */
-export type DisplayMode = 'galaxy' | 'ocean' | 'planet' | 'universe' | 'matrix';
+/** 主展示模式（后续可扩展更多高质量模式） */
+export type DisplayMode = 'galaxy';
 
 // ─── 相机信息（MiniMap 用） ──────────────────────────────
 
