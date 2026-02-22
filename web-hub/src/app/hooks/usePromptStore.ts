@@ -130,7 +130,12 @@ function checkAndUnlock(achievementId: string) {
           colors: [achievement.color, '#ffffff', '#e879f9'],
         });
       } else {
-        confetti({ particleCount: 50, spread: 55, origin: { y: 0.9, x: 0.15 }, colors: [achievement.color, '#ffffff'] });
+        confetti({
+          particleCount: 50,
+          spread: 55,
+          origin: { y: 0.9, x: 0.15 },
+          colors: [achievement.color, '#ffffff'],
+        });
       }
     });
   }

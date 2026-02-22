@@ -142,10 +142,7 @@ export function Home() {
     return () => observer.disconnect();
   }, [filteredPrompts]); // reconnect when filtered list changes
 
-  const visiblePrompts = useMemo(
-    () => filteredPrompts.slice(0, visibleCount),
-    [filteredPrompts, visibleCount],
-  );
+  const visiblePrompts = useMemo(() => filteredPrompts.slice(0, visibleCount), [filteredPrompts, visibleCount]);
   const hasMore = visibleCount < filteredPrompts.length;
 
   const dm = darkMode;

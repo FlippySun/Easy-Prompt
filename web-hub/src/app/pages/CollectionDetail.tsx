@@ -23,9 +23,7 @@ export default function CollectionDetailPage() {
       <div className="flex flex-col items-center justify-center py-32 text-center">
         <span className="mb-4 text-5xl">🔍</span>
         <h2 className={`mb-2 text-xl font-bold ${dm ? 'text-gray-100' : 'text-gray-900'}`}>合集未找到</h2>
-        <p className={`mb-6 ${dm ? 'text-gray-400' : 'text-gray-500'}`}>
-          该合集不存在或已被移除
-        </p>
+        <p className={`mb-6 ${dm ? 'text-gray-400' : 'text-gray-500'}`}>该合集不存在或已被移除</p>
         <Link
           to="/collections"
           className="flex items-center gap-2 rounded-xl bg-linear-to-r from-violet-500 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg"
@@ -37,9 +35,7 @@ export default function CollectionDetailPage() {
     );
   }
 
-  const prompts = collection.promptIds
-    .map((id) => MOCK_PROMPTS.find((p) => p.id === id))
-    .filter(Boolean) as Prompt[];
+  const prompts = collection.promptIds.map((id) => MOCK_PROMPTS.find((p) => p.id === id)).filter(Boolean) as Prompt[];
   const diffConfig = DIFFICULTY_CONFIG[collection.difficulty];
   const isSaved = store.isCollectionSaved(collection.id);
 
@@ -209,11 +205,7 @@ export default function CollectionDetailPage() {
                           : 'text-gray-300 hover:text-yellow-500'
                     }`}
                   >
-                    {promptSaved ? (
-                      <BookmarkCheck size={14} className="fill-current" />
-                    ) : (
-                      <Bookmark size={14} />
-                    )}
+                    {promptSaved ? <BookmarkCheck size={14} className="fill-current" /> : <Bookmark size={14} />}
                   </button>
                   <button
                     onClick={() => openDrawer(prompt)}

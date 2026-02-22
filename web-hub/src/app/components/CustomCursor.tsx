@@ -15,6 +15,8 @@ export function CustomCursor({ darkMode }: CustomCursorProps) {
   const rafRef = useRef(0);
   const isAnimatingRef = useRef(false); // ← only run RAF when needed
   const darkRef = useRef(darkMode); // ← track darkMode in ref inside RAF
+  const dotScaleRef = useRef(1); // ← lerp scale for smooth transitions
+  const ringScaleRef = useRef(1); // ← lerp scale for smooth transitions
 
   const [visible, setVisible] = useState(false);
 
@@ -42,20 +44,24 @@ export function CustomCursor({ darkMode }: CustomCursorProps) {
       const ring = ringRef.current;
 
       if (dot) {
-        const scale = isClick ? 0.6 : isHov ? 1.4 : 1;
-        dot.style.transform = `translate(${posRef.current.x}px, ${posRef.current.y}px) translate(-50%,-50%) scale(${scale})`;
+        const targetDotScale = isClick ? 0.6 : isHov ? 1.4 : 1;
+        dotScaleRef.current += (targetDotScale - dotScaleRef.current) * 0.18;
+        dot.style.transform = `translate(${posRef.current.x}px, ${posRef.current.y}px) translate(-50%,-50%) scale(${dotScaleRef.current})`;
         dot.style.backgroundColor = isHov ? '#a78bfa' : '#6366f1';
       }
 
       if (ring) {
-        const scale = isClick ? 0.7 : isHov ? 1.7 : 1;
-        ring.style.transform = `translate(${ringPosRef.current.x}px, ${ringPosRef.current.y}px) translate(-50%,-50%) scale(${scale})`;
+        const targetRingScale = isClick ? 0.7 : isHov ? 1.7 : 1;
+        ringScaleRef.current += (targetRingScale - ringScaleRef.current) * 0.18;
+        ring.style.transform = `translate(${ringPosRef.current.x}px, ${ringPosRef.current.y}px) translate(-50%,-50%) scale(${ringScaleRef.current})`;
         ring.style.opacity = isClick ? '0.4' : isHov ? '0.7' : '0.5';
         ring.style.borderColor = isHov ? (dm ? '#a78bfa' : '#7c3aed') : '#6366f1';
       }
 
-      // Only continue looping while the ring is still catching up
-      if (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1) {
+      // Only continue looping while the ring is still catching up or scale is lerping
+      const scaleDelta = Math.abs(dotScaleRef.current - (isClick ? 0.6 : isHov ? 1.4 : 1))
+        + Math.abs(ringScaleRef.current - (isClick ? 0.7 : isHov ? 1.7 : 1));
+      if (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1 || scaleDelta > 0.005) {
         rafRef.current = requestAnimationFrame(animate);
       } else {
         isAnimatingRef.current = false;

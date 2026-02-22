@@ -87,9 +87,12 @@ export function Layout() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  const handleOpenPrompt = useCallback((prompt: Prompt) => {
-    openDrawer(prompt);
-  }, [openDrawer]);
+  const handleOpenPrompt = useCallback(
+    (prompt: Prompt) => {
+      openDrawer(prompt);
+    },
+    [openDrawer],
+  );
 
   const handleRandomExplore = useCallback(() => {
     const random = MOCK_PROMPTS[Math.floor(Math.random() * MOCK_PROMPTS.length)];
