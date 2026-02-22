@@ -19,25 +19,13 @@ import type { Prompt } from '../data/prompts';
 import { CATEGORY_CONFIG } from '../data/constants';
 import { PromptDetailDrawer } from '../components/PromptDetailDrawer';
 import { CosmosScene } from './galaxy/CosmosScene';
-import { OceanScene } from './galaxy/OceanScene';
-import { PlanetScene } from './galaxy/PlanetScene';
-import { UniverseScene } from './galaxy/UniverseScene';
-import { MatrixScene } from './galaxy/MatrixScene';
 import { GalaxyHUD } from './galaxy/GalaxyHUD';
 import { MiniMap } from './galaxy/MiniMap';
 import { ContextMenu } from './galaxy/ContextMenu';
-import { ModeSelector } from './galaxy/ModeSelector';
 import { useSpaceAudio } from './galaxy/useSpaceAudio';
 import { buildGalaxyLayout, getAllStars } from './galaxy/layout';
 import type { ClickBurstRef } from './galaxy/ClickBurst';
-import type {
-  CategoryCluster,
-  PromptStarData,
-  WarpPhase,
-  HoverInfo,
-  CameraInfo,
-  DisplayMode,
-} from './galaxy/types';
+import type { CategoryCluster, PromptStarData, WarpPhase, HoverInfo, CameraInfo } from './galaxy/types';
 
 // ─── Galaxy 主组件 ─────────────────────────────────────────
 
@@ -92,14 +80,6 @@ export function Galaxy() {
 
   // 拖拽速度线
   const [isDragging, setIsDragging] = useState(false);
-
-  // 展示模式
-  const [displayMode, setDisplayMode] = useState<DisplayMode>('galaxy');
-
-  // 模式切换回调
-  const handleModeChange = useCallback((mode: DisplayMode) => {
-    setDisplayMode(mode);
-  }, []);
 
   const focusedCatIndexRef = useRef(-1);
 
@@ -276,84 +256,29 @@ export function Galaxy() {
         )}
       </AnimatePresence>
 
-      {/* 3D 场景 — 根据 displayMode 切换 */}
+      {/* 3D 场景 */}
       <div className="absolute inset-0">
-        {displayMode === 'galaxy' && (
-          <CosmosScene
-            clusters={clusters}
-            allStars={allStars}
-            warpPhase={warpPhase}
-            starsVisible={starsVisible}
-            matchedIds={matchedIds}
-            hasSearch={hasSearch}
-            flyTarget={flyTarget}
-            onFlyComplete={handleFlyComplete}
-            onStarClick={handleStarClick}
-            onHover={handleHover}
-            cameraEnabled={cameraEnabled}
-            burstRef={burstRef}
-            cameraInfoRef={cameraInfoRef}
-            onDoubleClick={handleStarDoubleClick}
-            onContextMenu={handleStarContextMenu}
-          />
-        )}
-        {displayMode === 'ocean' && (
-          <OceanScene
-            clusters={clusters}
-            allStars={allStars}
-            visible={starsVisible}
-            matchedIds={matchedIds}
-            hasSearch={hasSearch}
-            onStarClick={handleStarClick}
-            onHover={handleHover}
-            onDoubleClick={handleStarDoubleClick}
-            onContextMenu={handleStarContextMenu}
-          />
-        )}
-        {displayMode === 'planet' && (
-          <PlanetScene
-            clusters={clusters}
-            allStars={allStars}
-            visible={starsVisible}
-            matchedIds={matchedIds}
-            hasSearch={hasSearch}
-            onStarClick={handleStarClick}
-            onHover={handleHover}
-            onDoubleClick={handleStarDoubleClick}
-            onContextMenu={handleStarContextMenu}
-          />
-        )}
-        {displayMode === 'universe' && (
-          <UniverseScene
-            clusters={clusters}
-            allStars={allStars}
-            visible={starsVisible}
-            matchedIds={matchedIds}
-            hasSearch={hasSearch}
-            onStarClick={handleStarClick}
-            onHover={handleHover}
-            onDoubleClick={handleStarDoubleClick}
-            onContextMenu={handleStarContextMenu}
-          />
-        )}
-        {displayMode === 'matrix' && (
-          <MatrixScene
-            clusters={clusters}
-            allStars={allStars}
-            visible={starsVisible}
-            matchedIds={matchedIds}
-            hasSearch={hasSearch}
-            onStarClick={handleStarClick}
-            onHover={handleHover}
-            onDoubleClick={handleStarDoubleClick}
-            onContextMenu={handleStarContextMenu}
-          />
-        )}
+        <CosmosScene
+          clusters={clusters}
+          allStars={allStars}
+          warpPhase={warpPhase}
+          starsVisible={starsVisible}
+          matchedIds={matchedIds}
+          hasSearch={hasSearch}
+          flyTarget={flyTarget}
+          onFlyComplete={handleFlyComplete}
+          onStarClick={handleStarClick}
+          onHover={handleHover}
+          cameraEnabled={cameraEnabled}
+          burstRef={burstRef}
+          cameraInfoRef={cameraInfoRef}
+          onDoubleClick={handleStarDoubleClick}
+          onContextMenu={handleStarContextMenu}
+        />
       </div>
 
-      {/* 拖拽速度线叠加（仅银河模式） */}
-      {displayMode === 'galaxy' && (
-        <div
+      {/* 拖拽速度线叠加 */}
+      <div
           className="pointer-events-none absolute inset-0 transition-opacity duration-300"
           style={{ opacity: isDragging ? 0.12 : 0 }}
         >
@@ -366,7 +291,6 @@ export function Galaxy() {
             }}
           />
         </div>
-      )}
 
       {/* HUD 叠加层 */}
       <GalaxyHUD
@@ -384,19 +308,12 @@ export function Galaxy() {
         onAudioToggle={handleAudioToggle}
       />
 
-      {/* 迷你星图（仅银河模式） */}
-      {cameraEnabled && displayMode === 'galaxy' && (
+      {/* 迷你星图 */}
+      {cameraEnabled && (
         <div className="absolute bottom-20 left-5 z-10">
           <MiniMap clusters={clusters} cameraRef={cameraInfoRef} />
         </div>
       )}
-
-      {/* 展示模式切换器 */}
-      <ModeSelector
-        displayMode={displayMode}
-        onModeChange={handleModeChange}
-        visible={cameraEnabled}
-      />
 
       {/* 右键上下文菜单 */}
       <ContextMenu
