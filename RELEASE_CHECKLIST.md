@@ -15,26 +15,26 @@
 
 ### VSCode 插件
 
-- [x] package.json 配置完整（8 命令 + 6 快捷键）
+- [x] package.json 配置完整（9 命令 + 7 快捷键）
 - [x] .vscodeignore 文件
 - [x] CHANGELOG.md
 - [x] handleCommandError 集中错误处理
 - [ ] **icon.png （128x128）** ⚠️ 需要设计师制作
 - [ ] README.md 截图/GIF 演示
 - [ ] 测试所有命令功能（含智能增强 Ctrl+Alt+I）
-- [ ] 测试快捷键（6 个）
+- [ ] 测试快捷键（7 个）
 
 ### IntelliJ 插件
 
 - [x] build.gradle.kts 配置完整（需 JDK 17）
-- [x] plugin.xml 配置完整（7 个 Action + 6 快捷键）
+- [x] plugin.xml 配置完整（8 个 Action + 7 快捷键）
 - [x] ScratchRootType 替代 LightVirtualFile
 - [x] WriteCommandAction 支持撤销
 - [x] 竞态条件修复（选区偏移量保存）
 - [x] NotificationGroupManager 非阻塞通知
 - [x] WelcomeDialog 97 场景全覆盖
 - [ ] 测试所有 Action 功能（含智能增强 Ctrl+Alt+I）
-- [ ] 测试快捷键（6 个）
+- [ ] 测试快捷键（7 个）
 - [ ] 检查资源文件（图标）
 
 ### 文档
