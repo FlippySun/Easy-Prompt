@@ -279,18 +279,18 @@ export function Galaxy() {
 
       {/* 拖拽速度线叠加 */}
       <div
-          className="pointer-events-none absolute inset-0 transition-opacity duration-300"
-          style={{ opacity: isDragging ? 0.12 : 0 }}
-        >
-          <div
-            className="h-full w-full"
-            style={{
-              background: `repeating-conic-gradient(from 0deg at 50% 50%, transparent 0deg 5deg, rgba(129, 140, 248, 0.06) 5deg 5.4deg)`,
-              maskImage: 'radial-gradient(circle at center, transparent 20%, black 50%, transparent 85%)',
-              WebkitMaskImage: 'radial-gradient(circle at center, transparent 20%, black 50%, transparent 85%)',
-            }}
-          />
-        </div>
+        className="pointer-events-none absolute inset-0 transition-opacity duration-300"
+        style={{ opacity: isDragging ? 0.12 : 0 }}
+      >
+        <div
+          className="h-full w-full"
+          style={{
+            background: `repeating-conic-gradient(from 0deg at 50% 50%, transparent 0deg 5deg, rgba(129, 140, 248, 0.06) 5deg 5.4deg)`,
+            maskImage: 'radial-gradient(circle at center, transparent 20%, black 50%, transparent 85%)',
+            WebkitMaskImage: 'radial-gradient(circle at center, transparent 20%, black 50%, transparent 85%)',
+          }}
+        />
+      </div>
 
       {/* HUD 叠加层 */}
       <GalaxyHUD
