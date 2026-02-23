@@ -28,7 +28,9 @@ export function Navbar({ darkMode, onToggleDark, searchValue, onSearchChange, on
     setShowBubble(false);
     try {
       localStorage.setItem(BUBBLE_KEY, '1');
-    } catch {}
+    } catch {
+      /* localStorage unavailable */
+    }
   };
 
   const handleSearch = (value: string) => {

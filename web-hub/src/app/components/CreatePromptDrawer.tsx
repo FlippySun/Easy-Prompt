@@ -61,9 +61,7 @@ export function CreatePromptDrawer({ children, darkMode }: CreatePromptDrawerPro
           }`}
         >
           <Drawer.Title className="sr-only">提交 Prompt</Drawer.Title>
-          <Drawer.Description className="sr-only">
-            分享你的高质量 AI 提示词到 PromptHub 精选库
-          </Drawer.Description>
+          <Drawer.Description className="sr-only">分享你的高质量 AI 提示词到 PromptHub 精选库</Drawer.Description>
           {/* Drag Handle */}
           <div className="flex justify-center pt-3 pb-1">
             <div className={`h-1 w-10 rounded-full ${dm ? 'bg-gray-700' : 'bg-gray-200'}`} />
