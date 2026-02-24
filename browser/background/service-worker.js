@@ -169,6 +169,24 @@ async function handleInlineEnhance(text, tabId) {
     const config = await getEffectiveConfig();
     const result = await Router.smartRoute(config, text.trim(), onProgress);
 
+    // Save to history (mirrors popup.js handleGenerate)
+    try {
+      const sceneNames = Scenes.getSceneNames();
+      const sceneName = result.scenes
+        .map((s) => sceneNames[s] || s)
+        .join(result.composite ? " + " : ", ");
+      const mode = result.composite ? "composite" : "single";
+      await Storage.saveHistoryRecord(
+        text.trim(),
+        result.result,
+        mode,
+        result.scenes,
+        sceneName,
+      );
+    } catch (e) {
+      console.warn("[EP] Failed to save inline enhance to history:", e);
+    }
+
     return {
       ok: true,
       result: result.result,

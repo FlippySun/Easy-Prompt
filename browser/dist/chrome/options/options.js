@@ -62,9 +62,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("#btn-theme").addEventListener("click", async () => {
     const current = getEffectiveTheme();
     const next = current === "light" ? "dark" : "light";
+    document.documentElement.classList.add("theme-transitioning");
     document.documentElement.setAttribute("data-theme", next);
     await Storage.saveTheme(next);
     _setHTML($("#btn-theme"), next === "light" ? ICON_MOON : ICON_SUN);
+    setTimeout(() => {
+      document.documentElement.classList.remove("theme-transitioning");
+    }, 500);
   });
 
   // Save

@@ -7,6 +7,12 @@
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
+    <!-- Ambient Background (decorative, no interaction) -->
+    <div class="ambient-bg" aria-hidden="true">
+      <div class="ambient-orb ambient-orb--1"></div>
+      <div class="ambient-orb ambient-orb--2"></div>
+    </div>
+
     <!-- ═══ Main View ═══ -->
     <div id="main-view">
       <!-- Header -->
@@ -45,14 +51,16 @@
 
       <!-- Input Area -->
       <div class="input-area">
-        <textarea
-          id="input-text"
-          class="input-area__textarea"
-          placeholder="输入你的需求，AI 会自动识别意图并生成专业 Prompt..."
-          rows="4"
-          maxlength="10000"
-          aria-label="输入需求文本"
-        ></textarea>
+        <div class="input-area__textarea-wrap">
+          <textarea
+            id="input-text"
+            class="input-area__textarea"
+            placeholder="输入你的需求，AI 会自动识别意图并生成专业 Prompt..."
+            rows="4"
+            maxlength="10000"
+            aria-label="输入需求文本"
+          ></textarea>
+        </div>
         <div class="input-area__footer">
           <div class="input-area__scene">
             <button
@@ -64,28 +72,6 @@
               <span id="scene-select-label">智能识别</span>
               <span id="scene-select-chevron"></span>
             </button>
-            <!-- Scene Picker Dropdown -->
-            <div
-              class="picker"
-              id="scene-picker"
-              role="listbox"
-              aria-label="场景选择"
-              hidden
-            >
-              <div class="picker__search-wrap">
-                <span
-                  class="picker__search-icon"
-                  id="picker-search-icon"
-                ></span>
-                <input
-                  type="text"
-                  class="picker__search"
-                  id="picker-search"
-                  placeholder="搜索场景..."
-                />
-              </div>
-              <div class="picker__list" id="picker-list"></div>
-            </div>
           </div>
           <div class="input-area__right">
             <span class="char-count" id="char-count">0 / 10000</span>
@@ -158,6 +144,15 @@
           aria-label="清空历史"
         ></button>
       </div>
+      <div class="panel__search-wrap">
+        <span class="panel__search-icon" id="history-search-icon"></span>
+        <input
+          type="text"
+          class="panel__search"
+          id="history-search"
+          placeholder="搜索场景、原文或扩写内容..."
+        />
+      </div>
       <div class="panel__body" id="history-list"></div>
       <div class="panel__empty" id="history-empty" hidden>
         <p>暂无历史记录</p>
@@ -197,6 +192,26 @@
         <!-- Scenes List -->
         <div class="scenes-list" id="scenes-list"></div>
       </div>
+    </div>
+
+    <!-- Scene Picker Dropdown (body-level to escape overflow clipping) -->
+    <div
+      class="picker"
+      id="scene-picker"
+      role="listbox"
+      aria-label="场景选择"
+      hidden
+    >
+      <div class="picker__search-wrap">
+        <span class="picker__search-icon" id="picker-search-icon"></span>
+        <input
+          type="text"
+          class="picker__search"
+          id="picker-search"
+          placeholder="搜索场景..."
+        />
+      </div>
+      <div class="picker__list" id="picker-list"></div>
     </div>
 
     <!-- Toast -->

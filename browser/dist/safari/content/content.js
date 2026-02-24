@@ -1,7 +1,6 @@
 /**
  * Easy Prompt Browser Extension — Content Script
- * 1. Shows a floating "enhance" button when the user selects text on any webpage.
- * 2. On AI chat sites: persistent trigger icon + preview panel + undo + keyboard shortcut.
+ * On AI chat sites: persistent trigger icon + preview panel + undo + keyboard shortcut.
  */
 
 (function () {
@@ -32,105 +31,7 @@
   const SHORTCUT_LABEL = isMac ? "⌘⇧E" : "Ctrl+Shift+E";
 
   /* ═══════════════════════════════════════════════════════
-   * Part 1: Text Selection Float Button (all pages)
-   * ═══════════════════════════════════════════════════════ */
-
-  let floatBtn = null;
-  let hideTimer = null;
-  let scrollRafPending = false;
-
-  function createFloatButton() {
-    if (floatBtn) return floatBtn;
-    floatBtn = document.createElement("div");
-    floatBtn.id = "easy-prompt-float-btn";
-    floatBtn.replaceChildren(..._parseSVG(ICON_SPARKLES));
-    floatBtn.title = "Easy Prompt 增强";
-    floatBtn.addEventListener("mousedown", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const text = window.getSelection()?.toString().trim();
-      if (text) {
-        try {
-          if (chrome.runtime?.id) {
-            chrome.runtime.sendMessage({ type: "ENHANCE_TEXT", text });
-          }
-        } catch {
-          /* Extension context invalidated */
-        }
-      }
-      hideFloatButton();
-    });
-    document.body.appendChild(floatBtn);
-    return floatBtn;
-  }
-
-  function showFloatButton(x, y) {
-    clearTimeout(hideTimer);
-    const btn = createFloatButton();
-    const bw = 32,
-      bh = 32,
-      gap = 8;
-    let left = x - bw / 2;
-    let top = y - bh - gap;
-    left = Math.max(4, Math.min(left, window.innerWidth - bw - 4));
-    if (top < 4) top = y + gap;
-    btn.style.left = `${left}px`;
-    btn.style.top = `${top}px`;
-    btn.classList.add("is-visible");
-  }
-
-  function hideFloatButton() {
-    if (!floatBtn) return;
-    floatBtn.classList.remove("is-visible");
-  }
-
-  document.addEventListener("mouseup", (e) => {
-    if (
-      e.target.id === "easy-prompt-float-btn" ||
-      e.target.closest("#easy-prompt-float-btn")
-    )
-      return;
-    clearTimeout(hideTimer);
-    hideTimer = setTimeout(() => {
-      const sel = window.getSelection();
-      const text = sel?.toString().trim();
-      if (text && text.length > 1) {
-        const range = sel.getRangeAt(0);
-        const rect = range.getBoundingClientRect();
-        // Skip if rect is invalid (e.g. selection inside textarea/form controls)
-        if (rect.width > 0 && rect.height > 0) {
-          showFloatButton(rect.left + rect.width / 2, rect.top);
-        }
-      } else {
-        hideFloatButton();
-      }
-    }, 200);
-  });
-
-  document.addEventListener("mousedown", (e) => {
-    if (
-      e.target.id !== "easy-prompt-float-btn" &&
-      !e.target.closest("#easy-prompt-float-btn")
-    ) {
-      hideFloatButton();
-    }
-  });
-
-  window.addEventListener(
-    "scroll",
-    () => {
-      if (scrollRafPending) return;
-      scrollRafPending = true;
-      requestAnimationFrame(() => {
-        hideFloatButton();
-        scrollRafPending = false;
-      });
-    },
-    { passive: true },
-  );
-
-  /* ═══════════════════════════════════════════════════════
-   * Part 2: AI Chat Site Inline Enhance
+   * AI Chat Site Inline Enhance
    *   - Persistent trigger icon (non-intrusive)
    *   - Preview panel (original vs enhanced)
    *   - Undo mechanism

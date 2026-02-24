@@ -5,6 +5,27 @@ All notable changes to the Easy Prompt project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.3.2] - 2026-02-24
+
+### Browser Extension 交互与历史面板升级
+
+#### 历史面板能力增强
+
+- **新增：历史搜索** — 支持按场景名、用户输入、扩写内容全文检索
+- **新增：按日期分组** — 历史记录按“今天/昨天/具体日期”分组展示，信息定位更高效
+- **新增：单开折叠详情** — 同一时刻仅允许展开一个历史卡片，避免列表信息过载
+- **新增：双内容展示** — 卡片同时展示“用户输入”与“扩写结果”摘要，展开可查看完整扩写
+
+#### 交互体验优化
+
+- **优化：防误触操作模型** — 取消点击卡片主体即跳转，改为显式动作按钮（应用/复制/删除/展开）
+- **优化：卡片层级与动效** — 历史卡片 hover 与边条过渡重构，过渡更平滑、更克制
+- **优化：面板切换观感** — 浏览器端切面动效与时序微调，减少体感割裂
+
+#### 三浏览器一致性
+
+- **审查：Chrome / Firefox / Safari 构建一致性** — 同步校验三端构建产物结构与关键资源一致，确保跨浏览器行为对齐
+
 ## [5.3.1] - 2026-02-23
 
 ### 🟣 PromptHub 性能优化

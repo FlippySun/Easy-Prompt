@@ -16,6 +16,8 @@ let isGenerating = false;
 let currentAbortController = null;
 let selectedScene = null;
 let _historyData = []; // 事件委托用, 避免每张卡片创建闭包
+let _historyQuery = "";
+let _historyExpandedId = null;
 let _currentOutputText = ""; // P02: 共享变量存储当前输出文本, 避免每次重建 copy button
 let _currentOutputScenes = []; // 用于状态持久化
 let _currentOutputComposite = false; // 用于状态持久化
@@ -33,6 +35,55 @@ function debounce(fn, ms) {
   };
   debounced.cancel = () => clearTimeout(timer);
   return debounced;
+}
+
+const FLIP_HIDE_BACK_AT_MS = 145; // 背面先收起
+const FLIP_REVEAL_FRONT_AT_MS = 150; // 近同步揭示正面，进一步减少等待感
+
+function _clearCloseTimers(el) {
+  if (!el || !el._closeTimers) return;
+  for (const t of el._closeTimers) clearTimeout(t);
+  el._closeTimers = null;
+}
+
+function _replayRiseIn(el) {
+  if (!el) return;
+  el.classList.remove("view-rise-in");
+  void el.offsetWidth;
+  el.classList.add("view-rise-in");
+}
+
+function _scheduleFlipMidSwitch(
+  el,
+  { onHideBack, onRevealFront, onAfterClose } = {},
+) {
+  _clearCloseTimers(el);
+  let hiddenBack = false;
+  let revealedFront = false;
+  const hideBack = () => {
+    if (hiddenBack) return;
+    hiddenBack = true;
+    if (onHideBack) onHideBack();
+    el.hidden = true;
+    el.classList.remove("is-leaving");
+    if (onAfterClose) onAfterClose();
+  };
+
+  const revealFront = () => {
+    if (revealedFront) return;
+    revealedFront = true;
+    if (onRevealFront) onRevealFront();
+  };
+
+  const hideTimer = setTimeout(hideBack, FLIP_HIDE_BACK_AT_MS);
+  const revealTimer = setTimeout(revealFront, FLIP_REVEAL_FRONT_AT_MS);
+  // fallback: 页面卡顿时确保最终收尾
+  const fallbackTimer = setTimeout(() => {
+    hideBack();
+    revealFront();
+    _clearCloseTimers(el);
+  }, FLIP_REVEAL_FRONT_AT_MS + 260);
+  el._closeTimers = [hideTimer, revealTimer, fallbackTimer];
 }
 
 /* ─── State Persistence ─── */
@@ -82,6 +133,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   bindHistoryEvents();
   bindScenesModalEvents();
   bindKeyboardShortcuts();
+  bindTiltEffect();
 
   // Check if text was passed from service worker (via storage.session or URL params)
   let initialText = null;
@@ -182,6 +234,7 @@ function injectIcons() {
   // History panel icons
   _setHTML($("#btn-history-back"), Icons.arrowLeft);
   _setHTML($("#btn-history-clear"), Icons.trash);
+  _setHTML($("#history-search-icon"), Icons.search);
   // Scene modal icons
   _setHTML($("#btn-scenes-close"), Icons.close);
   _setHTML($("#scenes-search-icon"), Icons.search);
@@ -208,6 +261,25 @@ function updateGenerateButton() {
   $("#btn-generate").disabled = !hasValidText && !isGenerating;
 }
 
+/* ═══ 3D Tilt Effect on Input ═══ */
+function bindTiltEffect() {
+  const wrap = $(".input-area__textarea-wrap");
+  const MAX_TILT = 3; // degrees
+  wrap.addEventListener("mousemove", (e) => {
+    const rect = wrap.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    const tiltX = (0.5 - y) * MAX_TILT * 2;
+    const tiltY = (x - 0.5) * MAX_TILT * 2;
+    wrap.style.transition = "none";
+    wrap.style.transform = `perspective(800px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
+  });
+  wrap.addEventListener("mouseleave", () => {
+    wrap.style.transition = "";
+    wrap.style.transform = "";
+  });
+}
+
 /* ═══ Header Events ═══ */
 function bindHeaderEvents() {
   // Clear button — reset all input/output state
@@ -223,23 +295,71 @@ function bindHeaderEvents() {
     updateSceneButton();
     hideStatus();
     $$(".scene-tag").forEach((t) => t.classList.remove("is-active"));
-    // Hide output, show empty state
-    $("#output-area").hidden = true;
-    $("#output-area").classList.remove("is-entering");
-    $("#empty-state").hidden = false;
+    // Hide output, show empty state — with transition
+    const outputArea = $("#output-area");
+    const emptyState = $("#empty-state");
+    if (!outputArea.hidden) {
+      outputArea.classList.remove("is-entering");
+      outputArea.classList.add("is-leaving");
+      outputArea.addEventListener(
+        "animationend",
+        () => {
+          outputArea.hidden = true;
+          outputArea.classList.remove("is-leaving");
+          emptyState.hidden = false;
+          emptyState.classList.remove("is-entering");
+          void emptyState.offsetWidth;
+          emptyState.classList.add("is-entering");
+        },
+        { once: true },
+      );
+    } else {
+      emptyState.hidden = false;
+    }
     // Clear session state
     await Storage.clearPopupState();
     showToast("已清除", "success");
     $("#input-text").focus();
   });
 
-  // Theme toggle
+  // Theme toggle — circular reveal with CSS mask
   $("#btn-theme").addEventListener("click", async () => {
     const current = getEffectiveTheme();
     const next = current === "light" ? "dark" : "light";
+    const btn = $("#btn-theme");
+    const rect = btn.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const maxR = Math.ceil(
+      Math.hypot(
+        Math.max(cx, document.body.clientWidth - cx),
+        Math.max(cy, document.body.clientHeight - cy),
+      ),
+    );
+    // Capture old bg before switching
+    const oldBg = getComputedStyle(document.body).backgroundColor;
+    // Apply new theme immediately — content updates
     document.documentElement.setAttribute("data-theme", next);
+    _setHTML(btn, next === "light" ? Icons.moon : Icons.sun);
     await Storage.saveTheme(next);
-    _setHTML($("#btn-theme"), next === "light" ? Icons.moon : Icons.sun);
+    // Overlay old bg with expanding transparent hole (mask)
+    const mask = document.createElement("div");
+    mask.className = "theme-reveal-mask";
+    mask.style.background = oldBg;
+    const grad = `radial-gradient(circle at ${cx}px ${cy}px, transparent var(--hole-r), black var(--hole-r))`;
+    mask.style.setProperty("-webkit-mask-image", grad);
+    mask.style.setProperty("mask-image", grad);
+    document.body.appendChild(mask);
+    void mask.offsetWidth; // force initial layout with --hole-r: 0px
+    mask.style.setProperty("--hole-r", maxR + "px");
+    let done = false;
+    const cleanup = () => {
+      if (done) return;
+      done = true;
+      mask.remove();
+    };
+    mask.addEventListener("transitionend", cleanup, { once: true });
+    setTimeout(cleanup, 650);
   });
 
   // History panel
@@ -314,8 +434,10 @@ async function handleGenerate() {
       );
     }
 
-    // Show output
-    showOutput(result.result, result.scenes, result.composite);
+    const promptOnlyResult = sanitizeEnhancedPrompt(result.result);
+
+    // Show output (prompt-only)
+    showOutput(promptOnlyResult, result.scenes, result.composite);
 
     // Save to history
     const sceneNames = Scenes.getSceneNames();
@@ -323,7 +445,7 @@ async function handleGenerate() {
     const mode = result.composite ? "composite" : "single";
     await Storage.saveHistoryRecord(
       text,
-      result.result,
+      promptOnlyResult,
       mode,
       result.scenes,
       sceneName,
@@ -486,9 +608,34 @@ function openPicker() {
   clearTimeout(_pickerCloseTimer);
   _pickerCloseTimer = null;
   const picker = $("#scene-picker");
-  picker.hidden = false;
-  $("#btn-scene-select").setAttribute("aria-expanded", "true");
-  requestAnimationFrame(() => picker.classList.add("is-visible"));
+  const btn = $("#btn-scene-select");
+  picker.removeAttribute("hidden");
+
+  // Position absolute picker relative to body
+  const rect = btn.getBoundingClientRect();
+  const GAP = 6;
+  const pickerH = 320;
+  const bodyH = document.body.clientHeight;
+  const spaceAbove = rect.top - GAP;
+  const spaceBelow = bodyH - rect.bottom - GAP;
+
+  if (spaceAbove >= Math.min(pickerH, spaceBelow)) {
+    // Show above the button
+    picker.style.bottom = bodyH - rect.top + GAP + "px";
+    picker.style.top = "auto";
+    picker.style.maxHeight = Math.min(pickerH, spaceAbove) + "px";
+  } else {
+    // Show below the button
+    picker.style.top = rect.bottom + GAP + "px";
+    picker.style.bottom = "auto";
+    picker.style.maxHeight = Math.min(pickerH, spaceBelow) + "px";
+  }
+  picker.style.left = rect.left + "px";
+
+  btn.setAttribute("aria-expanded", "true");
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => picker.classList.add("is-visible"));
+  });
   setTimeout(() => $("#picker-search").focus(), 50);
 }
 
@@ -499,7 +646,7 @@ function closePicker() {
   clearTimeout(_pickerCloseTimer);
   _pickerCloseTimer = setTimeout(() => {
     _pickerCloseTimer = null;
-    picker.hidden = true;
+    picker.setAttribute("hidden", "");
     $("#picker-search").value = "";
     filterPicker("");
   }, 200);
@@ -603,7 +750,11 @@ function bindScenesModalEvents() {
 
 function openScenesModal() {
   const modal = $("#scenes-modal");
+  _clearCloseTimers(modal);
+  modal.classList.remove("is-leaving");
+  $("#main-view").classList.add("is-behind");
   modal.hidden = false;
+  _replayRiseIn(modal.querySelector(".modal__content"));
   setTimeout(() => $("#scenes-search").focus(), 100);
 
   // A02: Focus trap within modal
@@ -635,23 +786,20 @@ function closeScenesModal() {
   const modal = $("#scenes-modal");
   if (modal.hidden || modal.classList.contains("is-leaving")) return;
   modal.classList.add("is-leaving");
-  let cleaned = false;
-  const onEnd = () => {
-    if (cleaned) return;
-    cleaned = true;
-    modal.removeEventListener("animationend", onEnd);
-    clearTimeout(fallbackTimer);
-    modal.hidden = true;
-    modal.classList.remove("is-leaving");
-    $("#scenes-search").value = "";
-    filterSceneBrowser("");
-    if (modal._focusTrap) {
-      document.removeEventListener("keydown", modal._focusTrap);
-      modal._focusTrap = null;
-    }
-  };
-  modal.addEventListener("animationend", onEnd);
-  const fallbackTimer = setTimeout(onEnd, 350); // fallback: 动画未触发时也能正常关闭
+  _scheduleFlipMidSwitch(modal, {
+    onRevealFront: () => {
+      $("#main-view").classList.remove("is-behind");
+      _replayRiseIn($("#main-view"));
+    },
+    onAfterClose: () => {
+      $("#scenes-search").value = "";
+      filterSceneBrowser("");
+      if (modal._focusTrap) {
+        document.removeEventListener("keydown", modal._focusTrap);
+        modal._focusTrap = null;
+      }
+    },
+  });
 }
 
 function renderSceneBrowser() {
@@ -776,30 +924,77 @@ function bindHistoryEvents() {
     renderHistoryList([]);
     showToast("历史已清空", "success");
   });
+  $("#history-search").addEventListener(
+    "input",
+    debounce((e) => {
+      _historyQuery = (e.target.value || "").trim();
+      renderHistoryList(_historyData);
+    }, 100),
+  );
   bindHistoryListDelegation();
 }
 
 async function openHistoryPanel() {
   const records = await Storage.loadHistory();
+  _historyQuery = "";
+  _historyExpandedId = null;
+  $("#history-search").value = "";
   renderHistoryList(records);
-  $("#history-panel").hidden = false;
+  const panel = $("#history-panel");
+  _clearCloseTimers(panel);
+  panel.classList.remove("is-leaving");
+  $("#main-view").classList.add("is-behind");
+  panel.hidden = false;
+  _replayRiseIn(panel);
 }
 
 function closeHistoryPanel() {
   const panel = $("#history-panel");
   if (panel.hidden || panel.classList.contains("is-leaving")) return;
   panel.classList.add("is-leaving");
-  let cleaned = false;
-  const onEnd = () => {
-    if (cleaned) return;
-    cleaned = true;
-    panel.removeEventListener("animationend", onEnd);
-    clearTimeout(fallbackTimer);
-    panel.hidden = true;
-    panel.classList.remove("is-leaving");
-  };
-  panel.addEventListener("animationend", onEnd);
-  const fallbackTimer = setTimeout(onEnd, 350); // fallback: 动画未触发时也能正常关闭
+  _scheduleFlipMidSwitch(panel, {
+    onRevealFront: () => {
+      $("#main-view").classList.remove("is-behind");
+      _replayRiseIn($("#main-view"));
+    },
+  });
+}
+
+function sanitizeEnhancedPrompt(text) {
+  const raw = (text || "").trim();
+  if (!raw) return "";
+  const markers = [
+    /(?:^|\n)\s*(?:assistant|ai)\s*[:：]/i,
+    /(?:^|\n)\s*(?:回答|回复|response)\s*[:：]/i,
+    /(?:^|\n)\s*#{1,3}\s*(?:assistant|ai|回答|response)\b/i,
+  ];
+  let cut = -1;
+  for (const re of markers) {
+    const m = raw.match(re);
+    if (m && typeof m.index === "number" && m.index > 60) {
+      cut = cut === -1 ? m.index : Math.min(cut, m.index);
+    }
+  }
+  return cut > 0 ? raw.slice(0, cut).trim() : raw;
+}
+
+function formatHistoryDateKey(timestamp) {
+  const d = new Date(timestamp);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
+}
+
+function formatHistoryDateLabel(dateKey) {
+  const now = new Date();
+  const todayKey = formatHistoryDateKey(now.getTime());
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayKey = formatHistoryDateKey(yesterday.getTime());
+  if (dateKey === todayKey) return "今天";
+  if (dateKey === yesterdayKey) return "昨天";
+  const [y, m, d] = dateKey.split("-");
+  return `${y}年${m}月${d}日`;
 }
 
 function renderHistoryList(records) {
@@ -810,39 +1005,113 @@ function renderHistoryList(records) {
   // 存储记录数据供事件委托使用
   _historyData = records || [];
 
-  if (!_historyData.length) {
+  const q = (_historyQuery || "").toLowerCase();
+  const filtered = _historyData.filter((rec) => {
+    if (!q) return true;
+    const haystack =
+      `${rec.sceneName || ""}\n${rec.originalText || ""}\n${sanitizeEnhancedPrompt(rec.enhancedText || "")}`.toLowerCase();
+    return haystack.includes(q);
+  });
+
+  if (!filtered.length) {
     empty.hidden = false;
+    empty.textContent = _historyQuery ? "未找到匹配历史" : "暂无历史记录";
     list.hidden = true;
+    _historyExpandedId = null;
     return;
   }
+
+  const visibleIds = new Set(filtered.map((r) => r.id));
+  if (_historyExpandedId && !visibleIds.has(_historyExpandedId)) {
+    _historyExpandedId = null;
+  }
+
   empty.hidden = true;
+  empty.textContent = "暂无历史记录";
   list.hidden = false;
 
-  for (const rec of _historyData) {
-    const card = document.createElement("div");
-    card.className = "history-card";
-    card.dataset.id = rec.id;
-    const time = new Date(rec.timestamp).toLocaleString("zh-CN", {
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  const sorted = [...filtered].sort(
+    (a, b) => (b.timestamp || 0) - (a.timestamp || 0),
+  );
+  const grouped = new Map();
+  for (const rec of sorted) {
+    const key = formatHistoryDateKey(rec.timestamp);
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(rec);
+  }
+
+  for (const [dateKey, items] of grouped.entries()) {
+    const groupEl = document.createElement("section");
+    groupEl.className = "history-group";
+
+    const headerEl = document.createElement("div");
+    headerEl.className = "history-group__header";
     _setHTML(
-      card,
-      `
+      headerEl,
+      `<span class="history-group__title">${escapeHtml(formatHistoryDateLabel(dateKey))}</span><span class="history-group__line"></span>`,
+    );
+    groupEl.appendChild(headerEl);
+
+    for (const rec of items) {
+      const card = document.createElement("div");
+      const isExpanded = _historyExpandedId === rec.id;
+      card.className = "history-card" + (isExpanded ? " is-expanded" : "");
+      card.dataset.id = rec.id;
+      const time = new Date(rec.timestamp).toLocaleString("zh-CN", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      const original = rec.originalText || "";
+      const enhanced = sanitizeEnhancedPrompt(rec.enhancedText || "");
+      _setHTML(
+        card,
+        `
       <div class="history-card__header">
         <span class="history-card__scene">${escapeHtml(rec.sceneName || "智能")}</span>
         <span class="history-card__time">${escapeHtml(time)}</span>
       </div>
-      <div class="history-card__original">${escapeHtml(rec.originalText || "")}</div>
+      <div class="history-card__block">
+        <div class="history-card__label">用户输入</div>
+        <div class="history-card__text history-card__text--clamp">${escapeHtml(original)}</div>
+      </div>
+      <div class="history-card__block">
+        <div class="history-card__label">扩写结果</div>
+        <div class="history-card__text history-card__text--clamp">${escapeHtml(enhanced)}</div>
+        <div class="history-card__enhanced-full"><div class="history-card__enhanced-full-inner">${escapeHtml(enhanced)}</div></div>
+      </div>
       <div class="history-card__actions">
+        <button class="icon-btn icon-btn--sm history-card__toggle ${isExpanded ? "is-open" : ""}" data-action="toggle" title="${isExpanded ? "收起详情" : "展开详情"}" aria-label="${isExpanded ? "收起详情" : "展开详情"}">${Icons.chevronDown}</button>
+        <button class="icon-btn icon-btn--sm" data-action="apply" title="应用到正面" aria-label="应用到正面">${Icons.externalLink}</button>
         <button class="icon-btn icon-btn--sm" data-action="copy" title="复制结果" aria-label="复制结果">${Icons.copy}</button>
         <button class="icon-btn icon-btn--sm icon-btn--danger" data-action="delete" title="删除" aria-label="删除">${Icons.trash}</button>
       </div>`,
-    );
-    list.appendChild(card);
+      );
+      groupEl.appendChild(card);
+    }
+
+    list.appendChild(groupEl);
   }
+}
+
+function updateHistoryExpandedState(listEl) {
+  listEl.querySelectorAll(".history-card").forEach((card) => {
+    const id = card.dataset.id;
+    const isExpanded = _historyExpandedId === id;
+    card.classList.toggle("is-expanded", isExpanded);
+
+    const toggleBtn = card.querySelector('[data-action="toggle"]');
+    if (toggleBtn) {
+      toggleBtn.classList.toggle("is-open", isExpanded);
+      toggleBtn.title = isExpanded ? "收起详情" : "展开详情";
+      toggleBtn.setAttribute(
+        "aria-label",
+        isExpanded ? "收起详情" : "展开详情",
+      );
+    }
+
+    const fullEl = card.querySelector(".history-card__enhanced-full");
+    if (fullEl) fullEl.style.removeProperty("--expanded-h");
+  });
 }
 
 /**
@@ -860,26 +1129,26 @@ function bindHistoryListDelegation() {
     const actionEl = e.target.closest("[data-action]");
     const action =
       actionEl && card.contains(actionEl) ? actionEl.dataset.action : null;
-    if (action === "copy") {
+    if (action === "toggle") {
       e.stopPropagation();
-      handleCopy(rec.enhancedText || "");
+      _historyExpandedId = _historyExpandedId === id ? null : id;
+      updateHistoryExpandedState(list);
+    } else if (action === "apply") {
+      e.stopPropagation();
+      closeHistoryPanel();
+      const enhanced = sanitizeEnhancedPrompt(rec.enhancedText || "");
+      showOutput(enhanced, rec.sceneIds || [], rec.mode === "composite");
+    } else if (action === "copy") {
+      e.stopPropagation();
+      handleCopy(sanitizeEnhancedPrompt(rec.enhancedText || ""));
     } else if (action === "delete") {
       e.stopPropagation();
       await Storage.deleteHistoryRecord(id);
       _historyData = _historyData.filter((r) => r.id !== id);
-      card.remove();
-      if (!list.querySelectorAll(".history-card").length) {
-        $("#history-empty").hidden = false;
-        list.hidden = true;
-      }
+      if (_historyExpandedId === id) _historyExpandedId = null;
+      renderHistoryList(_historyData);
     } else {
-      // Click card → reuse result
-      closeHistoryPanel();
-      showOutput(
-        rec.enhancedText || "",
-        rec.sceneIds || [],
-        rec.mode === "composite",
-      );
+      // 卡片主体点击不触发跳转，避免误触
     }
   });
 }
