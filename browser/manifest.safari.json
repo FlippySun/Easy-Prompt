@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Easy Prompt AI",
   "version": "5.3.2",
-  "description": "AI 智能 Prompt 增强工具 — 97 场景 · 10 画像 · 两步路由。配套 PromptHub 精选库（zhiz.chat）。AI Prompt Enhancer — 97 scenes, 10 personas, two-step routing. Includes PromptHub (zhiz.chat).",
+  "description": "AI Prompt 增强工具：97 场景、10 画像、两步路由，支持网页一键增强，含 PromptHub 精选库（zhiz.chat）。",
   "icons": {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",
