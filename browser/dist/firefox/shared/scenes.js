@@ -1,7 +1,7 @@
 /**
  * Easy Prompt Browser Extension — Scenes Data Layer
  * 场景分类 · 热门场景 · 人物画像 · 场景加载
- * 85 个场景数据从 scenes.json 加载
+ * 97 个场景数据从 scenes.json 加载
  */
 
 /* ─── 场景分类（15 个分类） ─── */

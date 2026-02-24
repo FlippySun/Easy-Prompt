@@ -1,73 +1,48 @@
-/* Easy Prompt — Content Script Styles */
-/* Floating enhance button shown on text selection */
-
-#easy-prompt-float-btn {
-  position: fixed;
-  z-index: 2147483647;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  background: #8b5cf6;
-  color: #fff;
-  cursor: pointer;
-  box-shadow:
-    0 4px 12px rgba(139, 92, 246, 0.4),
-    0 1px 3px rgba(0, 0, 0, 0.2);
-  opacity: 0;
-  visibility: hidden;
-  transform: scale(0.8) translateY(4px);
-  transition:
-    opacity 150ms ease,
-    visibility 150ms ease,
-    transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  pointer-events: none;
-  user-select: none;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-}
-
-#easy-prompt-float-btn.is-visible {
-  opacity: 1;
-  visibility: visible;
-  transform: scale(1) translateY(0);
-  pointer-events: auto;
-}
-
-#easy-prompt-float-btn:hover {
-  background: #7c3aed;
-  transform: scale(1.08) translateY(0);
-  box-shadow:
-    0 6px 16px rgba(139, 92, 246, 0.5),
-    0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-#easy-prompt-float-btn:active {
-  transform: scale(0.95) translateY(0);
-}
-
-#easy-prompt-float-btn svg {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-}
+/* Easy Prompt — Content Script Styles
+   Design DNA: Ambient Glass — premium inline overlays */
 
 /* ═══════════════════════════════════════════════════════
- * Part 2: AI Chat Inline Enhance — Trigger Icon,
- *         Preview Panel, Undo Bar
+ * AI Chat Inline Enhance — Trigger Icon,
+ *         Preview Panel, Undo Bar, Smart Nudge
  * ═══════════════════════════════════════════════════════ */
 
 /* ─── Shared font stack ─── */
 #ep-trigger-icon,
 #ep-preview-panel,
-#ep-undo-bar {
+#ep-undo-bar,
+#ep-nudge-bubble {
   font-family:
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ═══════════════════════════════
+ * Design Tokens (scoped to avoid host page conflicts)
+ * ═══════════════════════════════ */
+
+#ep-preview-panel {
+  --ep-bg: rgba(22, 20, 36, 0.85);
+  --ep-bg-elevated: rgba(35, 32, 52, 0.7);
+  --ep-bg-section: rgba(255, 255, 255, 0.03);
+  --ep-border: rgba(139, 92, 246, 0.2);
+  --ep-border-subtle: rgba(255, 255, 255, 0.06);
+  --ep-glass-highlight: rgba(255, 255, 255, 0.08);
+  --ep-text: #e2e0ea;
+  --ep-text-muted: #a8a2b8;
+  --ep-text-faint: #7c7894;
+  --ep-accent: #8b5cf6;
+  --ep-accent-hover: #7c3aed;
+  --ep-accent-subtle: rgba(139, 92, 246, 0.12);
+  --ep-accent-glow: rgba(139, 92, 246, 0.25);
+  --ep-success: #4ade80;
+  --ep-success-subtle: rgba(34, 197, 94, 0.15);
+  --ep-error: #f87171;
+  --ep-error-subtle: rgba(239, 68, 68, 0.1);
+  --ep-radius: 12px;
+  --ep-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ep-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* ═══════════════════════════════
@@ -92,7 +67,7 @@
   transition:
     opacity 160ms ease,
     visibility 160ms ease,
-    transform 160ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 160ms cubic-bezier(0.16, 1, 0.3, 1),
     background 140ms ease,
     color 140ms ease,
     box-shadow 140ms ease;
@@ -114,14 +89,28 @@
   color: #a78bfa;
   background: rgba(139, 92, 246, 0.18);
   border-color: rgba(139, 92, 246, 0.25);
+  animation: ep-triggerPulse 2.5s ease-in-out infinite;
+}
+
+@keyframes ep-triggerPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
+  }
+  50% {
+    box-shadow:
+      0 0 0 4px rgba(139, 92, 246, 0.15),
+      0 0 12px rgba(139, 92, 246, 0.1);
+  }
 }
 
 #ep-trigger-icon.is-active:hover {
   color: #c4b5fd;
   background: rgba(139, 92, 246, 0.28);
   border-color: rgba(139, 92, 246, 0.4);
-  box-shadow: 0 2px 10px rgba(139, 92, 246, 0.3);
+  box-shadow: 0 2px 12px rgba(139, 92, 246, 0.35);
   transform: scale(1.08);
+  animation: none;
 }
 
 #ep-trigger-icon.is-active:active {
@@ -134,6 +123,7 @@
   background: rgba(139, 92, 246, 0.22);
   border-color: rgba(139, 92, 246, 0.35);
   pointer-events: none;
+  animation: none;
 }
 
 #ep-trigger-icon svg {
@@ -143,7 +133,7 @@
 }
 
 /* ═══════════════════════════════
- * Preview Panel
+ * Preview Panel — Glassmorphism
  * ═══════════════════════════════ */
 
 #ep-preview-panel {
@@ -151,25 +141,55 @@
   z-index: 2147483647;
   width: 420px;
   max-width: 90vw;
-  border-radius: 12px;
-  background: #1e1b2e;
-  color: #e2e0ea;
+  border-radius: var(--ep-radius);
+  background: var(--ep-bg);
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
+  backdrop-filter: blur(32px) saturate(180%);
+  color: var(--ep-text);
   font-size: 13px;
   line-height: 1.5;
   box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.45),
+    0 16px 48px rgba(0, 0, 0, 0.5),
     0 4px 14px rgba(139, 92, 246, 0.2),
-    inset 0 0.5px 0 rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(139, 92, 246, 0.25);
+    inset 0 1px 0 var(--ep-glass-highlight),
+    0 0 0 0.5px var(--ep-glass-highlight),
+    0 0 40px rgba(139, 92, 246, 0.06);
+  border: 1px solid var(--ep-border);
   opacity: 0;
   visibility: hidden;
-  transform: translateY(8px) scale(0.97);
+  transform: translateY(10px) scale(0.95);
   transition:
-    opacity 180ms ease,
-    visibility 180ms ease,
-    transform 180ms cubic-bezier(0.4, 0, 0.2, 1);
+    opacity 200ms cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 200ms ease,
+    transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
   pointer-events: none;
   overflow: hidden;
+}
+
+/* Gradient border overlay using ::after */
+#ep-preview-panel::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(139, 92, 246, 0.3),
+    transparent 40%,
+    transparent 60%,
+    rgba(99, 102, 241, 0.2)
+  );
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  -webkit-mask-composite: xor;
+  pointer-events: none;
+  z-index: 0;
 }
 
 #ep-preview-panel.is-visible {
@@ -181,11 +201,16 @@
 
 /* ─── Header ─── */
 .ep-preview-header {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--ep-border-subtle);
+  background: var(--ep-bg-elevated);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
 
 .ep-preview-icon {
@@ -215,20 +240,24 @@
   border: none;
   border-radius: 5px;
   background: transparent;
-  color: #64607a;
+  color: var(--ep-text-faint);
   cursor: pointer;
   padding: 0;
   transition:
     color 120ms ease,
-    background 120ms ease;
+    background 120ms ease,
+    box-shadow 120ms ease;
 }
 .ep-preview-close:hover {
   color: #b0abb8;
   background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 6px rgba(139, 92, 246, 0.15);
 }
 
 /* ─── Body (original vs enhanced sections) ─── */
 .ep-preview-body {
+  position: relative;
+  z-index: 1;
   display: none;
   flex-direction: column;
   gap: 0;
@@ -237,14 +266,27 @@
 
 #ep-preview-panel.is-loaded .ep-preview-body {
   display: flex;
+  animation: ep-bodyFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes ep-bodyFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Section: original / enhanced */
 .ep-preview-section {
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--ep-border-subtle);
+  background: var(--ep-bg-section);
   overflow: hidden;
+  transition: border-color 200ms ease;
 }
 
 .ep-preview-section-label {
@@ -253,7 +295,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #7c7894;
+  color: var(--ep-text-faint);
   background: rgba(255, 255, 255, 0.02);
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
@@ -286,12 +328,16 @@
   color: #8a8698;
 }
 .ep-preview-original .ep-preview-section-text {
-  color: #a8a2b8;
+  color: var(--ep-text-muted);
 }
 
-/* Enhanced section — highlighted */
+/* Enhanced section — highlighted with subtle accent */
+.ep-preview-enhanced {
+  border-color: rgba(139, 92, 246, 0.12);
+}
 .ep-preview-enhanced .ep-preview-section-label {
   color: #a78bfa;
+  background: var(--ep-accent-subtle);
 }
 .ep-preview-enhanced .ep-preview-section-text {
   color: #ebe8f2;
@@ -312,12 +358,14 @@
 
 /* ─── Loading ─── */
 .ep-preview-loading {
+  position: relative;
+  z-index: 1;
   display: none;
   align-items: center;
   justify-content: center;
   gap: 8px;
   padding: 28px 16px;
-  color: #a8a2b8;
+  color: var(--ep-text-muted);
   font-size: 13px;
 }
 
@@ -337,6 +385,8 @@
 
 /* ─── Error ─── */
 .ep-preview-error {
+  position: relative;
+  z-index: 1;
   display: none;
   flex-direction: column;
   align-items: center;
@@ -346,10 +396,11 @@
 
 #ep-preview-panel.is-error .ep-preview-error {
   display: flex;
+  animation: ep-bodyFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .ep-preview-error-msg {
-  color: #f87171;
+  color: var(--ep-error);
   font-size: 13px;
   text-align: center;
 }
@@ -361,29 +412,33 @@
   padding: 5px 14px;
   border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 7px;
-  background: rgba(239, 68, 68, 0.1);
-  color: #f87171;
+  background: var(--ep-error-subtle);
+  color: var(--ep-error);
   font-family: inherit;
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   transition:
     background 120ms ease,
-    border-color 120ms ease;
+    border-color 120ms ease,
+    box-shadow 120ms ease;
 }
 .ep-preview-retry:hover {
   background: rgba(239, 68, 68, 0.18);
   border-color: rgba(239, 68, 68, 0.5);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.15);
 }
 
 /* ─── Actions Bar ─── */
 .ep-preview-actions {
+  position: relative;
+  z-index: 1;
   display: none;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
   padding: 10px 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--ep-border-subtle);
 }
 
 #ep-preview-panel.is-loaded .ep-preview-actions {
@@ -404,12 +459,12 @@
   cursor: pointer;
   transition:
     background 120ms ease,
-    transform 100ms ease,
+    transform 100ms cubic-bezier(0.34, 1.56, 0.64, 1),
     box-shadow 120ms ease;
   line-height: 1;
 }
 .ep-preview-btn:active {
-  transform: scale(0.96);
+  transform: scale(0.95);
 }
 .ep-preview-btn svg {
   width: 14px;
@@ -420,7 +475,7 @@
 /* Cancel */
 .ep-btn-cancel {
   background: rgba(255, 255, 255, 0.06);
-  color: #a8a2b8;
+  color: var(--ep-text-muted);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 .ep-btn-cancel:hover {
@@ -430,28 +485,29 @@
 
 /* Copy */
 .ep-btn-copy {
-  background: rgba(139, 92, 246, 0.12);
+  background: var(--ep-accent-subtle);
   color: #c4b5fd;
   border: 1px solid rgba(139, 92, 246, 0.2);
 }
 .ep-btn-copy:hover {
   background: rgba(139, 92, 246, 0.22);
-  box-shadow: 0 1px 6px rgba(139, 92, 246, 0.25);
+  box-shadow: 0 1px 8px var(--ep-accent-glow);
 }
 .ep-btn-copy.is-copied {
-  background: rgba(34, 197, 94, 0.15);
+  background: var(--ep-success-subtle);
   color: #86efac;
   border-color: rgba(34, 197, 94, 0.3);
 }
 
-/* Replace (primary) */
+/* Replace (primary) — gradient button */
 .ep-btn-replace {
-  background: #8b5cf6;
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
   color: #fff;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
 }
 .ep-btn-replace:hover {
-  background: #7c3aed;
-  box-shadow: 0 2px 10px rgba(139, 92, 246, 0.45);
+  background: linear-gradient(135deg, #7c3aed, #6366f1);
+  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.45);
 }
 
 /* ═══════════════════════════════
@@ -466,21 +522,24 @@
   gap: 8px;
   padding: 7px 10px 7px 12px;
   border-radius: 9px;
-  background: #162217;
+  background: rgba(22, 34, 23, 0.85);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
   color: #e2e0ea;
   font-size: 13px;
   line-height: 1;
   box-shadow:
-    0 6px 20px rgba(34, 197, 94, 0.2),
-    0 2px 6px rgba(0, 0, 0, 0.25);
+    0 8px 24px rgba(34, 197, 94, 0.2),
+    0 2px 6px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(34, 197, 94, 0.3);
-  transform: translateX(-50%) translateY(6px);
+  transform: translateX(-50%) translateY(8px) scale(0.95);
   opacity: 0;
   visibility: hidden;
   transition:
-    opacity 180ms ease,
-    visibility 180ms ease,
-    transform 180ms cubic-bezier(0.4, 0, 0.2, 1);
+    opacity 200ms ease,
+    visibility 200ms ease,
+    transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
   pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
@@ -490,7 +549,7 @@
 #ep-undo-bar.is-visible {
   opacity: 1;
   visibility: visible;
-  transform: translateX(-50%) translateY(0);
+  transform: translateX(-50%) translateY(0) scale(1);
   pointer-events: auto;
 }
 
@@ -525,15 +584,17 @@
   cursor: pointer;
   transition:
     background 120ms ease,
-    color 120ms ease;
+    color 120ms ease,
+    box-shadow 120ms ease;
   line-height: 1;
 }
 .ep-undo-btn:hover {
   background: rgba(255, 255, 255, 0.14);
   color: #fff;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.15);
 }
 .ep-undo-btn:active {
-  transform: scale(0.96);
+  transform: scale(0.95);
 }
 .ep-undo-btn svg {
   width: 14px;
@@ -541,7 +602,7 @@
 }
 
 /* ═══════════════════════════════
- * Smart Nudge Bubble
+ * Smart Nudge Bubble — Glassmorphism
  * ═══════════════════════════════ */
 
 #ep-nudge-bubble {
@@ -552,29 +613,32 @@
   gap: 10px;
   padding: 14px 16px;
   border-radius: 12px;
-  border: 1px solid rgba(139, 92, 246, 0.3);
-  background: #1e1b2e;
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  background: rgba(22, 20, 36, 0.85);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.45),
-    0 0 0 1px rgba(139, 92, 246, 0.08),
-    0 0 24px rgba(139, 92, 246, 0.06);
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 0 0 0.5px rgba(255, 255, 255, 0.06),
+    0 0 24px rgba(139, 92, 246, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
   font-family:
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
     Arial, sans-serif;
   font-size: 13px;
   color: #d4d0e4;
   opacity: 0;
-  transform: translateY(6px);
+  transform: translateY(8px) scale(0.95);
   transition:
-    opacity 200ms ease,
-    transform 200ms ease;
+    opacity 200ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 250ms cubic-bezier(0.34, 1.56, 0.64, 1);
   pointer-events: none;
   max-width: 360px;
   white-space: nowrap;
 }
 #ep-nudge-bubble.is-visible {
   opacity: 1;
-  transform: translateY(0);
+  transform: translateY(0) scale(1);
   pointer-events: auto;
 }
 
@@ -625,22 +689,25 @@
   padding: 5px 14px;
   border: none;
   border-radius: 6px;
-  background: #8b5cf6;
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
   color: #fff;
   font-family: inherit;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
   transition:
     background 120ms ease,
-    transform 80ms ease;
+    transform 80ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 120ms ease;
   line-height: 1;
 }
 .ep-nudge-enhance:hover {
-  background: #7c3aed;
+  background: linear-gradient(135deg, #7c3aed, #6366f1);
+  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.45);
 }
 .ep-nudge-enhance:active {
-  transform: scale(0.96);
+  transform: scale(0.95);
 }
 .ep-nudge-dismiss {
   padding: 4px 8px;
@@ -673,4 +740,17 @@
 }
 .ep-spin {
   animation: ep-spin 1s linear infinite;
+}
+
+/* ─── Reduced Motion ─── */
+@media (prefers-reduced-motion: reduce) {
+  #ep-trigger-icon,
+  #ep-preview-panel,
+  #ep-undo-bar,
+  #ep-nudge-bubble {
+    transition-duration: 0.01ms !important;
+  }
+  #ep-trigger-icon.is-active {
+    animation: none !important;
+  }
 }

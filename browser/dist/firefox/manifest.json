@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Easy Prompt AI",
-  "version": "5.2.2",
-  "description": "AI 智能 Prompt 增强工具 — 85 场景 · 10 画像 · 两步路由。AI Prompt Enhancer — 85 scenes, 10 personas, two-step routing.",
+  "version": "5.3.2",
+  "description": "AI 智能 Prompt 增强工具 — 97 场景 · 10 画像 · 两步路由。配套 PromptHub 精选库（zhiz.chat）。AI Prompt Enhancer — 97 scenes, 10 personas, two-step routing. Includes PromptHub (zhiz.chat).",
   "browser_specific_settings": {
     "gecko": {
       "id": "easy-prompt@flippysun.com",

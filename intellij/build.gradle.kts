@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.easyprompt"
-version = "5.3.1"
+version = "5.3.2"
 
 repositories {
     mavenCentral()
@@ -161,6 +161,15 @@ intellijPlatform {
             sinceBuild = "243"
         }
         changeNotes = """
+            <h3>v5.3.2 — ✨ 浏览器扩展交互体验增强</h3>
+            <b>Browser Extension UX & History Panel Upgrade</b>
+            <ul>
+                <li><b>历史面板重构</b>：新增搜索、按日期分组、单开折叠详情（同一时刻仅展开一项）</li>
+                <li><b>信息展示升级</b>：历史卡片同时展示用户输入与扩写结果，支持展开查看完整扩写</li>
+                <li><b>交互防误触</b>：取消“点击卡片主体即跳转”行为，改为显式按钮操作（应用/复制/删除）</li>
+                <li><b>动效一致性修复</b>：优化面板切换与hover过渡，提升 Chrome/Firefox/Safari 三端一致性</li>
+                <li><b>样式细节打磨</b>：历史卡片边条与渐隐层过渡增强，视觉层级更清晰且更克制</li>
+            </ul>
             <h3>v5.3.1 — 🟣 PromptHub 性能优化</h3>
             <b>web-hub（PromptHub）深度性能优化</b>
             <ul>
