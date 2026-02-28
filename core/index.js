@@ -15,6 +15,10 @@ const {
   callRouterApi,
   callGenerationApi,
   testApiConfig,
+  fetchModels,
+  API_MODES,
+  DEFAULT_API_PATHS,
+  detectApiMode,
 } = require("./api");
 const { smartRoute } = require("./composer");
 const { getBuiltinDefaults } = require("./defaults");
@@ -38,6 +42,10 @@ module.exports = {
   callRouterApi,
   callGenerationApi,
   testApiConfig,
+  fetchModels,
+  API_MODES,
+  DEFAULT_API_PATHS,
+  detectApiMode,
 
   // 编排
   smartRoute,

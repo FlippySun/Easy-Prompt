@@ -55,20 +55,44 @@
         <section class="card">
           <h2 class="card__title">API 配置</h2>
           <p class="card__desc">
-            配置 OpenAI 兼容的 API 服务（如 DeepSeek、OpenAI、Claude 等）
+            配置 API 服务，支持 OpenAI / Claude / Gemini / DeepSeek 等多种格式
           </p>
 
           <div class="form-group">
-            <label class="form-label" for="input-base-url">API Base URL</label>
-            <input
-              id="input-base-url"
-              type="url"
-              class="form-input"
-              placeholder="https://api.deepseek.com"
-            />
-            <span class="form-hint"
-              >接口地址，无需包含 /v1/chat/completions</span
-            >
+            <label class="form-label" for="input-api-mode">API 模式</label>
+            <select id="input-api-mode" class="form-input form-select">
+              <option value="">自动检测（根据路径推断）</option>
+              <option value="openai">OpenAI Chat Completions 兼容</option>
+              <option value="openai-responses">
+                OpenAI Responses API 兼容
+              </option>
+              <option value="claude">Claude API 兼容</option>
+              <option value="gemini">Google Gemini API 兼容</option>
+            </select>
+            <span class="form-hint">切换模式会自动填充对应的默认路径</span>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group form-group--host">
+              <label class="form-label" for="input-api-host">API Host</label>
+              <input
+                id="input-api-host"
+                type="url"
+                class="form-input"
+                placeholder="https://api.openai.com"
+              />
+              <span class="form-hint">服务器地址（协议+域名+端口）</span>
+            </div>
+            <div class="form-group form-group--path">
+              <label class="form-label" for="input-api-path">API Path</label>
+              <input
+                id="input-api-path"
+                type="text"
+                class="form-input"
+                placeholder="/v1/chat/completions"
+              />
+              <span class="form-hint">切换模式自动填充</span>
+            </div>
           </div>
 
           <div class="form-group">
@@ -102,13 +126,40 @@
 
           <div class="form-group">
             <label class="form-label" for="input-model">模型名称</label>
-            <input
-              id="input-model"
-              type="text"
-              class="form-input"
-              placeholder="deepseek-chat"
-            />
+            <div class="input-group">
+              <input
+                id="input-model"
+                type="text"
+                class="form-input"
+                placeholder="gpt-4o"
+              />
+              <button
+                id="btn-fetch-models"
+                class="icon-btn"
+                title="获取模型列表"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M21 12a9 9 0 0 1-9 9m9-9a9 9 0 0 0-9-9m9 9H3m9 9a9 9 0 0 1-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9"
+                  />
+                </svg>
+              </button>
+            </div>
+            <span class="form-hint"
+              >手动输入或点击右侧按钮自动查询可用模型</span
+            >
           </div>
+
+          <div id="models-list" class="models-list" hidden></div>
 
           <div class="actions">
             <button id="btn-test" class="btn btn--secondary">

@@ -110,9 +110,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 /**
  * 获取有效 API 配置（用户配置 + 内置默认值合并）
+ * 返回 { baseUrl, apiKey, model, apiMode }
  */
 async function getEffectiveConfig() {
   let config = await Storage.loadConfig();
+  // 从 apiHost + apiPath 构建 baseUrl（如果用户使用新版配置）
+  if (config.apiHost && !config.baseUrl) {
+    config.baseUrl =
+      config.apiHost.replace(/\/+$/, "") + (config.apiPath || "");
+  }
   if (!config.apiKey || !config.baseUrl || !config.model) {
     const defaults = await Defaults.getBuiltinDefaults();
     if (!defaults) throw new Error("请先在设置中配置 API");
@@ -120,6 +126,7 @@ async function getEffectiveConfig() {
       baseUrl: config.baseUrl || defaults.baseUrl,
       apiKey: config.apiKey || defaults.apiKey,
       model: config.model || defaults.model,
+      apiMode: config.apiMode || "",
     };
   }
   return config;

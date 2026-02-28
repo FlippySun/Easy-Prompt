@@ -325,6 +325,55 @@ html.theme-transitioning *::after {
 .form-group {
   margin-bottom: 18px;
 }
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+.form-row > .form-group {
+  flex: 1;
+  min-width: 0;
+}
+.form-group--host {
+  flex: 1.2 !important;
+}
+.form-group--path {
+  flex: 0.8 !important;
+}
+.form-select {
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23858585' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+.form-select option {
+  background: var(--glass-bg, #252526);
+  color: var(--text-primary);
+}
+.models-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+.models-list .model-chip {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid var(--border);
+  background: var(--glass-bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+}
+.models-list .model-chip:hover {
+  border-color: var(--border-active, var(--accent));
+  color: var(--text-primary);
+}
 .form-label {
   display: block;
   font-size: 13px;

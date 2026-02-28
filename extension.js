@@ -6,6 +6,10 @@ const {
   SCENE_NAMES,
   getBuiltinDefaults,
   testApiConfig,
+  fetchModels,
+  API_MODES,
+  DEFAULT_API_PATHS,
+  detectApiMode,
 } = require("./core");
 const { checkAndShowWelcome, showWelcomePage } = require("./welcomeView");
 
@@ -303,26 +307,51 @@ function handleCommandError(err, retryFn) {
 function getConfig() {
   const cfg = vscode.workspace.getConfiguration("easyPrompt");
   const userApiKey = cfg.get("apiKey", "");
-  const userBaseUrl = cfg.get("apiBaseUrl", "");
+  const userBaseUrl = cfg.get("apiBaseUrl", ""); // 兼容旧版
   const userModel = cfg.get("model", "");
+  const userApiMode = cfg.get("apiMode", "");
+  const userApiHost = cfg.get("apiHost", "");
+  const userApiPath = cfg.get("apiPath", "");
 
   // 用户配置了自定义 API Key → 使用用户的全套配置
   if (userApiKey && userApiKey.trim() !== "") {
-    const baseUrl = (
-      (userBaseUrl && userBaseUrl.trim()) ||
-      "https://api.openai.com/v1"
-    ).replace(/\/+$/, "");
+    let baseUrl;
+    let apiMode = userApiMode || "";
+
+    if (userApiHost && userApiHost.trim()) {
+      // 新版配置：apiHost + apiPath
+      const host = userApiHost.trim().replace(/\/+$/, "");
+      const path =
+        userApiPath && userApiPath.trim()
+          ? userApiPath.trim()
+          : apiMode
+            ? DEFAULT_API_PATHS[apiMode] || "/v1/chat/completions"
+            : "/v1/chat/completions";
+      baseUrl = host + path;
+    } else if (userBaseUrl && userBaseUrl.trim()) {
+      // 旧版兼容：使用 apiBaseUrl
+      baseUrl = userBaseUrl.trim().replace(/\/+$/, "");
+    } else {
+      baseUrl = "https://api.openai.com/v1/chat/completions";
+    }
+
     const model = (userModel && userModel.trim()) || "gpt-4o";
 
     // 验证 Base URL 格式
     if (!baseUrl.match(/^https?:\/\//)) {
-      throw new Error("API Base URL 格式错误：必须以 http:// 或 https:// 开头");
+      throw new Error("API Host 格式错误：必须以 http:// 或 https:// 开头");
+    }
+
+    // 自动推断 apiMode（向后兼容）
+    if (!apiMode) {
+      apiMode = detectApiMode(baseUrl);
     }
 
     return {
       baseUrl: baseUrl.trim(),
       apiKey: userApiKey.trim(),
       model: model.trim(),
+      apiMode,
     };
   }
 
@@ -332,6 +361,7 @@ function getConfig() {
     baseUrl: defaults.baseUrl,
     apiKey: defaults.apiKey,
     model: defaults.model,
+    apiMode: detectApiMode(defaults.baseUrl),
   };
 }
 
@@ -1006,24 +1036,53 @@ function configureApi(context) {
 
     // 读取当前用户已保存的自定义配置（不暴露内置默认值）
     const cfg = vscode.workspace.getConfiguration("easyPrompt");
+    const savedApiMode = cfg.get("apiMode", "") || "";
+    const savedApiHost = cfg.get("apiHost", "") || "";
+    const savedApiPath = cfg.get("apiPath", "") || "";
     const savedBaseUrl = cfg.get("apiBaseUrl", "") || "";
     const savedApiKey = cfg.get("apiKey", "") || "";
     const savedModel = cfg.get("model", "") || "";
 
-    panel.webview.html = getConfigHtml(savedBaseUrl, savedApiKey, savedModel);
+    panel.webview.html = getConfigHtml(
+      savedApiMode,
+      savedApiHost,
+      savedApiPath,
+      savedBaseUrl,
+      savedApiKey,
+      savedModel,
+    );
 
     panel.webview.onDidReceiveMessage(
       async (msg) => {
         switch (msg.command) {
           case "test": {
+            const apiMode = (msg.apiMode || "").trim();
+            const apiHost = (msg.apiHost || "").trim();
+            const apiPath = (msg.apiPath || "").trim();
+            const apiKey = (msg.apiKey || "").trim();
+            const model = (msg.model || "").trim();
+
+            // 组装 baseUrl
+            let baseUrl = "";
+            if (apiHost) {
+              const host = apiHost.replace(/\/+$/, "");
+              const path =
+                apiPath ||
+                (apiMode
+                  ? DEFAULT_API_PATHS[apiMode] || "/v1/chat/completions"
+                  : "/v1/chat/completions");
+              baseUrl = host + path;
+            }
+
             const config = {
-              baseUrl: (msg.baseUrl || "").trim(),
-              apiKey: (msg.apiKey || "").trim(),
-              model: (msg.model || "").trim(),
+              baseUrl,
+              apiKey,
+              model,
+              apiMode: apiMode || detectApiMode(baseUrl),
             };
 
             // 全部为空 → 使用内置默认，无需测试
-            if (!config.baseUrl && !config.apiKey && !config.model) {
+            if (!apiHost && !apiKey && !model) {
               panel.webview.postMessage({
                 type: "testResult",
                 ok: true,
@@ -1033,12 +1092,12 @@ function configureApi(context) {
             }
 
             // 部分为空 → 提示填完整
-            if (!config.baseUrl || !config.apiKey || !config.model) {
+            if (!apiHost || !apiKey || !model) {
               panel.webview.postMessage({
                 type: "testResult",
                 ok: false,
                 message:
-                  "请填写完整的 API Base URL、API Key 和模型名称（或全部清空使用内置默认服务）",
+                  "请填写完整的 API Host、API Key 和模型名称（或全部清空使用内置默认服务）",
               });
               return;
             }
@@ -1069,17 +1128,39 @@ function configureApi(context) {
           }
 
           case "save": {
+            const apiMode = (msg.apiMode || "").trim();
+            const apiHost = (msg.apiHost || "").trim();
+            const apiPath = (msg.apiPath || "").trim();
+            const apiKey = (msg.apiKey || "").trim();
+            const model = (msg.model || "").trim();
+
+            // 组装 baseUrl
+            let baseUrl = "";
+            if (apiHost) {
+              const host = apiHost.replace(/\/+$/, "");
+              const path =
+                apiPath ||
+                (apiMode
+                  ? DEFAULT_API_PATHS[apiMode] || "/v1/chat/completions"
+                  : "/v1/chat/completions");
+              baseUrl = host + path;
+            }
+
             const config = {
-              baseUrl: (msg.baseUrl || "").trim(),
-              apiKey: (msg.apiKey || "").trim(),
-              model: (msg.model || "").trim(),
+              baseUrl,
+              apiKey,
+              model,
+              apiMode: apiMode || detectApiMode(baseUrl),
             };
 
             // 全部为空 → 清除自定义配置，恢复使用内置默认
-            if (!config.baseUrl && !config.apiKey && !config.model) {
+            if (!apiHost && !apiKey && !model) {
               try {
                 const target = vscode.ConfigurationTarget.Global;
                 const cfgNow = vscode.workspace.getConfiguration("easyPrompt");
+                await cfgNow.update("apiMode", undefined, target);
+                await cfgNow.update("apiHost", undefined, target);
+                await cfgNow.update("apiPath", undefined, target);
                 await cfgNow.update("apiBaseUrl", undefined, target);
                 await cfgNow.update("apiKey", undefined, target);
                 await cfgNow.update("model", undefined, target);
@@ -1102,11 +1183,12 @@ function configureApi(context) {
             }
 
             // 部分为空 → 提示填完整
-            if (!config.baseUrl || !config.apiKey || !config.model) {
+            if (!apiHost || !apiKey || !model) {
               panel.webview.postMessage({
                 type: "saveResult",
                 ok: false,
-                message: "请填写完整的配置信息（或全部清空使用内置默认服务）",
+                message:
+                  "请填写完整的 API Host、API Key 和模型名称（或全部清空使用内置默认服务）",
               });
               return;
             }
@@ -1132,6 +1214,9 @@ function configureApi(context) {
               // 测试通过，写入配置
               const target = vscode.ConfigurationTarget.Global;
               const cfgNow = vscode.workspace.getConfiguration("easyPrompt");
+              await cfgNow.update("apiMode", apiMode || undefined, target);
+              await cfgNow.update("apiHost", apiHost || undefined, target);
+              await cfgNow.update("apiPath", apiPath || undefined, target);
               await cfgNow.update("apiBaseUrl", config.baseUrl, target);
               await cfgNow.update("apiKey", config.apiKey, target);
               await cfgNow.update("model", config.model, target);
@@ -1158,6 +1243,9 @@ function configureApi(context) {
             try {
               const target = vscode.ConfigurationTarget.Global;
               const cfgNow = vscode.workspace.getConfiguration("easyPrompt");
+              await cfgNow.update("apiMode", undefined, target);
+              await cfgNow.update("apiHost", undefined, target);
+              await cfgNow.update("apiPath", undefined, target);
               await cfgNow.update("apiBaseUrl", undefined, target);
               await cfgNow.update("apiKey", undefined, target);
               await cfgNow.update("model", undefined, target);
@@ -1176,6 +1264,64 @@ function configureApi(context) {
             }
             break;
           }
+
+          case "fetchModels": {
+            const fmApiMode = (msg.apiMode || "").trim();
+            const fmApiHost = (msg.apiHost || "").trim();
+            const fmApiPath = (msg.apiPath || "").trim();
+            const fmApiKey = (msg.apiKey || "").trim();
+
+            if (!fmApiHost || !fmApiKey) {
+              panel.webview.postMessage({
+                type: "fetchModelsResult",
+                ok: false,
+                models: [],
+                message: "请先填写 API Host 和 API Key",
+              });
+              return;
+            }
+
+            let fmBaseUrl = "";
+            const host = fmApiHost.replace(/\/+$/, "");
+            const path =
+              fmApiPath ||
+              (fmApiMode
+                ? DEFAULT_API_PATHS[fmApiMode] || "/v1/chat/completions"
+                : "/v1/chat/completions");
+            fmBaseUrl = host + path;
+
+            const fmConfig = {
+              baseUrl: fmBaseUrl,
+              apiKey: fmApiKey,
+              model: "dummy",
+              apiMode: fmApiMode || detectApiMode(fmBaseUrl),
+            };
+
+            panel.webview.postMessage({
+              type: "fetchingModels",
+              message: "正在获取模型列表...",
+            });
+
+            try {
+              const result = await fetchModels(fmConfig, host);
+              if (!panel.visible) return;
+              panel.webview.postMessage({
+                type: "fetchModelsResult",
+                ok: result.ok,
+                models: result.models,
+                message: result.message,
+              });
+            } catch (e) {
+              if (!panel.visible) return;
+              panel.webview.postMessage({
+                type: "fetchModelsResult",
+                ok: false,
+                models: [],
+                message: `获取失败: ${e.message}`,
+              });
+            }
+            break;
+          }
         }
       },
       undefined,
@@ -1186,8 +1332,9 @@ function configureApi(context) {
 
 /**
  * 生成配置面板 Webview HTML
+ * 支持 4 种 API 模式 + Host/Path 分离 + 模型获取
  */
-function getConfigHtml(baseUrl, apiKey, model) {
+function getConfigHtml(apiMode, apiHost, apiPath, baseUrl, apiKey, model) {
   // HTML 实体转义（防 XSS）
   const esc = (s) =>
     String(s || "")
@@ -1196,6 +1343,17 @@ function getConfigHtml(baseUrl, apiKey, model) {
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
+
+  // 如果用户有旧版 baseUrl 但没有新版 apiHost/apiPath，自动拆分
+  let displayHost = apiHost || "";
+  let displayPath = apiPath || "";
+  if (!displayHost && baseUrl) {
+    try {
+      const u = new URL(baseUrl);
+      displayHost = u.origin;
+      displayPath = u.pathname;
+    } catch {}
+  }
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -1246,14 +1404,39 @@ h1 { font-size: 24px; color: #fff; margin-bottom: 8px; }
 .form-group .hint {
   font-size: 12px; color: var(--text-dim); margin-bottom: 6px;
 }
-input[type="text"], input[type="password"] {
+input[type="text"], input[type="password"], select {
   width: 100%; padding: 10px 12px; border-radius: 6px;
   border: 1px solid var(--border); background: var(--card);
   color: var(--text); font-size: 14px; font-family: inherit;
   outline: none; transition: border-color 0.2s;
 }
-input:focus { border-color: var(--accent); }
+input:focus, select:focus { border-color: var(--accent); }
 input::placeholder { color: #555; }
+select { cursor: pointer; -webkit-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23858585' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px;
+}
+select option { background: var(--card); color: var(--text); }
+
+.field-row {
+  display: flex; gap: 12px;
+}
+.field-row > .form-group { flex: 1; min-width: 0; }
+.field-row > .form-group.field-host { flex: 1.2; }
+.field-row > .form-group.field-path { flex: 0.8; }
+
+.model-row { display: flex; gap: 8px; align-items: flex-start; }
+.model-row .combo-box { flex: 1; }
+.btn-fetch {
+  padding: 10px 14px; border-radius: 6px; font-size: 13px;
+  font-weight: 500; cursor: pointer; border: 1px solid var(--border);
+  background: var(--card); color: var(--accent-light);
+  white-space: nowrap; transition: background 0.2s, border-color 0.2s;
+  display: flex; align-items: center; gap: 5px;
+  height: 42px;
+}
+.btn-fetch:hover:not(:disabled) { background: #2a3a4a; border-color: var(--accent); }
+.btn-fetch:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btn-row {
   display: flex; gap: 12px; margin-top: 28px; flex-wrap: wrap;
@@ -1341,7 +1524,7 @@ input::placeholder { color: #555; }
 </head>
 <body>
   <h1>⚙️ 自定义 API 配置</h1>
-  <p class="subtitle">配置你自己的 API Key，支持 OpenAI / Gemini / DeepSeek 等 OpenAI 兼容格式</p>
+  <p class="subtitle">配置你自己的 API 服务，支持 OpenAI / Claude / Gemini / DeepSeek 等多种 API 格式</p>
 
   <div class="status-bar ${apiKey ? "using-custom" : "using-default"}" id="statusBar">
     <span class="status-dot"></span>
@@ -1349,9 +1532,28 @@ input::placeholder { color: #555; }
   </div>
 
   <div class="form-group">
-    <label>API Base URL</label>
-    <div class="hint">OpenAI 兼容格式（如 https://api.openai.com/v1 或 https://api.example.com/v1/chat/completions）</div>
-    <input type="text" id="baseUrl" value="${esc(baseUrl)}" placeholder="留空 = 使用内置免费服务" />
+    <label>API 模式</label>
+    <div class="hint">选择你的 API 服务商使用的协议格式，切换时会自动填充对应的默认路径</div>
+    <select id="apiMode">
+      <option value=""${!apiMode ? " selected" : ""}>自动检测（根据路径推断）</option>
+      <option value="openai"${apiMode === "openai" ? " selected" : ""}>OpenAI Chat Completions 兼容</option>
+      <option value="openai-responses"${apiMode === "openai-responses" ? " selected" : ""}>OpenAI Responses API 兼容</option>
+      <option value="claude"${apiMode === "claude" ? " selected" : ""}>Claude API 兼容</option>
+      <option value="gemini"${apiMode === "gemini" ? " selected" : ""}>Google Gemini API 兼容</option>
+    </select>
+  </div>
+
+  <div class="field-row">
+    <div class="form-group field-host">
+      <label>API Host</label>
+      <div class="hint">服务器地址（协议+域名+端口）</div>
+      <input type="text" id="apiHost" value="${esc(displayHost)}" placeholder="留空 = 使用内置免费服务" />
+    </div>
+    <div class="form-group field-path">
+      <label>API Path</label>
+      <div class="hint">切换模式自动填充</div>
+      <input type="text" id="apiPath" value="${esc(displayPath)}" placeholder="/v1/chat/completions" />
+    </div>
   </div>
 
   <div class="form-group">
@@ -1362,103 +1564,120 @@ input::placeholder { color: #555; }
 
   <div class="form-group">
     <label>模型名称</label>
-    <div class="hint">${apiKey ? "从下拉列表选择常用模型，或手动输入其他模型名称" : "从下拉列表选择内置服务支持的模型，或手动输入模型名称"}</div>
-    <div class="combo-box" id="comboBox">
-      <input type="text" id="model" value="${esc(model)}" placeholder="留空 = 使用内置默认模型" autocomplete="off" />
-      <button type="button" class="combo-toggle" id="comboToggle" onclick="toggleDropdown()">▾</button>
-      <div class="combo-dropdown" id="comboDropdown">
+    <div class="hint">${apiKey ? "从下拉列表选择常用模型，点击「获取模型」自动查询，或手动输入模型名称" : "从下拉列表选择内置服务支持的模型，或手动输入模型名称"}</div>
+    <div class="model-row">
+      <div class="combo-box" id="comboBox">
+        <input type="text" id="model" value="${esc(model)}" placeholder="留空 = 使用内置默认模型" autocomplete="off" />
+        <button type="button" class="combo-toggle" id="comboToggle" onclick="toggleDropdown()">▾</button>
+        <div class="combo-dropdown" id="comboDropdown">
+          <div id="fetchedModelsSection" style="display:none"></div>
 ${
   apiKey
     ? `
-        <div class="combo-group">Anthropic</div>
-        <div class="combo-option" data-value="claude-opus-4-6"><span class="model-id">claude-opus-4-6</span><span class="model-desc">Opus 4.6 最智能</span></div>
-        <div class="combo-option" data-value="claude-sonnet-4-5"><span class="model-id">claude-sonnet-4-5</span><span class="model-desc">Sonnet 4.5 均衡</span></div>
-        <div class="combo-option" data-value="claude-haiku-4-5"><span class="model-id">claude-haiku-4-5</span><span class="model-desc">Haiku 4.5 最快</span></div>
-        <div class="combo-option" data-value="claude-opus-4-1"><span class="model-id">claude-opus-4-1</span><span class="model-desc">Opus 4.1</span></div>
-        <div class="combo-option" data-value="claude-sonnet-4"><span class="model-id">claude-sonnet-4</span><span class="model-desc">Sonnet 4</span></div>
-        <hr class="combo-separator" />
-        <div class="combo-group">OpenAI</div>
-        <div class="combo-option" data-value="gpt-5.2"><span class="model-id">gpt-5.2</span><span class="model-desc">最新旗舰</span></div>
-        <div class="combo-option" data-value="gpt-5.2-pro"><span class="model-id">gpt-5.2-pro</span><span class="model-desc">更智能更精准</span></div>
-        <div class="combo-option" data-value="gpt-5-mini"><span class="model-id">gpt-5-mini</span><span class="model-desc">快速高效</span></div>
-        <div class="combo-option" data-value="gpt-5-nano"><span class="model-id">gpt-5-nano</span><span class="model-desc">极致性价比</span></div>
-        <div class="combo-option" data-value="gpt-5"><span class="model-id">gpt-5</span><span class="model-desc">上一代推理</span></div>
-        <div class="combo-option" data-value="gpt-4.1"><span class="model-id">gpt-4.1</span><span class="model-desc">最强非推理</span></div>
-        <div class="combo-option" data-value="gpt-4.1-mini"><span class="model-id">gpt-4.1-mini</span><span class="model-desc">轻量快速</span></div>
-        <div class="combo-option" data-value="gpt-4o"><span class="model-id">gpt-4o</span><span class="model-desc">灵活智能</span></div>
-        <div class="combo-option" data-value="gpt-4o-mini"><span class="model-id">gpt-4o-mini</span><span class="model-desc">经济实惠</span></div>
-        <div class="combo-option" data-value="o3"><span class="model-id">o3</span><span class="model-desc">复杂推理</span></div>
-        <div class="combo-option" data-value="o4-mini"><span class="model-id">o4-mini</span><span class="model-desc">快速推理</span></div>
-        <hr class="combo-separator" />
+          <div class="combo-group">Anthropic</div>
+          <div class="combo-option" data-value="claude-opus-4-6"><span class="model-id">claude-opus-4-6</span><span class="model-desc">Opus 4.6 最智能</span></div>
+          <div class="combo-option" data-value="claude-sonnet-4-5"><span class="model-id">claude-sonnet-4-5</span><span class="model-desc">Sonnet 4.5 均衡</span></div>
+          <div class="combo-option" data-value="claude-haiku-4-5"><span class="model-id">claude-haiku-4-5</span><span class="model-desc">Haiku 4.5 最快</span></div>
+          <div class="combo-option" data-value="claude-opus-4-1"><span class="model-id">claude-opus-4-1</span><span class="model-desc">Opus 4.1</span></div>
+          <div class="combo-option" data-value="claude-sonnet-4"><span class="model-id">claude-sonnet-4</span><span class="model-desc">Sonnet 4</span></div>
+          <hr class="combo-separator" />
+          <div class="combo-group">OpenAI</div>
+          <div class="combo-option" data-value="gpt-5.2"><span class="model-id">gpt-5.2</span><span class="model-desc">最新旗舰</span></div>
+          <div class="combo-option" data-value="gpt-5.2-pro"><span class="model-id">gpt-5.2-pro</span><span class="model-desc">更智能更精准</span></div>
+          <div class="combo-option" data-value="gpt-5-mini"><span class="model-id">gpt-5-mini</span><span class="model-desc">快速高效</span></div>
+          <div class="combo-option" data-value="gpt-5-nano"><span class="model-id">gpt-5-nano</span><span class="model-desc">极致性价比</span></div>
+          <div class="combo-option" data-value="gpt-5"><span class="model-id">gpt-5</span><span class="model-desc">上一代推理</span></div>
+          <div class="combo-option" data-value="gpt-4.1"><span class="model-id">gpt-4.1</span><span class="model-desc">最强非推理</span></div>
+          <div class="combo-option" data-value="gpt-4.1-mini"><span class="model-id">gpt-4.1-mini</span><span class="model-desc">轻量快速</span></div>
+          <div class="combo-option" data-value="gpt-4o"><span class="model-id">gpt-4o</span><span class="model-desc">灵活智能</span></div>
+          <div class="combo-option" data-value="gpt-4o-mini"><span class="model-id">gpt-4o-mini</span><span class="model-desc">经济实惠</span></div>
+          <div class="combo-option" data-value="o3"><span class="model-id">o3</span><span class="model-desc">复杂推理</span></div>
+          <div class="combo-option" data-value="o4-mini"><span class="model-id">o4-mini</span><span class="model-desc">快速推理</span></div>
+          <hr class="combo-separator" />
 `
     : ""
 }
-        <div class="combo-group">Google</div>
-        <div class="combo-option" data-value="gemini-3-pro-preview"><span class="model-id">gemini-3-pro-preview</span><span class="model-desc">最强多模态</span></div>
-        <div class="combo-option" data-value="gemini-3-flash-preview"><span class="model-id">gemini-3-flash-preview</span><span class="model-desc">速度与智能</span></div>
-        <div class="combo-option" data-value="gemini-3.0-pro"><span class="model-id">gemini-3.0-pro</span><span class="model-desc">Gemini 3.0</span></div>
-        <div class="combo-option" data-value="gemini-2.5-pro"><span class="model-id">gemini-2.5-pro</span><span class="model-desc">高级思维</span></div>
+          <div class="combo-group">Google</div>
+          <div class="combo-option" data-value="gemini-3-pro-preview"><span class="model-id">gemini-3-pro-preview</span><span class="model-desc">最强多模态</span></div>
+          <div class="combo-option" data-value="gemini-3-flash-preview"><span class="model-id">gemini-3-flash-preview</span><span class="model-desc">速度与智能</span></div>
+          <div class="combo-option" data-value="gemini-3.0-pro"><span class="model-id">gemini-3.0-pro</span><span class="model-desc">Gemini 3.0</span></div>
+          <div class="combo-option" data-value="gemini-2.5-pro"><span class="model-id">gemini-2.5-pro</span><span class="model-desc">高级思维</span></div>
 ${
   apiKey
     ? `
-        <div class="combo-option" data-value="gemini-2.5-flash"><span class="model-id">gemini-2.5-flash</span><span class="model-desc">高性价比</span></div>
+          <div class="combo-option" data-value="gemini-2.5-flash"><span class="model-id">gemini-2.5-flash</span><span class="model-desc">高性价比</span></div>
 `
     : ""
 }
-        <hr class="combo-separator" />
-        <div class="combo-group">DeepSeek</div>
-        <div class="combo-option" data-value="deepseek-v3.2-chat"><span class="model-id">deepseek-v3.2-chat</span><span class="model-desc">V3.2 通用对话</span></div>
-        <div class="combo-option" data-value="deepseek-v3.2-reasoner"><span class="model-id">deepseek-v3.2-reasoner</span><span class="model-desc">V3.2 深度推理</span></div>
-        <div class="combo-option" data-value="deepseek-r1"><span class="model-id">deepseek-r1</span><span class="model-desc">R1 推理</span></div>
+          <hr class="combo-separator" />
+          <div class="combo-group">DeepSeek</div>
+          <div class="combo-option" data-value="deepseek-v3.2-chat"><span class="model-id">deepseek-v3.2-chat</span><span class="model-desc">V3.2 通用对话</span></div>
+          <div class="combo-option" data-value="deepseek-v3.2-reasoner"><span class="model-id">deepseek-v3.2-reasoner</span><span class="model-desc">V3.2 深度推理</span></div>
+          <div class="combo-option" data-value="deepseek-r1"><span class="model-id">deepseek-r1</span><span class="model-desc">R1 推理</span></div>
 ${
   apiKey
     ? ""
     : `
-        <hr class="combo-separator" />
-        <div class="combo-group">OpenAI</div>
-        <div class="combo-option" data-value="gpt-5"><span class="model-id">gpt-5</span><span class="model-desc">GPT-5</span></div>
-        <div class="combo-option" data-value="gpt-5-mini"><span class="model-id">gpt-5-mini</span><span class="model-desc">快速高效</span></div>
-        <div class="combo-option" data-value="gpt-5-nano"><span class="model-id">gpt-5-nano</span><span class="model-desc">极致性价比</span></div>
-        <div class="combo-option" data-value="gpt-4.1"><span class="model-id">gpt-4.1</span><span class="model-desc">最强非推理</span></div>
-        <div class="combo-option" data-value="gpt-4o"><span class="model-id">gpt-4o</span><span class="model-desc">灵活智能</span></div>
-        <div class="combo-option" data-value="o3"><span class="model-id">o3</span><span class="model-desc">复杂推理</span></div>
-        <div class="combo-option" data-value="o4-mini"><span class="model-id">o4-mini</span><span class="model-desc">快速推理</span></div>
-        <hr class="combo-separator" />
-        <div class="combo-group">xAI</div>
-        <div class="combo-option" data-value="grok-4"><span class="model-id">grok-4</span><span class="model-desc">Grok 4</span></div>
-        <div class="combo-option" data-value="grok-3"><span class="model-id">grok-3</span><span class="model-desc">Grok 3</span></div>
-        <hr class="combo-separator" />
-        <div class="combo-group">智谱 GLM</div>
-        <div class="combo-option" data-value="glm-5"><span class="model-id">glm-5</span><span class="model-desc">GLM-5</span></div>
-        <div class="combo-option" data-value="glm-4.7"><span class="model-id">glm-4.7</span><span class="model-desc">GLM-4.7</span></div>
-        <hr class="combo-separator" />
-        <div class="combo-group">Kimi</div>
-        <div class="combo-option" data-value="kimi-k2.5"><span class="model-id">kimi-k2.5</span><span class="model-desc">K2.5</span></div>
-        <div class="combo-option" data-value="kimi-k2"><span class="model-id">kimi-k2</span><span class="model-desc">K2</span></div>
-        <hr class="combo-separator" />
-        <div class="combo-group">通义千问</div>
-        <div class="combo-option" data-value="qwen3-max"><span class="model-id">qwen3-max</span><span class="model-desc">Qwen3 Max</span></div>
-        <div class="combo-option" data-value="qwen3-235b"><span class="model-id">qwen3-235b</span><span class="model-desc">Qwen3 235B</span></div>
-        <hr class="combo-separator" />
-        <div class="combo-group">MiniMax</div>
-        <div class="combo-option" data-value="minimax-m2.5"><span class="model-id">minimax-m2.5</span><span class="model-desc">M2.5</span></div>
+          <hr class="combo-separator" />
+          <div class="combo-group">OpenAI</div>
+          <div class="combo-option" data-value="gpt-5"><span class="model-id">gpt-5</span><span class="model-desc">GPT-5</span></div>
+          <div class="combo-option" data-value="gpt-5-mini"><span class="model-id">gpt-5-mini</span><span class="model-desc">快速高效</span></div>
+          <div class="combo-option" data-value="gpt-5-nano"><span class="model-id">gpt-5-nano</span><span class="model-desc">极致性价比</span></div>
+          <div class="combo-option" data-value="gpt-4.1"><span class="model-id">gpt-4.1</span><span class="model-desc">最强非推理</span></div>
+          <div class="combo-option" data-value="gpt-4o"><span class="model-id">gpt-4o</span><span class="model-desc">灵活智能</span></div>
+          <div class="combo-option" data-value="o3"><span class="model-id">o3</span><span class="model-desc">复杂推理</span></div>
+          <div class="combo-option" data-value="o4-mini"><span class="model-id">o4-mini</span><span class="model-desc">快速推理</span></div>
+          <hr class="combo-separator" />
+          <div class="combo-group">xAI</div>
+          <div class="combo-option" data-value="grok-4"><span class="model-id">grok-4</span><span class="model-desc">Grok 4</span></div>
+          <div class="combo-option" data-value="grok-3"><span class="model-id">grok-3</span><span class="model-desc">Grok 3</span></div>
+          <hr class="combo-separator" />
+          <div class="combo-group">智谱 GLM</div>
+          <div class="combo-option" data-value="glm-5"><span class="model-id">glm-5</span><span class="model-desc">GLM-5</span></div>
+          <div class="combo-option" data-value="glm-4.7"><span class="model-id">glm-4.7</span><span class="model-desc">GLM-4.7</span></div>
+          <hr class="combo-separator" />
+          <div class="combo-group">Kimi</div>
+          <div class="combo-option" data-value="kimi-k2.5"><span class="model-id">kimi-k2.5</span><span class="model-desc">K2.5</span></div>
+          <div class="combo-option" data-value="kimi-k2"><span class="model-id">kimi-k2</span><span class="model-desc">K2</span></div>
+          <hr class="combo-separator" />
+          <div class="combo-group">通义千问</div>
+          <div class="combo-option" data-value="qwen3-max"><span class="model-id">qwen3-max</span><span class="model-desc">Qwen3 Max</span></div>
+          <div class="combo-option" data-value="qwen3-235b"><span class="model-id">qwen3-235b</span><span class="model-desc">Qwen3 235B</span></div>
+          <hr class="combo-separator" />
+          <div class="combo-group">MiniMax</div>
+          <div class="combo-option" data-value="minimax-m2.5"><span class="model-id">minimax-m2.5</span><span class="model-desc">M2.5</span></div>
 `
 }
+        </div>
       </div>
+      <button type="button" class="btn-fetch" id="btnFetch" onclick="doFetchModels()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9m9-9a9 9 0 0 0-9-9m9 9H3m9 9a9 9 0 0 1-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9"/></svg>
+        获取模型
+      </button>
     </div>
   </div>
 
   <div class="btn-row">
-    <button class="btn btn-test" id="btnTest" onclick="doTest()">🔍 测试连接</button>
-    <button class="btn btn-primary" id="btnSave" onclick="doSave()">💾 测试并保存</button>
-    <button class="btn btn-reset" onclick="doReset()">🗑️ 恢复默认</button>
+    <button class="btn btn-test" id="btnTest" onclick="doTest()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="m21 21-4.343-4.343M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z"/></svg>
+      测试连接
+    </button>
+    <button class="btn btn-primary" id="btnSave" onclick="doSave()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      测试并保存
+    </button>
+    <button class="btn btn-reset" onclick="doReset()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+      恢复默认
+    </button>
   </div>
 
   <div class="result-box" id="resultBox"></div>
 
   <hr class="divider" />
   <p style="color:var(--text-dim);font-size:12px;">
-    💡 <strong>提示：</strong>「测试连接」仅验证配置能否连通，不消耗额度。
+    💡 <strong>提示：</strong>切换「API 模式」会自动填充对应的 API 路径。
+    「获取模型」按钮可自动查询服务商支持的模型。
     「测试并保存」会在测试通过后才写入配置。
     「恢复默认」会清除自定义配置，恢复使用内置免费服务。
   </p>
@@ -1466,10 +1685,26 @@ ${
 <script>
 const vscode = acquireVsCodeApi();
 
+// 模式 → 默认路径映射
+const DEFAULT_PATHS = {
+  "openai": "/v1/chat/completions",
+  "openai-responses": "/v1/responses",
+  "claude": "/v1/messages",
+  "gemini": "/v1beta"
+};
+
+// 模式切换时自动填充默认路径
+document.getElementById('apiMode').addEventListener('change', function() {
+  const mode = this.value;
+  if (mode && DEFAULT_PATHS[mode]) {
+    document.getElementById('apiPath').value = DEFAULT_PATHS[mode];
+  }
+});
+
 // ===== Combo Box 下拉框逻辑 =====
 const comboInput = document.getElementById('model');
 const comboDropdown = document.getElementById('comboDropdown');
-const allOptions = comboDropdown.querySelectorAll('.combo-option');
+let allOptions = comboDropdown.querySelectorAll('.combo-option');
 
 function toggleDropdown() {
   const isOpen = comboDropdown.classList.contains('open');
@@ -1477,7 +1712,6 @@ function toggleDropdown() {
 }
 
 function openDropdown() {
-  // 显示所有选项
   allOptions.forEach(o => o.style.display = '');
   comboDropdown.querySelectorAll('.combo-group, .combo-separator').forEach(el => el.style.display = '');
   comboDropdown.classList.add('open');
@@ -1495,7 +1729,6 @@ function highlightActive() {
   });
 }
 
-// 点击选项
 comboDropdown.addEventListener('click', e => {
   const opt = e.target.closest('.combo-option');
   if (opt) {
@@ -1505,19 +1738,15 @@ comboDropdown.addEventListener('click', e => {
   }
 });
 
-// 输入过滤
 comboInput.addEventListener('input', () => {
   const q = comboInput.value.toLowerCase();
   if (!q) { openDropdown(); return; }
   let anyVisible = false;
-  const groups = {};
   allOptions.forEach(o => {
     const val = o.getAttribute('data-value');
     const desc = o.textContent.toLowerCase();
     const match = val.toLowerCase().includes(q) || desc.includes(q);
     o.style.display = match ? '' : 'none';
-    // 追踪分组可见性
-    const group = o.previousElementSibling;
     if (match) anyVisible = true;
   });
   if (!comboDropdown.classList.contains('open') && anyVisible) {
@@ -1525,19 +1754,16 @@ comboInput.addEventListener('input', () => {
   }
 });
 
-// 聚焦时打开
 comboInput.addEventListener('focus', () => {
   if (!comboDropdown.classList.contains('open')) openDropdown();
 });
 
-// 点击外部关闭
 document.addEventListener('click', e => {
   if (!document.getElementById('comboBox').contains(e.target)) {
     closeDropdown();
   }
 });
 
-// 键盘导航
 comboInput.addEventListener('keydown', e => {
   if (e.key === 'Escape') { closeDropdown(); return; }
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -1566,7 +1792,9 @@ comboInput.addEventListener('keydown', e => {
 
 function getValues() {
   return {
-    baseUrl: document.getElementById('baseUrl').value,
+    apiMode: document.getElementById('apiMode').value,
+    apiHost: document.getElementById('apiHost').value,
+    apiPath: document.getElementById('apiPath').value,
     apiKey: document.getElementById('apiKey').value,
     model: document.getElementById('model').value,
   };
@@ -1586,6 +1814,16 @@ function doSave() {
 
 function doReset() {
   vscode.postMessage({ command: 'reset' });
+}
+
+function doFetchModels() {
+  const vals = getValues();
+  if (!vals.apiHost || !vals.apiKey) {
+    showResult('error', '❌ 请先填写 API Host 和 API Key');
+    return;
+  }
+  document.getElementById('btnFetch').disabled = true;
+  vscode.postMessage({ command: 'fetchModels', ...vals });
 }
 
 function setButtons(disabled) {
@@ -1612,6 +1850,23 @@ function toggleKeyVisibility() {
   }
 }
 
+function populateFetchedModels(models) {
+  const section = document.getElementById('fetchedModelsSection');
+  if (!models || models.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+  let html = '<div class="combo-group">API 返回的模型</div>';
+  models.forEach(m => {
+    html += '<div class="combo-option" data-value="' + m + '"><span class="model-id">' + m + '</span></div>';
+  });
+  html += '<hr class="combo-separator" />';
+  section.innerHTML = html;
+  section.style.display = '';
+  // 刷新选项列表
+  allOptions = comboDropdown.querySelectorAll('.combo-option');
+}
+
 window.addEventListener('message', e => {
   const msg = e.data;
   setButtons(false);
@@ -1633,14 +1888,21 @@ window.addEventListener('message', e => {
       break;
     case 'resetResult':
       showResult('success', '✅ ' + msg.message);
-      document.getElementById('baseUrl').value = '';
-      document.getElementById('baseUrl').placeholder = '留空 = 使用内置免费服务';
+      document.getElementById('apiMode').value = '';
+      document.getElementById('apiHost').value = '';
+      document.getElementById('apiHost').placeholder = '留空 = 使用内置免费服务';
+      document.getElementById('apiPath').value = '';
+      document.getElementById('apiPath').placeholder = '/v1/chat/completions';
       document.getElementById('apiKey').value = '';
       document.getElementById('apiKey').placeholder = '留空 = 使用内置免费服务';
       document.getElementById('apiKey').type = 'password';
       document.getElementById('toggleKey').textContent = '显示';
       document.getElementById('model').value = '';
-      document.getElementById('model').placeholder = '留空 = 使用内置免费服务';
+      document.getElementById('model').placeholder = '留空 = 使用内置默认模型';
+      const section = document.getElementById('fetchedModelsSection');
+      section.innerHTML = '';
+      section.style.display = 'none';
+      allOptions = comboDropdown.querySelectorAll('.combo-option');
       const bar = document.getElementById('statusBar');
       bar.className = 'status-bar using-default';
       document.getElementById('statusText').textContent = '当前使用：内置免费服务（无需任何配置）';
@@ -1648,6 +1910,19 @@ window.addEventListener('message', e => {
     case 'switchToDefault':
       document.getElementById('statusBar').className = 'status-bar using-default';
       document.getElementById('statusText').textContent = '当前使用：内置免费服务（无需任何配置）';
+      break;
+    case 'fetchingModels':
+      showResult('info', '⏳ ' + msg.message);
+      break;
+    case 'fetchModelsResult':
+      document.getElementById('btnFetch').disabled = false;
+      if (msg.ok) {
+        showResult('success', '✅ ' + msg.message);
+        populateFetchedModels(msg.models);
+        openDropdown();
+      } else {
+        showResult('error', '❌ ' + msg.message);
+      }
       break;
   }
 });

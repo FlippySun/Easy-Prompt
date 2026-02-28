@@ -1,6 +1,7 @@
 /**
  * Easy Prompt — API 调用层
  * 平台无关的 HTTP 请求封装，使用 curl 避免 Cloudflare 拦截
+ * 支持 4 种 API 模式：openai / openai-responses / claude / gemini
  */
 
 const { spawn } = require("child_process");
@@ -8,6 +9,45 @@ const { platform } = require("os");
 
 // 输入长度限制（10000 字符）
 const MAX_INPUT_LENGTH = 10000;
+
+// API 模式常量
+const API_MODES = {
+  OPENAI: "openai",
+  OPENAI_RESPONSES: "openai-responses",
+  CLAUDE: "claude",
+  GEMINI: "gemini",
+};
+
+// 每种模式的默认 API 路径
+const DEFAULT_API_PATHS = {
+  [API_MODES.OPENAI]: "/v1/chat/completions",
+  [API_MODES.OPENAI_RESPONSES]: "/v1/responses",
+  [API_MODES.CLAUDE]: "/v1/messages",
+  [API_MODES.GEMINI]: "/v1beta",
+};
+
+/**
+ * 从 baseUrl 自动推断 API 模式（向后兼容）
+ * 仅当 config 中缺少 apiMode 时使用
+ */
+function detectApiMode(baseUrl) {
+  if (!baseUrl) return API_MODES.OPENAI;
+  const normalized = baseUrl.replace(/\/+$/, "").toLowerCase();
+  if (normalized.endsWith("/responses")) return API_MODES.OPENAI_RESPONSES;
+  if (
+    normalized.includes("anthropic") ||
+    normalized.includes("/v1/messages") ||
+    normalized.endsWith("/messages")
+  )
+    return API_MODES.CLAUDE;
+  if (
+    normalized.includes("generativelanguage.googleapis.com") ||
+    normalized.includes("/v1beta") ||
+    normalized.includes("/v1alpha")
+  )
+    return API_MODES.GEMINI;
+  return API_MODES.OPENAI;
+}
 
 // 重试配置
 const MAX_RETRIES = 3;
@@ -213,47 +253,117 @@ function delay(ms) {
 
 /**
  * 执行单次 API 调用（无重试）
+ * 支持 4 种 API 模式：openai / openai-responses / claude / gemini
  */
 function callApiOnce(config, systemPrompt, userMessage, options = {}) {
   const { baseUrl, apiKey, model } = config;
+  const apiMode = config.apiMode || detectApiMode(baseUrl);
   const { temperature = 0.7, maxTokens = 4096, timeout = 60 } = options;
 
   // 安全限制：响应体最大 2MB，防止恶意服务器返回巨大响应导致 OOM
   const MAX_RESPONSE_SIZE = 2 * 1024 * 1024;
 
-  const body = JSON.stringify({
-    model,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userMessage },
-    ],
-    temperature,
-    max_tokens: maxTokens,
-  });
-
-  // 智能拼接：如果用户已输入完整路径（含 /chat/completions），直接使用
   const normalizedBase = baseUrl.replace(/\/+$/, "");
-  const url = normalizedBase.endsWith("/chat/completions")
-    ? normalizedBase
-    : `${normalizedBase}/chat/completions`;
+
+  // === 按模式构建请求 URL ===
+  let url;
+  if (apiMode === API_MODES.GEMINI) {
+    // Gemini: 模型名嵌入 URL 路径，API Key 放 query 参数
+    url = `${normalizedBase}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  } else if (apiMode === API_MODES.OPENAI_RESPONSES) {
+    url = normalizedBase.endsWith("/responses")
+      ? normalizedBase
+      : `${normalizedBase}/responses`;
+  } else if (apiMode === API_MODES.CLAUDE) {
+    url = normalizedBase.endsWith("/messages")
+      ? normalizedBase
+      : `${normalizedBase}/messages`;
+  } else {
+    // openai（默认）
+    url = normalizedBase.endsWith("/chat/completions")
+      ? normalizedBase
+      : `${normalizedBase}/chat/completions`;
+  }
+
+  // === 按模式构建请求体 ===
+  let body;
+  if (apiMode === API_MODES.GEMINI) {
+    // Gemini API 格式
+    const payload = {
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: userMessage }],
+        },
+      ],
+      generationConfig: {
+        temperature,
+        maxOutputTokens: maxTokens,
+      },
+    };
+    // Gemini 的 system prompt 使用 systemInstruction 字段
+    if (systemPrompt) {
+      payload.systemInstruction = { parts: [{ text: systemPrompt }] };
+    }
+    body = JSON.stringify(payload);
+  } else if (apiMode === API_MODES.CLAUDE) {
+    // Claude API 格式：system 是顶级字段，不在 messages 中
+    body = JSON.stringify({
+      model,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userMessage }],
+      temperature,
+      max_tokens: maxTokens,
+    });
+  } else if (apiMode === API_MODES.OPENAI_RESPONSES) {
+    // OpenAI Responses API 格式
+    body = JSON.stringify({
+      model,
+      instructions: systemPrompt,
+      input: userMessage,
+      temperature,
+      max_output_tokens: maxTokens,
+    });
+  } else {
+    // OpenAI Chat Completions 格式（默认）
+    body = JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
+      temperature,
+      max_tokens: maxTokens,
+    });
+  }
+
+  // === 按模式构建 curl 参数 ===
+  const args = [
+    "-s",
+    "-S",
+    "--max-time",
+    String(timeout),
+    "-X",
+    "POST",
+    url,
+    "-H",
+    "Content-Type: application/json",
+  ];
+
+  // 按模式添加认证头
+  if (apiMode === API_MODES.CLAUDE) {
+    args.push("-H", `x-api-key: ${apiKey}`);
+    args.push("-H", "anthropic-version: 2023-06-01");
+  } else if (apiMode === API_MODES.GEMINI) {
+    // Gemini: API Key 已在 URL query 参数中，无需认证头
+  } else {
+    // OpenAI / OpenAI Responses: Bearer token
+    args.push("-H", `Authorization: Bearer ${apiKey}`);
+  }
+
+  args.push("-d", "@-");
 
   return new Promise((resolve, reject) => {
-    const args = [
-      "-s",
-      "-S",
-      "--max-time",
-      String(timeout),
-      "-X",
-      "POST",
-      url,
-      "-H",
-      "Content-Type: application/json",
-      "-H",
-      `Authorization: Bearer ${apiKey}`,
-      "-d",
-      "@-",
-    ];
-
     const curl = spawn("curl", args, {
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -311,12 +421,35 @@ function callApiOnce(config, systemPrompt, userMessage, options = {}) {
 
       try {
         const resp = JSON.parse(stdout);
+
+        // === 按模式检查错误响应 ===
         if (resp.error) {
           const errorMsg = resp.error.message || JSON.stringify(resp.error);
           reject(new Error(errorMsg));
           return;
         }
-        const content = resp.choices?.[0]?.message?.content;
+
+        // === 按模式解析响应 ===
+        let content;
+        if (apiMode === API_MODES.GEMINI) {
+          // Gemini 响应格式
+          content = resp.candidates?.[0]?.content?.parts?.[0]?.text;
+        } else if (apiMode === API_MODES.CLAUDE) {
+          // Claude 响应格式
+          content = resp.content?.[0]?.text;
+        } else if (apiMode === API_MODES.OPENAI_RESPONSES) {
+          // OpenAI Responses API 格式（防御 resp.output 非数组）
+          const outputArr = Array.isArray(resp.output) ? resp.output : [];
+          const msgOutput = outputArr.find((o) => o.type === "message");
+          const contentArr = Array.isArray(msgOutput?.content)
+            ? msgOutput.content
+            : [];
+          content = contentArr.find((c) => c.type === "output_text")?.text;
+        } else {
+          // OpenAI Chat Completions 格式
+          content = resp.choices?.[0]?.message?.content;
+        }
+
         if (!content) {
           reject(new Error("返回为空"));
           return;
@@ -408,12 +541,187 @@ async function callGenerationApi(
   });
 }
 
-module.exports = { callApi, callRouterApi, callGenerationApi, testApiConfig };
+module.exports = {
+  callApi,
+  callRouterApi,
+  callGenerationApi,
+  testApiConfig,
+  fetchModels,
+  API_MODES,
+  DEFAULT_API_PATHS,
+  detectApiMode,
+};
+
+/**
+ * 获取可用模型列表
+ * 按 API 模式自动选择正确的端点和解析逻辑
+ * @param {Object} config - {baseUrl, apiKey, model, apiMode} (baseUrl = apiHost + apiPath)
+ * @param {string} [apiHost] - API 主机地址（可选，不提供时从 baseUrl 推导）
+ * @returns {Promise<{ok: boolean, models: string[], message: string}>}
+ */
+async function fetchModels(config, apiHost) {
+  const apiMode = config.apiMode || detectApiMode(config.baseUrl);
+  const baseUrl = (config.baseUrl || "").replace(/\/+$/, "");
+  const apiKey = config.apiKey || "";
+
+  // 推导 apiHost：优先使用传入值，否则从 baseUrl 提取协议+主机
+  let host = apiHost;
+  if (!host) {
+    try {
+      const u = new URL(baseUrl);
+      host = u.origin; // e.g., https://api.openai.com
+    } catch {
+      return { ok: false, models: [], message: "无法解析 API Host" };
+    }
+  }
+  host = host.replace(/\/+$/, "");
+
+  // 推导版本前缀（从 apiPath 提取）
+  let versionPrefix;
+  try {
+    const u = new URL(baseUrl);
+    const pathSegments = u.pathname.split("/").filter(Boolean);
+    // 版本前缀通常是第一个路径段（如 /v1, /v1beta）
+    versionPrefix = pathSegments.length > 0 ? `/${pathSegments[0]}` : "/v1";
+  } catch {
+    versionPrefix = "/v1";
+  }
+
+  // === 按模式构建模型列表请求 ===
+  let modelsUrl;
+  const headers = ["-H", "Content-Type: application/json"];
+
+  if (apiMode === API_MODES.GEMINI) {
+    modelsUrl = `${host}${versionPrefix}/models?key=${encodeURIComponent(apiKey)}`;
+    // Gemini: API Key 在 URL 中，无需认证头
+  } else if (apiMode === API_MODES.CLAUDE) {
+    modelsUrl = `${host}${versionPrefix}/models`;
+    headers.push("-H", `x-api-key: ${apiKey}`);
+    headers.push("-H", "anthropic-version: 2023-06-01");
+  } else {
+    // openai / openai-responses
+    modelsUrl = `${host}${versionPrefix}/models`;
+    headers.push("-H", `Authorization: Bearer ${apiKey}`);
+  }
+
+  // 安全限制：模型列表响应体最大 2MB
+  const MAX_RESPONSE_SIZE = 2 * 1024 * 1024;
+
+  return new Promise((resolve) => {
+    const args = ["-s", "-S", "--max-time", "15", modelsUrl, ...headers];
+
+    const curl = spawn("curl", args, { stdio: ["pipe", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    let stdoutSize = 0;
+    let killed = false;
+
+    // 安全保护：Kill Timer（比 curl --max-time 多 10s 容错）
+    const killTimer = setTimeout(() => {
+      killed = true;
+      curl.kill("SIGKILL");
+    }, 25 * 1000);
+
+    curl.stdout.on("data", (data) => {
+      stdoutSize += data.length;
+      if (stdoutSize > MAX_RESPONSE_SIZE) {
+        killed = true;
+        curl.kill("SIGKILL");
+        return;
+      }
+      stdout += data.toString();
+    });
+    curl.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    curl.on("error", (err) => {
+      clearTimeout(killTimer);
+      resolve({
+        ok: false,
+        models: [],
+        message: `获取模型列表失败: ${err.message}`,
+      });
+    });
+
+    curl.on("close", (code) => {
+      clearTimeout(killTimer);
+
+      if (killed && stdoutSize > MAX_RESPONSE_SIZE) {
+        resolve({
+          ok: false,
+          models: [],
+          message: "模型列表响应体过大（超过 2MB），已中断",
+        });
+        return;
+      }
+      if (killed) {
+        resolve({
+          ok: false,
+          models: [],
+          message: "获取模型列表请求超时",
+        });
+        return;
+      }
+
+      if (code !== 0) {
+        resolve({
+          ok: false,
+          models: [],
+          message: `获取模型列表失败: ${stderr || "未知错误"}`,
+        });
+        return;
+      }
+
+      try {
+        const resp = JSON.parse(stdout);
+
+        if (resp.error) {
+          const errMsg = resp.error.message || JSON.stringify(resp.error);
+          resolve({ ok: false, models: [], message: errMsg });
+          return;
+        }
+
+        let models = [];
+        if (apiMode === API_MODES.GEMINI) {
+          // Gemini: models[].name 形如 "models/gemini-pro" → 剥离 "models/" 前缀
+          models = (resp.models || [])
+            .map((m) => (m.name || "").replace(/^models\//, ""))
+            .filter(Boolean)
+            .sort();
+        } else {
+          // OpenAI / Responses / Claude: data[].id
+          models = (resp.data || [])
+            .map((m) => m.id || "")
+            .filter(Boolean)
+            .sort();
+        }
+
+        if (models.length === 0) {
+          resolve({ ok: false, models: [], message: "未获取到可用模型" });
+          return;
+        }
+
+        resolve({
+          ok: true,
+          models,
+          message: `获取到 ${models.length} 个模型`,
+        });
+      } catch (e) {
+        resolve({
+          ok: false,
+          models: [],
+          message: `解析模型列表失败: ${e.message}`,
+        });
+      }
+    });
+  });
+}
 
 /**
  * 轻量级 API 配置测试
  * 发送一个极简请求验证连通性（maxTokens=5, 极低开销）
- * @param {Object} config - {baseUrl, apiKey, model}
+ * @param {Object} config - {baseUrl, apiKey, model, apiMode}
  * @returns {Promise<{ok: boolean, message: string, latency: number}>}
  */
 async function testApiConfig(config) {
@@ -424,7 +732,7 @@ async function testApiConfig(config) {
     if (!baseUrl || !baseUrl.match(/^https?:\/\//)) {
       return {
         ok: false,
-        message: "Base URL 格式错误：必须以 http:// 或 https:// 开头",
+        message: "API Host 格式错误：必须以 http:// 或 https:// 开头",
         latency: 0,
       };
     }
@@ -435,7 +743,7 @@ async function testApiConfig(config) {
       return { ok: false, message: "模型名称不能为空", latency: 0 };
     }
 
-    // 发送极简请求
+    // 发送极简请求（callApiOnce 内部会自动处理 apiMode）
     const result = await callApiOnce(config, "Reply with OK", "test", {
       temperature: 0,
       maxTokens: 5,

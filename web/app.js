@@ -211,9 +211,9 @@ function _dk() {
 
 // Pre-encrypted vault (AES-256-CBC, base64 iv:ciphertext)
 const _vault = {
-  _a: "tdTmIDzo/e1SKx7OKeGmnw==:YnsNFVSfArxjd/pFkA1d33NMk04G9K2zTcq6b0tfkmLnLyirIJ2zZ9taVb+vsMdw",
-  _b: "BasysF8Cpt+TnJ8IO/wFfw==:mJuKyQW4S0TkVYofyVpu1QABnR2WbwvhFYFbKBqrzh9b+S64hPoQ35eACQJI1RuEvNRrk86W5NeiIIXf2kui8Q==",
-  _c: "KTwUHAoztZ0gOdEWXQBvLQ==:FVc+zYn00kX5NNieli/yMFLsON/Xc1Um0/e0G69OO6A=",
+  _a: "b5zK5rm4Z/0kSfL7VSuLYg==:wcAG/1D/BSdBRXUlgIMPZZlp50Wg5N7gZoDiaRziaspA4f4j+ETRX2BwReNx6Wtx",
+  _b: "SyO5SF0nZl4Zt+PZLVMRLw==:LkQFvENBnk313MHrQibMQoTnjhZsHKJ3l+pAivBAl9mHNI37Ga4uAuXIcCaPZn0yBOEdcirHLtjjY7VvSkH3PvCmU6dviVGgMafDlvG9NiI=",
+  _c: "HDMC8Hdb/acdOE7iqIJ7Yg==:+75RWKzehSvB1FbisiQ11g==",
 };
 
 let _builtinCache = null;
@@ -274,10 +274,16 @@ function saveConfig(cfg) {
 async function getEffectiveConfig() {
   const user = loadConfig();
   const builtin = await _getBuiltinDefaults();
+  // 从 apiHost + apiPath 构建 baseUrl（如果用户使用新版配置）
+  let userBaseUrl = (user.baseUrl || "").trim();
+  if (!userBaseUrl && user.apiHost) {
+    userBaseUrl = user.apiHost.replace(/\/+$/, "") + (user.apiPath || "");
+  }
   return {
-    baseUrl: (user.baseUrl || "").trim() || builtin.baseUrl,
+    baseUrl: userBaseUrl || builtin.baseUrl,
     apiKey: (user.apiKey || "").trim() || builtin.apiKey,
     model: (user.model || "").trim() || builtin.model,
+    apiMode: (user.apiMode || "").trim() || "",
   };
 }
 
@@ -789,32 +795,128 @@ function friendlyError(errorMsg, model) {
   return `API 调用出错: ${errorMsg}`;
 }
 
+/** 支持的 API 模式 */
+const API_MODES = {
+  openai: "OpenAI Chat Completions",
+  "openai-responses": "OpenAI Responses API",
+  claude: "Claude API",
+  gemini: "Google Gemini API",
+};
+
+/** 每种模式的默认 API 路径 */
+const DEFAULT_API_PATHS = {
+  openai: "/v1/chat/completions",
+  "openai-responses": "/v1/responses",
+  claude: "/v1/messages",
+  gemini: "/v1beta",
+};
+
+/** 根据 baseUrl 路径自动推断 API 模式 */
+function detectApiMode(baseUrl) {
+  if (!baseUrl) return "openai";
+  const normalized = baseUrl.replace(/\/+$/, "").toLowerCase();
+  if (normalized.endsWith("/responses")) return "openai-responses";
+  if (
+    normalized.includes("anthropic") ||
+    normalized.includes("/v1/messages") ||
+    normalized.endsWith("/messages")
+  )
+    return "claude";
+  if (
+    normalized.includes("generativelanguage.googleapis.com") ||
+    normalized.includes("/v1beta") ||
+    normalized.includes("/v1alpha")
+  )
+    return "gemini";
+  return "openai";
+}
+
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * 单次 API 调用（支持 4 种 API 模式）
+ * config: { baseUrl, apiKey, model, apiMode? }
+ */
 async function callApiOnce(config, systemPrompt, userMessage, options = {}) {
   const { temperature = 0.7, maxTokens = 4096, timeout = 60, signal } = options;
 
   const normalizedBase = config.baseUrl.replace(/\/+$/, "");
-  const url = normalizedBase.endsWith("/chat/completions")
-    ? normalizedBase
-    : `${normalizedBase}/chat/completions`;
+  const mode = config.apiMode || detectApiMode(normalizedBase);
 
-  const body = JSON.stringify({
-    model: config.model,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userMessage },
-    ],
-    temperature,
-    max_tokens: maxTokens,
-  });
+  // ── 构建 URL ──
+  let url;
+  if (mode === "gemini") {
+    url = `${normalizedBase}/models/${encodeURIComponent(config.model)}:generateContent?key=${encodeURIComponent(config.apiKey)}`;
+  } else if (mode === "openai-responses") {
+    url = normalizedBase.endsWith("/responses")
+      ? normalizedBase
+      : `${normalizedBase}/responses`;
+  } else if (mode === "claude") {
+    url = normalizedBase.endsWith("/messages")
+      ? normalizedBase
+      : `${normalizedBase}/messages`;
+  } else {
+    url = normalizedBase.endsWith("/chat/completions")
+      ? normalizedBase
+      : `${normalizedBase}/chat/completions`;
+  }
+
+  // ── 构建 Headers ──
+  const headers = { "Content-Type": "application/json" };
+  if (mode === "claude") {
+    headers["x-api-key"] = config.apiKey;
+    headers["anthropic-version"] = "2023-06-01";
+  } else if (mode !== "gemini") {
+    headers["Authorization"] = `Bearer ${config.apiKey}`;
+  }
+
+  // ── 构建 Body ──
+  let body;
+  if (mode === "openai-responses") {
+    body = JSON.stringify({
+      model: config.model,
+      instructions: systemPrompt,
+      input: userMessage,
+      temperature,
+      max_output_tokens: maxTokens,
+    });
+  } else if (mode === "claude") {
+    body = JSON.stringify({
+      model: config.model,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userMessage }],
+      max_tokens: maxTokens,
+      temperature,
+    });
+  } else if (mode === "gemini") {
+    const payload = {
+      contents: [{ role: "user", parts: [{ text: userMessage }] }],
+      generationConfig: {
+        temperature,
+        maxOutputTokens: maxTokens,
+      },
+    };
+    if (systemPrompt) {
+      payload.systemInstruction = { parts: [{ text: systemPrompt }] };
+    }
+    body = JSON.stringify(payload);
+  } else {
+    body = JSON.stringify({
+      model: config.model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
+      temperature,
+      max_tokens: maxTokens,
+    });
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout * 1000);
 
-  // 外部取消信号联动内部 controller
   if (signal) {
     if (signal.aborted) {
       clearTimeout(timer);
@@ -826,10 +928,7 @@ async function callApiOnce(config, systemPrompt, userMessage, options = {}) {
   try {
     const resp = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${config.apiKey}`,
-      },
+      headers,
       body,
       signal: controller.signal,
     });
@@ -849,7 +948,6 @@ async function callApiOnce(config, systemPrompt, userMessage, options = {}) {
       throw new Error(errorMsg);
     }
 
-    // 安全限制：响应体最大 2MB
     const MAX_RESPONSE_SIZE = 2 * 1024 * 1024;
     const text = await resp.text();
     if (text.length > MAX_RESPONSE_SIZE) {
@@ -860,7 +958,23 @@ async function callApiOnce(config, systemPrompt, userMessage, options = {}) {
       throw new Error(data.error.message || JSON.stringify(data.error));
     }
 
-    const content = data.choices?.[0]?.message?.content;
+    // ── 解析响应 ──
+    let content;
+    if (mode === "openai-responses") {
+      const outputArr = Array.isArray(data.output) ? data.output : [];
+      const msgOutput = outputArr.find((o) => o.type === "message");
+      const contentArr = Array.isArray(msgOutput?.content)
+        ? msgOutput.content
+        : [];
+      content = contentArr.find((c) => c.type === "output_text")?.text;
+    } else if (mode === "claude") {
+      content = data.content?.[0]?.text;
+    } else if (mode === "gemini") {
+      content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    } else {
+      content = data.choices?.[0]?.message?.content;
+    }
+
     if (!content) throw new Error("返回为空");
     return content;
   } catch (err) {
@@ -943,7 +1057,7 @@ async function testApiConfig(config) {
     if (!baseUrl || !baseUrl.match(/^https?:\/\//))
       return {
         ok: false,
-        message: "Base URL 格式错误：必须以 http:// 或 https:// 开头",
+        message: "API Host 格式错误：必须以 http:// 或 https:// 开头",
         latency: 0,
       };
     if (!config.apiKey || !config.apiKey.trim())
@@ -966,6 +1080,69 @@ async function testApiConfig(config) {
       message: friendlyError(err.message, config.model),
       latency,
     };
+  }
+}
+
+/**
+ * 查询 API 可用模型列表
+ * config: { baseUrl, apiKey, model?, apiMode? }
+ */
+async function fetchModels(config) {
+  const normalizedBase = config.baseUrl.replace(/\/+$/, "");
+  const mode = config.apiMode || detectApiMode(normalizedBase);
+
+  let url, headers;
+
+  if (mode === "gemini") {
+    let host = normalizedBase;
+    const pathIdx = host.indexOf("/v1beta");
+    if (pathIdx > 0) host = host.substring(0, pathIdx);
+    url = `${host}/v1beta/models?key=${encodeURIComponent(config.apiKey)}`;
+    headers = {};
+  } else if (mode === "claude") {
+    let host = normalizedBase;
+    const pathIdx = host.indexOf("/v1");
+    if (pathIdx > 0) host = host.substring(0, pathIdx);
+    url = `${host}/v1/models`;
+    headers = {
+      "x-api-key": config.apiKey,
+      "anthropic-version": "2023-06-01",
+    };
+  } else {
+    let host = normalizedBase;
+    const pathIdx = host.indexOf("/v1");
+    if (pathIdx > 0) host = host.substring(0, pathIdx);
+    url = `${host}/v1/models`;
+    headers = { Authorization: `Bearer ${config.apiKey}` };
+  }
+
+  try {
+    const resp = await fetch(url, { headers });
+    if (!resp.ok) {
+      let errorMsg = `HTTP ${resp.status}`;
+      try {
+        const errBody = await resp.json();
+        if (errBody.error)
+          errorMsg = errBody.error.message || JSON.stringify(errBody.error);
+      } catch {
+        /* ignore */
+      }
+      throw new Error(errorMsg);
+    }
+    const data = await resp.json();
+
+    let models = [];
+    if (mode === "gemini") {
+      models = (data.models || [])
+        .map((m) => (m.name || "").replace(/^models\//, ""))
+        .filter(Boolean);
+    } else {
+      models = (data.data || []).map((m) => m.id).filter(Boolean);
+    }
+    models.sort();
+    return { ok: true, models, message: `获取到 ${models.length} 个模型` };
+  } catch (err) {
+    return { ok: false, models: [], message: friendlyError(err.message, "") };
   }
 }
 
@@ -1457,6 +1634,72 @@ function bindSettingsEvents() {
   $("#btn-test-api").addEventListener("click", handleTestApi);
   $("#btn-save-settings").addEventListener("click", handleSaveSettings);
   initModelCombo();
+
+  // API 模式切换 → 自动填充路径
+  const modeSelect = $("#setting-api-mode");
+  if (modeSelect) {
+    modeSelect.addEventListener("change", () => {
+      const mode = modeSelect.value;
+      if (mode && DEFAULT_API_PATHS[mode]) {
+        $("#setting-api-path").value = DEFAULT_API_PATHS[mode];
+      }
+    });
+  }
+
+  // 获取模型列表按钮
+  const btnFetch = $("#btn-fetch-models");
+  if (btnFetch) {
+    btnFetch.addEventListener("click", async () => {
+      const apiHost = ($("#setting-api-host").value || "")
+        .trim()
+        .replace(/\/+$/, "");
+      const apiPath = ($("#setting-api-path").value || "").trim();
+      const apiKey = ($("#setting-api-key").value || "").trim();
+      const apiMode = ($("#setting-api-mode").value || "").trim();
+      if (!apiHost || !apiKey) {
+        showToast("请先填写 API Host 和 API Key", "error");
+        return;
+      }
+      btnFetch.disabled = true;
+      try {
+        const config = {
+          baseUrl: apiHost + apiPath,
+          apiKey,
+          model: "",
+          apiMode,
+        };
+        const result = await fetchModels(config);
+        if (result.ok && result.models.length > 0) {
+          showToast(`获取到 ${result.models.length} 个模型`, "success");
+          renderFetchedModels(result.models);
+        } else {
+          showToast(result.message || "未获取到模型", "error");
+        }
+      } catch (err) {
+        showToast(err.message, "error");
+      } finally {
+        btnFetch.disabled = false;
+      }
+    });
+  }
+}
+
+/** 渲染获取到的模型列表（点击选中） */
+function renderFetchedModels(models) {
+  const container = $("#fetched-models-list");
+  if (!container) return;
+  container.hidden = false;
+  container.innerHTML = "";
+  models.forEach((m) => {
+    const chip = document.createElement("span");
+    chip.className = "model-chip";
+    chip.textContent = m;
+    chip.addEventListener("click", () => {
+      $("#setting-model").value = m;
+      showToast(`已选择模型: ${m}`, "success");
+    });
+    container.appendChild(chip);
+  });
 }
 
 /* ─── Model Combobox ─── */
@@ -1665,9 +1908,20 @@ function initModelCombo() {
 
 function populateSettings() {
   const cfg = loadConfig();
-  $("#setting-base-url").value = cfg.baseUrl || "";
+  // API 模式
+  const modeEl = $("#setting-api-mode");
+  if (modeEl) modeEl.value = cfg.apiMode || "";
+  // Host / Path
+  $("#setting-api-host").value = cfg.apiHost || "";
+  $("#setting-api-path").value = cfg.apiPath || "";
   $("#setting-api-key").value = cfg.apiKey || "";
   $("#setting-model").value = cfg.model || "";
+  // 隐藏模型列表
+  const fetchedList = $("#fetched-models-list");
+  if (fetchedList) {
+    fetchedList.hidden = true;
+    fetchedList.innerHTML = "";
+  }
 }
 
 function toggleKeyVisibility() {
@@ -1696,10 +1950,28 @@ async function handleTestApi() {
 
   // Gather config (use form values or fallback to builtin)
   const builtin = await _getBuiltinDefaults();
+  const rawHost = ($("#setting-api-host").value || "")
+    .trim()
+    .replace(/\/+$/, "");
+  const rawPath = ($("#setting-api-path").value || "").trim();
+  const rawMode = ($("#setting-api-mode").value || "").trim();
+
+  // 如果用户未填写 Host，仅使用 builtin 的 host 部分（而非完整 baseUrl），避免路径翻倍
+  let apiHost = rawHost;
+  if (!apiHost && builtin.baseUrl) {
+    try {
+      const u = new URL(builtin.baseUrl);
+      apiHost = u.origin;
+    } catch (_) {
+      apiHost = builtin.baseUrl;
+    }
+  }
+  const apiPath = rawPath;
   const config = {
-    baseUrl: ($("#setting-base-url").value || "").trim() || builtin.baseUrl,
+    baseUrl: apiHost + apiPath,
     apiKey: ($("#setting-api-key").value || "").trim() || builtin.apiKey,
     model: ($("#setting-model").value || "").trim() || builtin.model,
+    apiMode: rawMode || detectApiMode(apiHost + apiPath),
   };
 
   const res = await testApiConfig(config);
@@ -1714,7 +1986,9 @@ async function handleTestApi() {
 
 function handleSaveSettings() {
   const cfg = {
-    baseUrl: ($("#setting-base-url").value || "").trim(),
+    apiMode: ($("#setting-api-mode").value || "").trim(),
+    apiHost: ($("#setting-api-host").value || "").trim().replace(/\/+$/, ""),
+    apiPath: ($("#setting-api-path").value || "").trim(),
     apiKey: ($("#setting-api-key").value || "").trim(),
     model: ($("#setting-model").value || "").trim(),
   };
