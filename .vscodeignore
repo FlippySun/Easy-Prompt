@@ -7,8 +7,15 @@ web/**
 # 浏览器扩展（独立构建，不属于 VSCode 插件）
 browser/**
 
+# PromptHub Web 应用（独立产品，不属于 VSCode 插件）
+web-hub/**
+
 # CI/CD 部署脚本（包含敏感凭证，不得打包）
 deploy/**
+
+# 项目规划文件（不属于 VSCode 插件）
+.planning/**
+.continue-here.md
 
 # 旧的 VSCode 子目录（已迁移到根目录）
 vscode/**

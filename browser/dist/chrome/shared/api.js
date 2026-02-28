@@ -1,12 +1,51 @@
 /**
  * Easy Prompt Browser Extension — API Client
- * fetch-based API 调用层（与 web/app.js 完全一致的逻辑）
+ * fetch-based API 调用层，支持 4 种 API 模式
+ * openai / openai-responses / claude / gemini
  * 含重试、友好错误信息、安全限制
  */
 
 const MAX_INPUT_LENGTH = 10000;
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [2000, 4000, 8000];
+
+/** 支持的 API 模式 */
+const API_MODES = {
+  openai: "OpenAI Chat Completions",
+  "openai-responses": "OpenAI Responses API",
+  claude: "Claude API",
+  gemini: "Google Gemini API",
+};
+
+/** 每种模式的默认 API 路径 */
+const DEFAULT_API_PATHS = {
+  openai: "/v1/chat/completions",
+  "openai-responses": "/v1/responses",
+  claude: "/v1/messages",
+  gemini: "/v1beta",
+};
+
+/**
+ * 根据 baseUrl 路径自动推断 API 模式
+ */
+function detectApiMode(baseUrl) {
+  if (!baseUrl) return "openai";
+  const normalized = baseUrl.replace(/\/+$/, "").toLowerCase();
+  if (normalized.endsWith("/responses")) return "openai-responses";
+  if (
+    normalized.includes("anthropic") ||
+    normalized.includes("/v1/messages") ||
+    normalized.endsWith("/messages")
+  )
+    return "claude";
+  if (
+    normalized.includes("generativelanguage.googleapis.com") ||
+    normalized.includes("/v1beta") ||
+    normalized.includes("/v1alpha")
+  )
+    return "gemini";
+  return "openai";
+}
 
 function isRetryableError(error) {
   const msg = (error.message || "").toLowerCase();
@@ -109,7 +148,7 @@ function friendlyError(errorMsg, model) {
   )
     return "API 请求超时 · 请检查网络连接，或缩短输入文本后重试";
   if (msg.includes("json") || msg.includes("解析"))
-    return "API 返回格式错误 · 请检查 Base URL 是否正确";
+    return "API 返回格式错误 · 请检查 API Host 和 Path 是否正确";
   if (msg.includes("返回为空") || msg.includes("empty"))
     return "API 返回结果为空 · 请修改输入内容后重试";
   return `API 调用出错: ${errorMsg}`;
@@ -119,22 +158,87 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * 单次 API 调用（支持 4 种 API 模式）
+ * config: { baseUrl, apiKey, model, apiMode? }
+ */
 async function callApiOnce(config, systemPrompt, userMessage, options = {}) {
   const { temperature = 0.7, maxTokens = 4096, timeout = 60, signal } = options;
-  const normalizedBase = config.baseUrl.replace(/\/+$/, "");
-  const url = normalizedBase.endsWith("/chat/completions")
-    ? normalizedBase
-    : `${normalizedBase}/chat/completions`;
 
-  const body = JSON.stringify({
-    model: config.model,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userMessage },
-    ],
-    temperature,
-    max_tokens: maxTokens,
-  });
+  const normalizedBase = config.baseUrl.replace(/\/+$/, "");
+  const mode = config.apiMode || detectApiMode(normalizedBase);
+
+  // ── 构建 URL ──
+  let url;
+  if (mode === "gemini") {
+    url = `${normalizedBase}/models/${encodeURIComponent(config.model)}:generateContent?key=${encodeURIComponent(config.apiKey)}`;
+  } else if (mode === "openai-responses") {
+    url = normalizedBase.endsWith("/responses")
+      ? normalizedBase
+      : `${normalizedBase}/responses`;
+  } else if (mode === "claude") {
+    url = normalizedBase.endsWith("/messages")
+      ? normalizedBase
+      : `${normalizedBase}/messages`;
+  } else {
+    // openai
+    url = normalizedBase.endsWith("/chat/completions")
+      ? normalizedBase
+      : `${normalizedBase}/chat/completions`;
+  }
+
+  // ── 构建 Headers ──
+  const headers = { "Content-Type": "application/json" };
+  if (mode === "claude") {
+    headers["x-api-key"] = config.apiKey;
+    headers["anthropic-version"] = "2023-06-01";
+  } else if (mode !== "gemini") {
+    headers["Authorization"] = `Bearer ${config.apiKey}`;
+  }
+  // gemini: API key in URL, no auth header
+
+  // ── 构建 Body ──
+  let body;
+  if (mode === "openai-responses") {
+    body = JSON.stringify({
+      model: config.model,
+      instructions: systemPrompt,
+      input: userMessage,
+      temperature,
+      max_output_tokens: maxTokens,
+    });
+  } else if (mode === "claude") {
+    body = JSON.stringify({
+      model: config.model,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userMessage }],
+      max_tokens: maxTokens,
+      temperature,
+    });
+  } else if (mode === "gemini") {
+    const payload = {
+      contents: [{ role: "user", parts: [{ text: userMessage }] }],
+      generationConfig: {
+        temperature,
+        maxOutputTokens: maxTokens,
+      },
+    };
+    if (systemPrompt) {
+      payload.systemInstruction = { parts: [{ text: systemPrompt }] };
+    }
+    body = JSON.stringify(payload);
+  } else {
+    // openai
+    body = JSON.stringify({
+      model: config.model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
+      temperature,
+      max_tokens: maxTokens,
+    });
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout * 1000);
@@ -149,10 +253,7 @@ async function callApiOnce(config, systemPrompt, userMessage, options = {}) {
   try {
     const resp = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${config.apiKey}`,
-      },
+      headers,
       body,
       signal: controller.signal,
     });
@@ -177,7 +278,24 @@ async function callApiOnce(config, systemPrompt, userMessage, options = {}) {
     const data = JSON.parse(text);
     if (data.error)
       throw new Error(data.error.message || JSON.stringify(data.error));
-    const content = data.choices?.[0]?.message?.content;
+
+    // ── 解析响应 ──
+    let content;
+    if (mode === "openai-responses") {
+      const outputArr = Array.isArray(data.output) ? data.output : [];
+      const msgOutput = outputArr.find((o) => o.type === "message");
+      const contentArr = Array.isArray(msgOutput?.content)
+        ? msgOutput.content
+        : [];
+      content = contentArr.find((c) => c.type === "output_text")?.text;
+    } else if (mode === "claude") {
+      content = data.content?.[0]?.text;
+    } else if (mode === "gemini") {
+      content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    } else {
+      content = data.choices?.[0]?.message?.content;
+    }
+
     if (!content) throw new Error("返回为空");
     return content;
   } catch (err) {
@@ -223,7 +341,7 @@ async function testApiConfig(config) {
     if (!baseUrl || !baseUrl.match(/^https?:\/\//))
       return {
         ok: false,
-        message: "Base URL 格式错误：必须以 http:// 或 https:// 开头",
+        message: "API Host 格式错误：必须以 http:// 或 https:// 开头",
         latency: 0,
       };
     if (!config.apiKey || !config.apiKey.trim())
@@ -246,11 +364,81 @@ async function testApiConfig(config) {
   }
 }
 
+/**
+ * 查询 API 可用模型列表
+ * config: { baseUrl, apiKey, model?, apiMode? }
+ */
+async function fetchModels(config) {
+  const normalizedBase = config.baseUrl.replace(/\/+$/, "");
+  const mode = config.apiMode || detectApiMode(normalizedBase);
+
+  let url, headers;
+
+  if (mode === "gemini") {
+    // GET {host}/v1beta/models?key={apiKey}
+    let host = normalizedBase;
+    const pathIdx = host.indexOf("/v1beta");
+    if (pathIdx > 0) host = host.substring(0, pathIdx);
+    url = `${host}/v1beta/models?key=${encodeURIComponent(config.apiKey)}`;
+    headers = {};
+  } else if (mode === "claude") {
+    let host = normalizedBase;
+    const pathIdx = host.indexOf("/v1");
+    if (pathIdx > 0) host = host.substring(0, pathIdx);
+    url = `${host}/v1/models`;
+    headers = {
+      "x-api-key": config.apiKey,
+      "anthropic-version": "2023-06-01",
+    };
+  } else {
+    // openai / openai-responses
+    let host = normalizedBase;
+    const pathIdx = host.indexOf("/v1");
+    if (pathIdx > 0) host = host.substring(0, pathIdx);
+    url = `${host}/v1/models`;
+    headers = { Authorization: `Bearer ${config.apiKey}` };
+  }
+
+  try {
+    const resp = await fetch(url, { headers });
+    if (!resp.ok) {
+      let errorMsg = `HTTP ${resp.status}`;
+      try {
+        const errBody = await resp.json();
+        if (errBody.error)
+          errorMsg = errBody.error.message || JSON.stringify(errBody.error);
+      } catch {
+        /* ignore */
+      }
+      throw new Error(errorMsg);
+    }
+    const data = await resp.json();
+
+    // 解析模型 ID
+    let models = [];
+    if (mode === "gemini") {
+      models = (data.models || [])
+        .map((m) => (m.name || "").replace(/^models\//, ""))
+        .filter(Boolean);
+    } else {
+      models = (data.data || []).map((m) => m.id).filter(Boolean);
+    }
+    models.sort();
+    return { ok: true, models, message: `获取到 ${models.length} 个模型` };
+  } catch (err) {
+    return { ok: false, models: [], message: friendlyError(err.message, "") };
+  }
+}
+
 // eslint-disable-next-line no-unused-vars
 const Api = {
   MAX_INPUT_LENGTH,
+  API_MODES,
+  DEFAULT_API_PATHS,
+  detectApiMode,
   callApi,
   callApiOnce,
   testApiConfig,
+  fetchModels,
   friendlyError,
 };

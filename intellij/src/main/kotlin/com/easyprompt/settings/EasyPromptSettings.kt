@@ -28,7 +28,10 @@ data class HistoryRecord(
 class EasyPromptSettings : PersistentStateComponent<EasyPromptSettings.State> {
 
     data class State(
-        var apiBaseUrl: String = "",
+        var apiMode: String = "",       // openai | openai-responses | claude | gemini
+        var apiHost: String = "",       // e.g. https://api.openai.com
+        var apiPath: String = "",       // e.g. /v1/chat/completions
+        var apiBaseUrl: String = "",    // Legacy, kept for backward compat migration
         @Deprecated("Use PasswordSafe instead. Kept for migration only.")
         var apiKey: String = "",
         var model: String = "",

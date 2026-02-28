@@ -6,6 +6,7 @@ import com.easyprompt.settings.EasyPromptSettings
 import com.intellij.openapi.progress.ProgressIndicator
 import java.net.HttpURLConnection
 import java.net.URI
+import java.net.URLEncoder
 
 data class RouterResult(
     val scenes: List<String>,
@@ -18,6 +19,14 @@ data class SmartRouteResult(
     val composite: Boolean
 )
 
+/** 有效配置（内部传递用） */
+data class EffectiveConfig(
+    val baseUrl: String,
+    val apiKey: String,
+    val model: String,
+    val apiMode: String
+)
+
 object ApiClient {
     private val gson = Gson()
 
@@ -27,6 +36,35 @@ object ApiClient {
     // 重试配置
     private const val MAX_RETRIES = 3
     private val RETRY_DELAYS = longArrayOf(2000, 4000, 8000) // 指数退避：2s, 4s, 8s
+
+    /** 4 种 API 模式 */
+    val API_MODES = mapOf(
+        "openai" to "OpenAI Chat Completions",
+        "openai-responses" to "OpenAI Responses API",
+        "claude" to "Claude API",
+        "gemini" to "Google Gemini API"
+    )
+
+    /** 各模式默认路径 */
+    val DEFAULT_API_PATHS = mapOf(
+        "openai" to "/v1/chat/completions",
+        "openai-responses" to "/v1/responses",
+        "claude" to "/v1/messages",
+        "gemini" to "/v1beta"
+    )
+
+    /**
+     * 从 URL 自动检测 API 模式（向后兼容用）
+     */
+    fun detectApiMode(url: String): String {
+        val lower = url.trimEnd('/').lowercase()
+        return when {
+            lower.endsWith("/responses") -> "openai-responses"
+            lower.contains("anthropic") || lower.contains("/v1/messages") || lower.endsWith("/messages") -> "claude"
+            lower.contains("generativelanguage.googleapis.com") || lower.contains("/v1beta") || lower.contains("/v1alpha") -> "gemini"
+            else -> "openai"
+        }
+    }
 
     /**
      * 判断错误是否值得重试
@@ -117,30 +155,39 @@ object ApiClient {
     /**
      * 获取有效配置（用户自定义优先，否则使用内置默认）
      */
-    private fun getEffectiveConfig(): Triple<String, String, String> {
+    private fun getEffectiveConfig(): EffectiveConfig {
         val settingsInstance = EasyPromptSettings.getInstance()
         val state = settingsInstance.state
         val userApiKey = settingsInstance.getApiKey()
         return if (userApiKey.isNotBlank()) {
             // 用户配置了自定义 Key，使用用户的全套配置
-            val baseUrl = state.apiBaseUrl.ifBlank { "https://api.openai.com/v1" }.trimEnd('/')
+            // 优先使用新版 apiHost + apiPath，兼容旧版 apiBaseUrl
+            val baseUrl = if (state.apiHost.isNotBlank()) {
+                (state.apiHost.trimEnd('/') + state.apiPath).trimEnd('/')
+            } else if (state.apiBaseUrl.isNotBlank()) {
+                state.apiBaseUrl.trimEnd('/')
+            } else {
+                "https://api.openai.com/v1/chat/completions"
+            }
             val model = state.model.ifBlank { "gpt-4o" }
+            val apiMode = state.apiMode.ifBlank { detectApiMode(baseUrl) }
 
             // 格式验证（与 VSCode getConfig 一致）
             if (!baseUrl.matches(Regex("^https?://.*"))) {
-                throw RuntimeException("API Base URL 格式错误：必须以 http:// 或 https:// 开头")
+                throw RuntimeException("API Host 格式错误：必须以 http:// 或 https:// 开头")
             }
 
-            Triple(baseUrl, userApiKey, model)
+            EffectiveConfig(baseUrl, userApiKey, model, apiMode)
         } else {
             // 使用内置默认配置
             val defaults = BuiltinDefaults.getDefaults()
-            Triple(defaults.baseUrl.trimEnd('/'), defaults.apiKey, defaults.model)
+            val baseUrl = defaults.baseUrl.trimEnd('/')
+            EffectiveConfig(baseUrl, defaults.apiKey, defaults.model, detectApiMode(baseUrl))
         }
     }
 
     /**
-     * 执行单次 API 调用（无重试）
+     * 执行单次 API 调用（无重试），支持 4 种 API 模式
      */
     private fun callApiOnce(
         systemPrompt: String,
@@ -150,29 +197,91 @@ object ApiClient {
         timeout: Int = 60000,
         indicator: ProgressIndicator? = null
     ): String {
-        val (baseUrl, apiKey, model) = getEffectiveConfig()
-        // 智能拼接：如果用户已输入完整路径（含 /chat/completions），直接使用
-        val url = if (baseUrl.endsWith("/chat/completions")) {
-            URI(baseUrl).toURL()
-        } else {
-            URI("$baseUrl/chat/completions").toURL()
+        val cfg = getEffectiveConfig()
+        val mode = cfg.apiMode
+
+        // ── URL 构建 ──
+        val url = when (mode) {
+            "gemini" -> {
+                val encodedModel = URLEncoder.encode(cfg.model, "UTF-8")
+                val encodedKey = URLEncoder.encode(cfg.apiKey, "UTF-8")
+                URI("${cfg.baseUrl}/models/$encodedModel:generateContent?key=$encodedKey").toURL()
+            }
+            "openai-responses" -> {
+                val base = cfg.baseUrl
+                if (base.endsWith("/responses")) URI(base).toURL()
+                else URI("$base/responses").toURL()
+            }
+            "claude" -> {
+                val base = cfg.baseUrl
+                if (base.endsWith("/messages")) URI(base).toURL()
+                else URI("$base/messages").toURL()
+            }
+            else -> /* openai */ {
+                val base = cfg.baseUrl
+                if (base.endsWith("/chat/completions")) URI(base).toURL()
+                else URI("$base/chat/completions").toURL()
+            }
         }
 
-        val body = JsonObject().apply {
-            addProperty("model", model)
-            add("messages", gson.toJsonTree(listOf(
-                mapOf("role" to "system", "content" to systemPrompt),
-                mapOf("role" to "user", "content" to userMessage)
-            )))
-            addProperty("temperature", temperature)
-            addProperty("max_tokens", maxTokens)
+        // ── 请求体构建 ──
+        val body = when (mode) {
+            "openai-responses" -> JsonObject().apply {
+                addProperty("model", cfg.model)
+                addProperty("instructions", systemPrompt)
+                addProperty("input", userMessage)
+                addProperty("temperature", temperature)
+                addProperty("max_output_tokens", maxTokens)
+            }
+            "claude" -> JsonObject().apply {
+                addProperty("model", cfg.model)
+                addProperty("system", systemPrompt)
+                add("messages", gson.toJsonTree(listOf(
+                    mapOf("role" to "user", "content" to userMessage)
+                )))
+                addProperty("max_tokens", maxTokens)
+                addProperty("temperature", temperature)
+            }
+            "gemini" -> JsonObject().apply {
+                add("contents", gson.toJsonTree(listOf(
+                    mapOf("role" to "user", "parts" to listOf(mapOf("text" to userMessage)))
+                )))
+                if (systemPrompt.isNotBlank()) {
+                    add("systemInstruction", gson.toJsonTree(
+                        mapOf("parts" to listOf(mapOf("text" to systemPrompt)))
+                    ))
+                }
+                add("generationConfig", gson.toJsonTree(mapOf(
+                    "temperature" to temperature,
+                    "maxOutputTokens" to maxTokens
+                )))
+            }
+            else -> /* openai */ JsonObject().apply {
+                addProperty("model", cfg.model)
+                add("messages", gson.toJsonTree(listOf(
+                    mapOf("role" to "system", "content" to systemPrompt),
+                    mapOf("role" to "user", "content" to userMessage)
+                )))
+                addProperty("temperature", temperature)
+                addProperty("max_tokens", maxTokens)
+            }
         }
 
         val conn = url.openConnection() as HttpURLConnection
         try {
             conn.requestMethod = "POST"
             conn.setRequestProperty("Content-Type", "application/json")
-            conn.setRequestProperty("Authorization", "Bearer $apiKey")
+
+            // ── Headers ──
+            when (mode) {
+                "claude" -> {
+                    conn.setRequestProperty("x-api-key", cfg.apiKey)
+                    conn.setRequestProperty("anthropic-version", "2023-06-01")
+                }
+                "gemini" -> { /* key in URL, no auth header */ }
+                else -> conn.setRequestProperty("Authorization", "Bearer ${cfg.apiKey}")
+            }
+
             conn.connectTimeout = timeout
             conn.readTimeout = timeout
             conn.doOutput = true
@@ -232,15 +341,51 @@ object ApiClient {
                         errSb.toString()
                     } else "Unknown error"
                 } catch (_: Exception) { "Unknown error" }
-                throw RuntimeException("API 错误 ($responseCode): $errorBody")
+                // 尝试从 JSON 错误体中提取 error.message（更友好的错误信息）
+                val errorMsg = try {
+                    val errJson = gson.fromJson(errorBody, JsonObject::class.java)
+                    errJson.getAsJsonObject("error")?.get("message")?.asString ?: errorBody
+                } catch (_: Exception) { errorBody }
+                throw RuntimeException("API 错误 ($responseCode): $errorMsg")
             }
 
             val json = gson.fromJson(responseBody, JsonObject::class.java)
-            return json.getAsJsonArray("choices")
-                ?.get(0)?.asJsonObject
-                ?.getAsJsonObject("message")
-                ?.get("content")?.asString
-                ?: throw RuntimeException("API 返回为空")
+
+            // ── 按模式解析响应 ──
+            return when (mode) {
+                "openai-responses" -> {
+                    val outputArray = json.getAsJsonArray("output")
+                    val msgOutput = outputArray?.firstOrNull {
+                        it.asJsonObject?.get("type")?.asString == "message"
+                    }?.asJsonObject
+                    val content = msgOutput?.getAsJsonArray("content")
+                        ?.firstOrNull { it.asJsonObject?.get("type")?.asString == "output_text" }
+                        ?.asJsonObject?.get("text")?.asString
+                    content ?: throw RuntimeException("API 返回为空")
+                }
+                "claude" -> {
+                    json.getAsJsonArray("content")
+                        ?.get(0)?.asJsonObject
+                        ?.get("text")?.asString
+                        ?: throw RuntimeException("API 返回为空")
+                }
+                "gemini" -> {
+                    json.getAsJsonArray("candidates")
+                        ?.get(0)?.asJsonObject
+                        ?.getAsJsonObject("content")
+                        ?.getAsJsonArray("parts")
+                        ?.get(0)?.asJsonObject
+                        ?.get("text")?.asString
+                        ?: throw RuntimeException("API 返回为空")
+                }
+                else -> /* openai */ {
+                    json.getAsJsonArray("choices")
+                        ?.get(0)?.asJsonObject
+                        ?.getAsJsonObject("message")
+                        ?.get("content")?.asString
+                        ?: throw RuntimeException("API 返回为空")
+                }
+            }
         } finally {
             conn.disconnect()
         }
@@ -264,7 +409,7 @@ object ApiClient {
         }
 
         var lastError: Exception? = null
-        val (_, _, model) = getEffectiveConfig()
+        val cfg = getEffectiveConfig()
 
         for (attempt in 0..MAX_RETRIES) {
             if (indicator?.isCanceled == true) {
@@ -283,7 +428,7 @@ object ApiClient {
 
                 // 非重试类错误直接抛出（如 401, 403, 模型不存在等）
                 if (!isRetryableError(errorMsg)) {
-                    throw RuntimeException(friendlyError(errorMsg, model))
+                    throw RuntimeException(friendlyError(errorMsg, cfg.model))
                 }
 
                 // 最后一次重试失败
@@ -298,7 +443,7 @@ object ApiClient {
         }
 
         // 所有重试都失败
-        throw RuntimeException(friendlyError(lastError?.message ?: "Unknown error", model))
+        throw RuntimeException(friendlyError(lastError?.message ?: "Unknown error", cfg.model))
     }
 
     /**
@@ -431,32 +576,80 @@ object ApiClient {
     }
 
     /**
-     * 测试 API 配置是否可用
+     * 测试 API 配置是否可用（支持 4 种 API 模式）
      * @return Triple(ok, message, latencyMs)
      */
-    fun testApiConfig(baseUrl: String, apiKey: String, model: String): Triple<Boolean, String, Long> {
+    fun testApiConfig(baseUrl: String, apiKey: String, model: String, apiMode: String = ""): Triple<Boolean, String, Long> {
         if (apiKey.isBlank()) {
             return Triple(false, "API Key 不能为空", 0)
         }
         if (baseUrl.isBlank()) {
-            return Triple(false, "API Base URL 不能为空", 0)
+            return Triple(false, "API Host 不能为空", 0)
         }
 
-        // 智能拼接：如果用户已输入完整路径（含 /chat/completions），直接使用
-        val normalizedBase = baseUrl.trimEnd('/')
-        val url = if (normalizedBase.endsWith("/chat/completions")) {
-            URI(normalizedBase).toURL()
-        } else {
-            URI("$normalizedBase/chat/completions").toURL()
+        val mode = apiMode.ifBlank { detectApiMode(baseUrl) }
+        val effectiveModel = model.ifBlank { "gpt-4o" }
+
+        // ── URL 构建（与 callApiOnce 一致，含 endpoint 自动补全） ──
+        val url = when (mode) {
+            "gemini" -> {
+                val encodedModel = URLEncoder.encode(effectiveModel, "UTF-8")
+                val encodedKey = URLEncoder.encode(apiKey, "UTF-8")
+                URI("$baseUrl/models/$encodedModel:generateContent?key=$encodedKey").toURL()
+            }
+            "openai-responses" -> {
+                if (baseUrl.endsWith("/responses")) URI(baseUrl).toURL()
+                else URI("$baseUrl/responses").toURL()
+            }
+            "claude" -> {
+                if (baseUrl.endsWith("/messages")) URI(baseUrl).toURL()
+                else URI("$baseUrl/messages").toURL()
+            }
+            else -> {
+                if (baseUrl.endsWith("/chat/completions")) URI(baseUrl).toURL()
+                else URI("$baseUrl/chat/completions").toURL()
+            }
         }
-        val body = JsonObject().apply {
-            addProperty("model", model.ifBlank { "gpt-4o" })
-            add("messages", gson.toJsonTree(listOf(
-                mapOf("role" to "system", "content" to "Reply OK"),
-                mapOf("role" to "user", "content" to "test")
-            )))
-            addProperty("temperature", 0)
-            addProperty("max_tokens", 5)
+
+        // ── 请求体构建 ──
+        val body = when (mode) {
+            "openai-responses" -> JsonObject().apply {
+                addProperty("model", effectiveModel)
+                addProperty("instructions", "Reply OK")
+                addProperty("input", "test")
+                addProperty("temperature", 0)
+                addProperty("max_output_tokens", 5)
+            }
+            "claude" -> JsonObject().apply {
+                addProperty("model", effectiveModel)
+                addProperty("system", "Reply OK")
+                add("messages", gson.toJsonTree(listOf(
+                    mapOf("role" to "user", "content" to "test")
+                )))
+                addProperty("max_tokens", 5)
+                addProperty("temperature", 0)
+            }
+            "gemini" -> JsonObject().apply {
+                add("contents", gson.toJsonTree(listOf(
+                    mapOf("role" to "user", "parts" to listOf(mapOf("text" to "test")))
+                )))
+                add("systemInstruction", gson.toJsonTree(
+                    mapOf("parts" to listOf(mapOf("text" to "Reply OK")))
+                ))
+                add("generationConfig", gson.toJsonTree(mapOf(
+                    "temperature" to 0,
+                    "maxOutputTokens" to 5
+                )))
+            }
+            else -> /* openai */ JsonObject().apply {
+                addProperty("model", effectiveModel)
+                add("messages", gson.toJsonTree(listOf(
+                    mapOf("role" to "system", "content" to "Reply OK"),
+                    mapOf("role" to "user", "content" to "test")
+                )))
+                addProperty("temperature", 0)
+                addProperty("max_tokens", 5)
+            }
         }
 
         val startTime = System.currentTimeMillis()
@@ -465,7 +658,17 @@ object ApiClient {
             try {
                 conn.requestMethod = "POST"
                 conn.setRequestProperty("Content-Type", "application/json")
-                conn.setRequestProperty("Authorization", "Bearer $apiKey")
+
+                // ── Headers ──
+                when (mode) {
+                    "claude" -> {
+                        conn.setRequestProperty("x-api-key", apiKey)
+                        conn.setRequestProperty("anthropic-version", "2023-06-01")
+                    }
+                    "gemini" -> { /* key in URL */ }
+                    else -> conn.setRequestProperty("Authorization", "Bearer $apiKey")
+                }
+
                 conn.connectTimeout = 15000
                 conn.readTimeout = 15000
                 conn.doOutput = true
@@ -475,7 +678,8 @@ object ApiClient {
                 val latency = System.currentTimeMillis() - startTime
 
                 if (responseCode in 200..299) {
-                    Triple(true, "连接成功 · 延迟 ${latency}ms · 模型: ${model.ifBlank { "gpt-4o" }}", latency)
+                    val modeLabel = API_MODES[mode] ?: mode
+                    Triple(true, "连接成功 · 延迟 ${latency}ms · 模式: $modeLabel · 模型: $effectiveModel", latency)
                 } else {
                     // 错误响应体做大小限制（与 callApiOnce 一致）
                     val errorBody = try {
@@ -500,7 +704,7 @@ object ApiClient {
                     val msg = when (responseCode) {
                         401 -> "API Key 无效 · 请检查你的 Key 是否正确"
                         403 -> "访问被拒绝 · Key 可能没有权限"
-                        404 -> "接口地址不存在 · 请检查 Base URL 是否正确"
+                        404 -> "接口地址不存在 · 请检查 API Host/Path 是否正确"
                         429 -> "请求过于频繁 · 请稍后再试"
                         in 500..599 -> "服务端错误 ($responseCode) · 请稍后再试"
                         else -> "HTTP $responseCode · $errorBody"
@@ -511,13 +715,93 @@ object ApiClient {
                 conn.disconnect()
             }
         } catch (e: java.net.SocketTimeoutException) {
-            Triple(false, "连接超时 · 请检查网络或 Base URL 是否正确", System.currentTimeMillis() - startTime)
+            Triple(false, "连接超时 · 请检查网络或 API Host 是否正确", System.currentTimeMillis() - startTime)
         } catch (e: java.net.UnknownHostException) {
-            Triple(false, "域名解析失败 · 请检查 Base URL 是否正确", System.currentTimeMillis() - startTime)
+            Triple(false, "域名解析失败 · 请检查 API Host 是否正确", System.currentTimeMillis() - startTime)
         } catch (e: java.net.ConnectException) {
-            Triple(false, "无法连接到服务器 · 请检查网络和 Base URL", System.currentTimeMillis() - startTime)
+            Triple(false, "无法连接到服务器 · 请检查网络和 API Host", System.currentTimeMillis() - startTime)
         } catch (e: Exception) {
             Triple(false, "测试失败: ${e.message}", System.currentTimeMillis() - startTime)
+        }
+    }
+
+    /**
+     * 获取可用模型列表（支持 4 种 API 模式）
+     * @return Triple(ok, models, message)
+     */
+    fun fetchModels(baseUrl: String, apiKey: String, apiMode: String = ""): Triple<Boolean, List<String>, String> {
+        val mode = apiMode.ifBlank { detectApiMode(baseUrl) }
+        try {
+            // 从 baseUrl 提取 host（去除 /v1beta, /v1/... 等路径后缀）
+            val host = when (mode) {
+                "gemini" -> {
+                    val idx = baseUrl.indexOf("/v1beta")
+                    if (idx > 0) baseUrl.substring(0, idx) else baseUrl
+                }
+                else -> {
+                    val idx = baseUrl.indexOf("/v1")
+                    if (idx > 0) baseUrl.substring(0, idx) else baseUrl
+                }
+            }
+
+            val url = when (mode) {
+                "gemini" -> {
+                    val encodedKey = URLEncoder.encode(apiKey, "UTF-8")
+                    URI("$host/v1beta/models?key=$encodedKey").toURL()
+                }
+                "claude" -> URI("$host/v1/models").toURL()
+                else -> URI("$host/v1/models").toURL()
+            }
+
+            val conn = url.openConnection() as HttpURLConnection
+            try {
+                conn.requestMethod = "GET"
+                conn.setRequestProperty("Content-Type", "application/json")
+
+                when (mode) {
+                    "claude" -> {
+                        conn.setRequestProperty("x-api-key", apiKey)
+                        conn.setRequestProperty("anthropic-version", "2023-06-01")
+                    }
+                    "gemini" -> { /* key in URL */ }
+                    else -> conn.setRequestProperty("Authorization", "Bearer $apiKey")
+                }
+
+                conn.connectTimeout = 15000
+                conn.readTimeout = 15000
+
+                val responseCode = conn.responseCode
+                if (responseCode !in 200..299) {
+                    return Triple(false, emptyList(), "获取模型列表失败 (HTTP $responseCode)")
+                }
+
+                val responseBody = conn.inputStream.bufferedReader().readText()
+                val json = gson.fromJson(responseBody, JsonObject::class.java)
+
+                val models = when (mode) {
+                    "gemini" -> {
+                        json.getAsJsonArray("models")?.mapNotNull {
+                            // name: "models/gemini-2.5-pro" → "gemini-2.5-pro"
+                            it.asJsonObject?.get("name")?.asString?.removePrefix("models/")
+                        } ?: emptyList()
+                    }
+                    else -> {
+                        json.getAsJsonArray("data")?.mapNotNull {
+                            it.asJsonObject?.get("id")?.asString
+                        } ?: emptyList()
+                    }
+                }
+
+                return if (models.isNotEmpty()) {
+                    Triple(true, models.sorted(), "获取到 ${models.size} 个模型")
+                } else {
+                    Triple(false, emptyList(), "未获取到模型")
+                }
+            } finally {
+                conn.disconnect()
+            }
+        } catch (e: Exception) {
+            return Triple(false, emptyList(), "获取模型列表失败: ${e.message}")
         }
     }
 }

@@ -5,6 +5,46 @@ All notable changes to the Easy Prompt project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.3.3] - 2026-02-28
+
+### 多 API 模式（Multi-API Mode）— 全端支持 4 种 API 格式
+
+全端新增多 API 模式支持，现可直连 OpenAI / Claude / Gemini 等不同格式的 API 服务商，无需通过中转。
+
+#### 新增功能
+
+- **新增：4 种 API 模式** — OpenAI Chat Completions / OpenAI Responses API / Claude API / Google Gemini API，覆盖主流 AI 供应商
+- **新增：API Mode 选择器** — 设置页新增 API 模式下拉菜单，切换模式自动填充对应默认路径
+- **新增：Host + Path 分离** — 原 Base URL 拆分为 API Host 和 API Path，配置更清晰灵活
+- **新增：自动查询模型列表** — 设置页新增"获取模型列表"按钮，一键从 API 服务商拉取可用模型
+- **新增：自动模式检测** — 未设置模式时，根据 API 路径自动推断（`/responses` → Responses API、`/v1/messages` → Claude、`/v1beta` → Gemini）
+- **新增：向后兼容** — 旧版 `baseUrl` 配置自动拆分为 `apiHost` + `apiPath`，无需手动迁移
+
+#### 全端同步
+
+- **VSCode 扩展**：设置面板完整重写，新增 Mode / Host / Path / Fetch Models UI
+- **IntelliJ 插件**：Settings 页重写为 Mode / Host / Path 布局，新增 Fetch Models 按钮
+- **浏览器扩展**：Options 页新增 Mode 下拉 + Host/Path 分离 + Fetch Models 按钮
+- **Web 在线版**：设置面板新增 Mode 下拉 + Host/Path 分离 + Fetch Models 按钮
+
+#### 核心 API 层重构
+
+- **重构：`callApiOnce()` 4 模式分支** — 每种模式独立构建 URL、Headers、请求体、响应解析
+- **重构：`fetchModels()` 多模式支持** — OpenAI/Responses 查 `/v1/models`，Claude 查 `/v1/models`（`x-api-key` 认证），Gemini 查 `/v1beta/models?key=`
+- **重构：Endpoint 自动补全** — 用户仅配置 `/v1` 时，自动追加 `/chat/completions`、`/responses`、`/messages` 等完整路径
+- **安全：Gemini URL 编码** — 全端统一对 `model` 和 `apiKey` 进行 URL 编码（`encodeURIComponent` / `URLEncoder.encode`），防止特殊字符导致 URL 异常
+
+#### Bug 修复（交叉审查发现）
+
+- **修复：浏览器扩展 Gemini URL 缺少 `encodeURIComponent`** — `callApiOnce()` 和 `fetchModels()` 中 model/apiKey 未编码
+- **修复：Web 端 Gemini URL 缺少 `encodeURIComponent`** — 同上
+- **修复：IntelliJ Gemini URL 缺少 `URLEncoder.encode`** — `callApiOnce()` / `testApiConfig()` / `fetchModels()` 三处
+- **修复：IntelliJ `fetchModels()` 正则无法匹配 `/v1beta`** — 导致 Gemini 模式 host 提取失败、路径翻倍 404，改为显式 `indexOf` 匹配
+- **修复：IntelliJ `testApiConfig()` 缺少 endpoint 自动补全** — 非 Gemini 模式测试 URL 与实际调用 URL 不一致，导致测试误报失败
+- **修复：IntelliJ 错误响应直接显示原始 JSON** — 改为解析 `error.message` 字段，用户可读性更好
+- **修复：Web 端 `handleTestApi()` 内置配置 fallback 产生双路径** — 改用 `new URL().origin` 提取 host
+- **修复：IntelliJ `callApiOnce()` 非 Gemini 模式缺少 endpoint 自动补全** — 添加与其他三端一致的路径检查逻辑
+
 ## [5.3.2] - 2026-02-24
 
 ### Browser Extension 交互与历史面板升级

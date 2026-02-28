@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.easyprompt"
-version = "5.3.2"
+version = "5.3.3"
 
 repositories {
     mavenCentral()
@@ -161,6 +161,18 @@ intellijPlatform {
             sinceBuild = "243"
         }
         changeNotes = """
+            <h3>v5.3.3 — 多 API 模式（Multi-API Mode）</h3>
+            <b>全端新增 4 种 API 格式支持，直连 OpenAI / Claude / Gemini</b>
+            <ul>
+                <li><b>4 种 API 模式</b>：OpenAI Chat Completions / OpenAI Responses API / Claude API / Google Gemini API</li>
+                <li><b>API Host + Path 分离</b>：配置更清晰灵活，切换模式自动填充默认路径</li>
+                <li><b>自动查询模型列表</b>：一键从 API 服务商拉取可用模型</li>
+                <li><b>自动模式检测</b>：根据 API 路径自动推断模式，旧配置无缝兼容</li>
+                <li><b>Gemini URL 编码修复</b>：model 和 apiKey 统一 URLEncoder.encode 编码</li>
+                <li><b>fetchModels /v1beta 匹配修复</b>：解决 Gemini 模式路径翻倍 404 问题</li>
+                <li><b>testApiConfig endpoint 自动补全</b>：修复测试 URL 与实际调用不一致问题</li>
+                <li><b>错误响应 JSON 解析</b>：提取 error.message 替代原始 JSON 展示</li>
+            </ul>
             <h3>v5.3.2 — ✨ 浏览器扩展交互体验增强</h3>
             <b>Browser Extension UX & History Panel Upgrade</b>
             <ul>
