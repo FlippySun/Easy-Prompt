@@ -253,6 +253,17 @@ async function _getBuiltinDefaults() {
 const STORAGE_KEY = "easy-prompt-config";
 const THEME_KEY = "easy-prompt-theme";
 
+function _splitBaseUrl(url) {
+  if (!url) return { host: "", path: "" };
+  try {
+    const u = new URL(url);
+    const raw = u.pathname;
+    return { host: u.origin, path: raw === "/" ? "" : raw };
+  } catch (_) {
+    return { host: "", path: "" };
+  }
+}
+
 function loadConfig() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -274,16 +285,45 @@ function saveConfig(cfg) {
 async function getEffectiveConfig() {
   const user = loadConfig();
   const builtin = await _getBuiltinDefaults();
-  // 从 apiHost + apiPath 构建 baseUrl（如果用户使用新版配置）
-  let userBaseUrl = (user.baseUrl || "").trim();
-  if (!userBaseUrl && user.apiHost) {
-    userBaseUrl = user.apiHost.replace(/\/+$/, "") + (user.apiPath || "");
+  const builtinParts = _splitBaseUrl(builtin.baseUrl);
+
+  // 读取用户输入并规整
+  let apiHost = (user.apiHost || "").trim().replace(/\/+$/, "");
+  let apiPath = (user.apiPath || "").trim();
+  let apiMode = (user.apiMode || "").trim();
+  const legacyBase = (user.baseUrl || "").trim();
+
+  // 兼容旧版：拆分 baseUrl → host/path
+  if (!apiHost && legacyBase) {
+    const { host, path } = _splitBaseUrl(legacyBase);
+    if (host) apiHost = host;
+    if (!apiPath && path) apiPath = path;
   }
+
+  // 若 host 为空，回落到内置 host
+  if (!apiHost && builtinParts.host) apiHost = builtinParts.host;
+
+  // 填充 path：优先模式默认，其次内置 path
+  if (!apiPath) {
+    if (apiMode && DEFAULT_API_PATHS[apiMode]) {
+      apiPath = DEFAULT_API_PATHS[apiMode];
+    } else if (builtinParts.path) {
+      apiPath = builtinParts.path;
+    }
+  }
+  if (apiPath && !apiPath.startsWith("/")) apiPath = "/" + apiPath;
+
+  const effectiveBase = (apiHost || "").replace(/\/+$/, "") + (apiPath || "");
+
+  // baseUrl 优先：手工 host/path 组合 > 旧版 baseUrl > 内置 baseUrl
+  const baseUrl = effectiveBase || legacyBase || builtin.baseUrl;
   return {
-    baseUrl: userBaseUrl || builtin.baseUrl,
+    baseUrl,
+    apiHost,
+    apiPath,
     apiKey: (user.apiKey || "").trim() || builtin.apiKey,
     model: (user.model || "").trim() || builtin.model,
-    apiMode: (user.apiMode || "").trim() || "",
+    apiMode: apiMode || detectApiMode(baseUrl),
   };
 }
 
@@ -1653,9 +1693,14 @@ function bindSettingsEvents() {
       const apiHost = ($("#setting-api-host").value || "")
         .trim()
         .replace(/\/+$/, "");
-      const apiPath = ($("#setting-api-path").value || "").trim();
-      const apiKey = ($("#setting-api-key").value || "").trim();
+      let apiPath = ($("#setting-api-path").value || "").trim();
       const apiMode = ($("#setting-api-mode").value || "").trim();
+      // 若未填写路径且当前模式有默认路径，自动填充
+      if (!apiPath && apiMode && DEFAULT_API_PATHS[apiMode]) {
+        apiPath = DEFAULT_API_PATHS[apiMode];
+        $("#setting-api-path").value = apiPath;
+      }
+      const apiKey = ($("#setting-api-key").value || "").trim();
       if (!apiHost || !apiKey) {
         showToast("请先填写 API Host 和 API Key", "error");
         return;
@@ -1911,9 +1956,24 @@ function populateSettings() {
   // API 模式
   const modeEl = $("#setting-api-mode");
   if (modeEl) modeEl.value = cfg.apiMode || "";
-  // Host / Path
-  $("#setting-api-host").value = cfg.apiHost || "";
-  $("#setting-api-path").value = cfg.apiPath || "";
+
+  // Host / Path（兼容旧 baseUrl，必要时拆分；复用 _splitBaseUrl）
+  let host = (cfg.apiHost || "").trim();
+  let path = (cfg.apiPath || "").trim();
+  if (!host && cfg.baseUrl) {
+    const parts = _splitBaseUrl(cfg.baseUrl);
+    if (parts.host) host = parts.host;
+    if (!path && parts.path) path = parts.path;
+  }
+  $("#setting-api-host").value = host;
+  $("#setting-api-path").value = path;
+
+  // 若未填 path 且当前模式有默认值，自动补全
+  const modeForDefault = modeEl ? modeEl.value : "";
+  if (!path && modeForDefault && DEFAULT_API_PATHS[modeForDefault]) {
+    $("#setting-api-path").value = DEFAULT_API_PATHS[modeForDefault];
+  }
+
   $("#setting-api-key").value = cfg.apiKey || "";
   $("#setting-model").value = cfg.model || "";
   // 隐藏模型列表
@@ -1966,7 +2026,12 @@ async function handleTestApi() {
       apiHost = builtin.baseUrl;
     }
   }
-  const apiPath = rawPath;
+  let apiPath = rawPath;
+  // 若未填写路径且当前模式有默认路径，自动填充
+  if (!apiPath && rawMode && DEFAULT_API_PATHS[rawMode]) {
+    apiPath = DEFAULT_API_PATHS[rawMode];
+    $("#setting-api-path").value = apiPath;
+  }
   const config = {
     baseUrl: apiHost + apiPath,
     apiKey: ($("#setting-api-key").value || "").trim() || builtin.apiKey,
