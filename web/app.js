@@ -270,6 +270,7 @@ function _splitBaseUrl(url) {
  * - 用户自定义 Provider → 直接请求（不走代理，避免 API Key 泄露）
  * - _builtinCache 未就绪 → 安全降级（跳过代理）
  * 维护：Nginx 代理配置位于 VPS extension/prompt.zhiz.chat/ep-api-proxy.conf
+ * 安全：该 location 已关闭 access_log（防止 Gemini ?key=xxx 泄露到日志）
  */
 function _proxyUrl(url) {
   try {
