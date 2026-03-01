@@ -31,7 +31,7 @@
     }
   ],
   "permissions": ["storage", "contextMenus", "activeTab", "scripting"],
-  "host_permissions": [],
+  "host_permissions": ["https://*/*", "http://*/*"],
   "commands": {
     "smart-enhance": {
       "suggested_key": {
