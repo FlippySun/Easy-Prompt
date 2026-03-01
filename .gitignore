@@ -40,3 +40,7 @@ deploy/
 .github/prompts/
 .github/skills/
 .github/settings.local.json
+
+# Project analysis reports (local only)
+PROJECT_REVIEW_REPORT.md
+PROJECT_SUMMARY.md

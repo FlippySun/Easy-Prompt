@@ -49,18 +49,29 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Load saved config
   const config = await Storage.loadConfig();
   if (config.apiMode) $("#input-api-mode").value = config.apiMode;
-  if (config.apiHost) $("#input-api-host").value = config.apiHost;
-  if (config.apiPath) $("#input-api-path").value = config.apiPath;
-  // Backward compat: if old baseUrl exists but no apiHost, split it
-  if (!config.apiHost && config.baseUrl) {
+
+  // Split host/path first; then fallback to defaults
+  let host = (config.apiHost || "").trim();
+  let path = (config.apiPath || "").trim();
+  if (!host && config.baseUrl) {
     try {
       const u = new URL(config.baseUrl);
-      $("#input-api-host").value = u.origin;
-      $("#input-api-path").value = u.pathname;
+      host = u.origin;
+      const rawPath = u.pathname === "/" ? "" : u.pathname;
+      path = path || rawPath;
     } catch {
       /* ignore */
     }
   }
+  $("#input-api-host").value = host;
+  $("#input-api-path").value = path;
+
+  // If mode has default path and path empty → autofill
+  const modeForDefault = $("#input-api-mode").value;
+  if (!path && modeForDefault && Api.DEFAULT_API_PATHS[modeForDefault]) {
+    $("#input-api-path").value = Api.DEFAULT_API_PATHS[modeForDefault];
+  }
+
   if (config.apiKey) $("#input-api-key").value = config.apiKey;
   if (config.model) $("#input-model").value = config.model;
 

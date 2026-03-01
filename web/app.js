@@ -264,6 +264,28 @@ function _splitBaseUrl(url) {
   }
 }
 
+/**
+ * Web端跨域代理辅助 — 仅内置 Provider 走 Nginx 反向代理
+ * - 目标域名 === 内置 Provider 域名 → 重写为 /ep-api/ 同源路径
+ * - 用户自定义 Provider → 直接请求（不走代理，避免 API Key 泄露）
+ * - _builtinCache 未就绪 → 安全降级（跳过代理）
+ * 维护：Nginx 代理配置位于 VPS extension/prompt.zhiz.chat/ep-api-proxy.conf
+ */
+function _proxyUrl(url) {
+  try {
+    const _u = new URL(url);
+    if (_u.origin !== location.origin && _builtinCache) {
+      const builtinOrigin = new URL(_builtinCache.baseUrl).origin;
+      if (_u.origin === builtinOrigin) {
+        return "/ep-api" + _u.pathname + _u.search;
+      }
+    }
+  } catch (_e) {
+    // URL 不可解析时保持原始值
+  }
+  return url;
+}
+
 function loadConfig() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -954,6 +976,9 @@ async function callApiOnce(config, systemPrompt, userMessage, options = {}) {
     });
   }
 
+  // ── Web端跨域代理（仅内置 Provider）──
+  const fetchUrl = _proxyUrl(url);
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout * 1000);
 
@@ -966,7 +991,7 @@ async function callApiOnce(config, systemPrompt, userMessage, options = {}) {
   }
 
   try {
-    const resp = await fetch(url, {
+    const resp = await fetch(fetchUrl, {
       method: "POST",
       headers,
       body,
@@ -1157,7 +1182,7 @@ async function fetchModels(config) {
   }
 
   try {
-    const resp = await fetch(url, { headers });
+    const resp = await fetch(_proxyUrl(url), { headers });
     if (!resp.ok) {
       let errorMsg = `HTTP ${resp.status}`;
       try {
