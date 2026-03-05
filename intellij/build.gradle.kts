@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.easyprompt"
-version = "5.3.3"
+version = "5.3.4"
 
 repositories {
     mavenCentral()
@@ -161,6 +161,14 @@ intellijPlatform {
             sinceBuild = "243"
         }
         changeNotes = """
+            <h3>v5.3.4 — Upstream Request Failed 自动回退</h3>
+            <b>openai-responses 模式遇到上游故障时自动回退到 /chat/completions</b>
+            <ul>
+                <li><b>自动回退机制</b>：Upstream request failed 后无感知切换到标准 Chat 端点</li>
+                <li><b>友好错误提示</b>：上游故障映射为中文提示「上游模型服务暂时不可用」</li>
+                <li><b>可重试错误扩展</b>：isRetryableError 新增 upstream request failed 模式</li>
+                <li><b>全端同步</b>：VSCode / IntelliJ / Browser / Web 四端一致</li>
+            </ul>
             <h3>v5.3.3 — 多 API 模式（Multi-API Mode）</h3>
             <b>全端新增 4 种 API 格式支持，直连 OpenAI / Claude / Gemini</b>
             <ul>

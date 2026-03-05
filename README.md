@@ -2,7 +2,7 @@
 
 > 两步 AI 意图识别 + 85 个专业场景 + 10 大用户画像，将你的简单描述自动扩写为大师级 Prompt。
 
-![Version](https://img.shields.io/badge/version-5.3.3-blue)
+![Version](https://img.shields.io/badge/version-5.3.4-blue)
 ![VSCode](https://img.shields.io/badge/VSCode-1.85%2B-blue)
 ![IntelliJ](https://img.shields.io/badge/IntelliJ-2024.1%2B-orange)
 ![Browser](https://img.shields.io/badge/Browser-Chrome%20%7C%20Firefox%20%7C%20Safari-yellow)
@@ -90,7 +90,7 @@ cd browser && node build.js chrome   # 仅构建 Chrome
 
 # 方式 2：本地打包安装
 npx @vscode/vsce package --allow-missing-repository
-code --install-extension easy-prompt-ai-5.3.3.vsix
+code --install-extension easy-prompt-ai-5.3.4.vsix
 
 # 方式 3：开发调试
 code .  # 按 F5 启动调试
@@ -105,7 +105,7 @@ code .  # 按 F5 启动调试
 # 方式 2：本地构建安装（需要 JDK 17）
 cd intellij && ./gradlew buildPlugin
 # Settings → Plugins → ⚙️ → Install Plugin from Disk
-# 选择 intellij/build/distributions/easy-prompt-intellij-5.3.3.zip
+# 选择 intellij/build/distributions/easy-prompt-intellij-5.3.4.zip
 ```
 
 ## 📦 Installation (English)
@@ -151,7 +151,7 @@ A standalone AI prompt curated library web app:
 
 ```bash
 npx @vscode/vsce package --allow-missing-repository
-code --install-extension easy-prompt-ai-5.3.3.vsix
+code --install-extension easy-prompt-ai-5.3.4.vsix
 ```
 
 ### IntelliJ IDEA
@@ -163,7 +163,7 @@ code --install-extension easy-prompt-ai-5.3.3.vsix
 cd intellij && ./gradlew buildPlugin
 ```
 
-Then: Settings → Plugins → ⚙️ → Install Plugin from Disk → select `intellij/build/distributions/easy-prompt-intellij-5.3.3.zip`
+Then: Settings → Plugins → ⚙️ → Install Plugin from Disk → select `intellij/build/distributions/easy-prompt-intellij-5.3.4.zip`
 
 ## ⚙️ 配置
 
