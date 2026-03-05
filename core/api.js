@@ -99,10 +99,36 @@ function isRetryableError(error) {
     "rate_limit",
     "429",
     "Too Many Requests",
+    "upstream request failed",
   ];
   return retryablePatterns.some((p) =>
     msg.toLowerCase().includes(p.toLowerCase()),
   );
+}
+
+/**
+ * 判断是否应尝试从 openai-responses 回退到 /chat/completions
+ * 仅当 apiMode 为 openai-responses 且错误为上游请求失败时触发
+ */
+function shouldTryResponsesFallback(error, config) {
+  const base = (config.baseUrl || "").replace(/\/+$/, "");
+  const mode = config.apiMode || detectApiMode(base);
+  return (
+    mode === API_MODES.OPENAI_RESPONSES &&
+    /upstream request failed/i.test(error.message || "")
+  );
+}
+
+/**
+ * 从 baseUrl 中剥离末尾的 API 端点路径
+ * 用于 openai-responses → openai 回退时构建 /chat/completions URL
+ */
+function stripApiEndpoint(baseUrl) {
+  return (baseUrl || "")
+    .replace(/\/+$/, "")
+    .replace(/\/responses$/i, "")
+    .replace(/\/chat\/completions$/i, "")
+    .replace(/\/messages$/i, "");
 }
 
 /**
@@ -239,6 +265,10 @@ function friendlyError(errorMsg, model) {
   if (msg.includes("返回为空") || msg.includes("empty")) {
     return "📭 API 返回结果为空 · 请修改输入内容后重试";
   }
+
+  // === 上游请求失败（Responses API 中转错误）===
+  if (msg.includes("upstream request failed"))
+    return "🔄 上游模型服务暂时不可用 · 请稍后重试，或在设置中切换 API 模式/模型";
 
   // === 兜底 ===
   return `❌ API 调用出错: ${errorMsg} · 请检查网络和 API 配置后重试`;
@@ -494,11 +524,31 @@ async function callApi(config, systemPrompt, userMessage, options = {}) {
     try {
       return await callApiOnce(config, systemPrompt, userMessage, callOptions);
     } catch (err) {
-      lastError = err;
+      let effectiveError = err;
+
+      // openai-responses 模式遇到 upstream request failed → 自动回退到 /chat/completions
+      if (shouldTryResponsesFallback(err, config)) {
+        try {
+          return await callApiOnce(
+            {
+              ...config,
+              apiMode: API_MODES.OPENAI,
+              baseUrl: stripApiEndpoint(config.baseUrl),
+            },
+            systemPrompt,
+            userMessage,
+            callOptions,
+          );
+        } catch (fallbackErr) {
+          effectiveError = fallbackErr;
+        }
+      }
+
+      lastError = effectiveError;
 
       // 如果是不值得重试的错误（认证错误、模型不存在等），直接抛出友好消息
-      if (!isRetryableError(err) || attempt >= MAX_RETRIES) {
-        throw new Error(friendlyError(err.message, config.model));
+      if (!isRetryableError(effectiveError) || attempt >= MAX_RETRIES) {
+        throw new Error(friendlyError(effectiveError.message, config.model));
       }
 
       // 等待后重试

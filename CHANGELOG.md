@@ -5,6 +5,30 @@ All notable changes to the Easy Prompt project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.3.4] - 2026-03-08
+
+### 修复：Upstream Request Failed 自动回退（全端同步）
+
+用户使用 `openai-responses` 模式时，上游服务偶发返回 "Upstream request failed" 导致无法增强 Prompt。本版本在全部 4 端同步修复此问题。
+
+#### 修复内容
+
+- **新增：自动回退机制** — `openai-responses` 模式遇到 "Upstream request failed" 后，自动回退到标准 `/chat/completions` 端点重试，用户无感知
+- **新增：`shouldTryResponsesFallback`** — 检测当前是否满足回退条件（仅 `openai-responses` 模式 + 特定错误）
+- **新增：`stripApiEndpoint`** — 从 Base URL 中剥离 `/responses`、`/chat/completions`、`/messages` 等路径后缀
+- **新增：友好错误提示** — "Upstream request failed" 映射为中文友好消息「上游模型服务暂时不可用」
+- **修复：`isRetryableError` 增加 "upstream request failed" 模式** — 纳入可重试错误列表
+- **修复：core/api.js 致命 Bug** — `shouldTryResponsesFallback` 和 `stripApiEndpoint` 在 `callApi` 中被调用但从未定义（ReferenceError），本版本补全定义
+
+#### 全端同步
+
+- **VSCode 扩展 (core/api.js)**：补全缺失函数定义 + isRetryableError 模式
+- **IntelliJ 插件 (ApiClient.kt)**：新增回退逻辑 + `callApiOnce` 接受 `configOverride` 参数
+- **浏览器扩展 (browser/shared/api.js)**：已在 5.3.3 中修复（本次参考实现）
+- **Web 在线版 (web/app.js)**：完整同步回退逻辑 + 友好错误映射
+
+---
+
 ## [5.3.3] - 2026-02-28
 
 ### 多 API 模式（Multi-API Mode）— 全端支持 4 种 API 格式

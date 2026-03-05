@@ -76,9 +76,30 @@ object ApiClient {
             "bad gateway", "service unavailable", "temporarily unavailable",
             "server_error", "internal_error",
             "econnreset", "etimedout", "socket hang up", "connection reset",
-            "请求超时", "rate limit", "rate_limit", "429", "too many requests"
+            "请求超时", "rate limit", "rate_limit", "429", "too many requests",
+            "upstream request failed"
         )
         return patterns.any { lower.contains(it) }
+    }
+
+    /**
+     * 判断是否应尝试从 openai-responses 回退到 /chat/completions
+     * 仅当 apiMode 为 openai-responses 且错误为上游请求失败时触发
+     */
+    private fun shouldTryResponsesFallback(errorMsg: String, apiMode: String): Boolean {
+        return apiMode == "openai-responses" &&
+            errorMsg.contains("upstream request failed", ignoreCase = true)
+    }
+
+    /**
+     * 从 baseUrl 中剥离末尾的 API 端点路径
+     * 用于 openai-responses → openai 回退时构建 /chat/completions URL
+     */
+    private fun stripApiEndpoint(baseUrl: String): String {
+        return baseUrl.trimEnd('/')
+            .replace(Regex("/responses$", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("/chat/completions$", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("/messages$", RegexOption.IGNORE_CASE), "")
     }
 
     /**
@@ -148,6 +169,10 @@ object ApiClient {
         if (msg.contains("返回为空") || msg.contains("empty"))
             return "📭 API 返回结果为空 · 请修改输入内容后重试"
 
+        // 上游请求失败（Responses API 中转错误）
+        if (msg.contains("upstream request failed"))
+            return "🔄 上游模型服务暂时不可用 · 请稍后重试，或在设置中切换 API 模式/模型"
+
         // 兜底
         return "❌ API 调用出错: $errorMsg · 请检查网络和 API 配置后重试"
     }
@@ -195,9 +220,10 @@ object ApiClient {
         temperature: Double = 0.7,
         maxTokens: Int = 4096,
         timeout: Int = 60000,
-        indicator: ProgressIndicator? = null
+        indicator: ProgressIndicator? = null,
+        configOverride: EffectiveConfig? = null
     ): String {
-        val cfg = getEffectiveConfig()
+        val cfg = configOverride ?: getEffectiveConfig()
         val mode = cfg.apiMode
 
         // ── URL 构建 ──
@@ -418,7 +444,7 @@ object ApiClient {
             try {
                 return callApiOnce(systemPrompt, userMessage, temperature, maxTokens, timeout, indicator)
             } catch (e: Exception) {
-                lastError = e
+                var effectiveError = e
                 val errorMsg = e.message ?: "Unknown error"
 
                 // 用户取消 — 直接抛出，不重试
@@ -426,9 +452,25 @@ object ApiClient {
                     throw RuntimeException("已取消")
                 }
 
+                // openai-responses 模式遇到 upstream request failed → 自动回退到 /chat/completions
+                if (shouldTryResponsesFallback(errorMsg, cfg.apiMode)) {
+                    try {
+                        val fallbackConfig = cfg.copy(
+                            apiMode = "openai",
+                            baseUrl = stripApiEndpoint(cfg.baseUrl)
+                        )
+                        return callApiOnce(systemPrompt, userMessage, temperature, maxTokens, timeout, indicator, fallbackConfig)
+                    } catch (fallbackErr: Exception) {
+                        effectiveError = fallbackErr
+                    }
+                }
+
+                lastError = effectiveError
+                val effectiveMsg = effectiveError.message ?: "Unknown error"
+
                 // 非重试类错误直接抛出（如 401, 403, 模型不存在等）
-                if (!isRetryableError(errorMsg)) {
-                    throw RuntimeException(friendlyError(errorMsg, cfg.model))
+                if (!isRetryableError(effectiveMsg)) {
+                    throw RuntimeException(friendlyError(effectiveMsg, cfg.model))
                 }
 
                 // 最后一次重试失败

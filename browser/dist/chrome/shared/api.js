@@ -72,8 +72,26 @@ function isRetryableError(error) {
     "failed to fetch",
     "network error",
     "load failed",
+    "upstream request failed",
   ];
   return patterns.some((p) => msg.includes(p));
+}
+
+function shouldTryResponsesFallback(error, config) {
+  const base = (config.baseUrl || "").replace(/\/+$/, "");
+  const mode = config.apiMode || detectApiMode(base);
+  return (
+    mode === "openai-responses" &&
+    /upstream request failed/i.test(error.message || "")
+  );
+}
+
+function stripApiEndpoint(baseUrl) {
+  return (baseUrl || "")
+    .replace(/\/+$/, "")
+    .replace(/\/responses$/i, "")
+    .replace(/\/chat\/completions$/i, "")
+    .replace(/\/messages$/i, "");
 }
 
 function friendlyError(errorMsg, model) {
@@ -147,6 +165,8 @@ function friendlyError(errorMsg, model) {
     msg.includes("请求超时")
   )
     return "API 请求超时 · 请检查网络连接，或缩短输入文本后重试";
+  if (msg.includes("upstream request failed"))
+    return "上游模型服务暂时不可用 · 请稍后重试，或在设置中切换 API 模式/模型";
   if (msg.includes("json") || msg.includes("解析"))
     return "API 返回格式错误 · 请检查 API Host 和 Path 是否正确";
   if (msg.includes("返回为空") || msg.includes("empty"))
@@ -322,10 +342,27 @@ async function callApi(config, systemPrompt, userMessage, options = {}) {
         signal,
       });
     } catch (err) {
-      lastError = err;
+      let effectiveError = err;
+      if (shouldTryResponsesFallback(err, config)) {
+        try {
+          return await callApiOnce(
+            {
+              ...config,
+              apiMode: "openai",
+              baseUrl: stripApiEndpoint(config.baseUrl),
+            },
+            systemPrompt,
+            userMessage,
+            { ...callOptions, signal },
+          );
+        } catch (fallbackErr) {
+          effectiveError = fallbackErr;
+        }
+      }
+      lastError = effectiveError;
       if (signal?.aborted) throw new Error("已取消");
-      if (!isRetryableError(err) || attempt >= MAX_RETRIES)
-        throw new Error(friendlyError(err.message, config.model));
+      if (!isRetryableError(effectiveError) || attempt >= MAX_RETRIES)
+        throw new Error(friendlyError(effectiveError.message, config.model));
       const delayMs = RETRY_DELAYS[attempt] || 8000;
       if (onRetry) onRetry(attempt + 1, MAX_RETRIES, delayMs);
       await delay(delayMs);

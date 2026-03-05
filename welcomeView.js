@@ -562,7 +562,7 @@ kbd {
 
     <!-- Footer -->
     <div class="footer">
-        <p>Easy Prompt v5.3.3 · Made with ❤️ · <a href="https://github.com/FlippySun/Easy-Prompt">GitHub</a> · <a href="https://prompt.zhiz.chat">Web 在线版</a> · <a href="https://zhiz.chat">PromptHub 精选库</a></p>
+        <p>Easy Prompt v5.3.4 · Made with ❤️ · <a href="https://github.com/FlippySun/Easy-Prompt">GitHub</a> · <a href="https://prompt.zhiz.chat">Web 在线版</a> · <a href="https://zhiz.chat">PromptHub 精选库</a></p>
         <p style="margin-top:8px;">💡 状态栏右侧 ✨ 图标可随时打开快捷菜单</p>
     </div>
 </div>
