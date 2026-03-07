@@ -192,9 +192,9 @@ object ApiClient {
             } else if (state.apiBaseUrl.isNotBlank()) {
                 state.apiBaseUrl.trimEnd('/')
             } else {
-                "https://api.openai.com/v1/chat/completions"
+                "https://vpsairobot.com/v1/chat/completions"
             }
-            val model = state.model.ifBlank { "gpt-4o" }
+            val model = state.model.ifBlank { "gpt-5.4" }
             val apiMode = state.apiMode.ifBlank { detectApiMode(baseUrl) }
 
             // 格式验证（与 VSCode getConfig 一致）
@@ -630,7 +630,7 @@ object ApiClient {
         }
 
         val mode = apiMode.ifBlank { detectApiMode(baseUrl) }
-        val effectiveModel = model.ifBlank { "gpt-4o" }
+        val effectiveModel = model.ifBlank { "gpt-5.4" }
 
         // ── URL 构建（与 callApiOnce 一致，含 endpoint 自动补全） ──
         val url = when (mode) {

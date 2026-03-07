@@ -211,9 +211,9 @@ function _dk() {
 
 // Pre-encrypted vault (AES-256-CBC, base64 iv:ciphertext)
 const _vault = {
-  _a: "b5zK5rm4Z/0kSfL7VSuLYg==:wcAG/1D/BSdBRXUlgIMPZZlp50Wg5N7gZoDiaRziaspA4f4j+ETRX2BwReNx6Wtx",
-  _b: "SyO5SF0nZl4Zt+PZLVMRLw==:LkQFvENBnk313MHrQibMQoTnjhZsHKJ3l+pAivBAl9mHNI37Ga4uAuXIcCaPZn0yBOEdcirHLtjjY7VvSkH3PvCmU6dviVGgMafDlvG9NiI=",
-  _c: "HDMC8Hdb/acdOE7iqIJ7Yg==:+75RWKzehSvB1FbisiQ11g==",
+  _a: "QFfGXDyNl/Uf47Vs2O9EHQ==:M9tjI3m0BntsLD6i1L4DKCCHa8aVLSkzHDxOYCGNrC8nBNh5j/H3ycnYun6BzxRY",
+  _b: "eJniR4sQ5Yjdi3N8C+P6RQ==:0ni9pxYDSEIonVBDhzNzGZT30ECnQauOnWjFdRbEvMAzLpouJs3g93cmI4SM452LnT1QV1ISf2X6t/Ezf4B5KuxnbCQHpnTQsZbX+0cMuj0=",
+  _c: "kGu93b2US4/4lwDghtvopw==:L4fkFjjp/nd60SUKoV6Rqg==",
 };
 
 let _builtinCache = null;
@@ -1823,6 +1823,7 @@ const MODEL_LIST = [
   { id: "claude-opus-4-1", desc: "Opus 4.1" },
   { id: "claude-sonnet-4", desc: "Sonnet 4" },
   { group: "OpenAI" },
+  { id: "gpt-5.4", desc: "默认旗舰" },
   { id: "gpt-5.2", desc: "最新旗舰" },
   { id: "gpt-5.2-pro", desc: "更智能更精准" },
   { id: "gpt-5-mini", desc: "快速高效" },

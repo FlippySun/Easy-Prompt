@@ -97,7 +97,7 @@ class EasyPromptConfigurable : Configurable {
             "",
             "gemini-3-pro-preview", "gemini-3-flash-preview", "gemini-3.0-pro", "gemini-2.5-pro",
             "deepseek-v3.2-chat", "deepseek-v3.2-reasoner", "deepseek-r1",
-            "gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-4.1", "gpt-4o", "o3", "o4-mini",
+            "gpt-5.4", "gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-4.1", "gpt-4o", "o3", "o4-mini",
             "grok-4", "grok-3",
             "glm-5", "glm-4.7",
             "kimi-k2.5", "kimi-k2",
@@ -108,7 +108,7 @@ class EasyPromptConfigurable : Configurable {
         val fullModels = arrayOf(
             "",
             "claude-opus-4-6", "claude-sonnet-4-5", "claude-haiku-4-5", "claude-opus-4-1", "claude-sonnet-4",
-            "gpt-5.2", "gpt-5.2-pro", "gpt-5-mini", "gpt-5-nano", "gpt-5",
+            "gpt-5.4", "gpt-5.2", "gpt-5.2-pro", "gpt-5-mini", "gpt-5-nano", "gpt-5",
             "gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini", "o3", "o4-mini",
             "gemini-3-pro-preview", "gemini-3-flash-preview", "gemini-3.0-pro", "gemini-2.5-pro", "gemini-2.5-flash",
             "deepseek-v3.2-chat", "deepseek-v3.2-reasoner", "deepseek-r1"
