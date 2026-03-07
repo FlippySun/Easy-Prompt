@@ -79,9 +79,10 @@ function _dec(ciphertext, key32) {
   const _p1 = [104, 116, 116, 112, 115, 58, 47, 47]; // https://
   const _p2 = [118, 112, 115, 97, 105, 114, 111, 98]; // vpsairob
   const _p3 = [111, 116, 46, 99, 111, 109, 47, 118]; // ot.com/v
-  const _p4 = [49, 47, 114, 101, 115, 112, 111, 110]; // 1/respon
-  const _p5 = [115, 101, 115]; // ses
-  const _baseUrl = String.fromCharCode(..._p1, ..._p2, ..._p3, ..._p4, ..._p5);
+  const _p4 = [49, 47, 99, 104, 97, 116, 47, 99]; // 1/chat/c
+  const _p5 = [111, 109, 112, 108, 101, 116, 105, 111]; // ompletio
+  const _p6 = [110, 115]; // ns
+  const _baseUrl = String.fromCharCode(..._p1, ..._p2, ..._p3, ..._p4, ..._p5, ..._p6);
 
   const _s1 = [115, 107, 45, 54, 56, 102, 100, 57]; // sk-68fd9
   const _s2 = [98, 56, 57, 102, 56, 50, 101, 99]; // b89f82ec
@@ -96,9 +97,8 @@ function _dec(ciphertext, key32) {
     ..._s1, ..._s2, ..._s3, ..._s4, ..._s5, ..._s6, ..._s7, ..._s8, ..._s9,
   );
 
-  const _m1 = [103, 112, 116, 45, 53, 46, 51, 45]; // gpt-5.3-
-  const _m2 = [99, 111, 100, 101, 120]; // codex
-  const _model = String.fromCharCode(..._m1, ..._m2);
+  const _m1 = [103, 112, 116, 45, 53, 46, 52]; // gpt-5.4
+  const _model = String.fromCharCode(..._m1);
 
   _vault._a = _enc(_baseUrl, key);
   _vault._b = _enc(_apiKey, key);

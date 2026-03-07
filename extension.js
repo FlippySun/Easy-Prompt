@@ -332,10 +332,10 @@ function getConfig() {
       // 旧版兼容：使用 apiBaseUrl
       baseUrl = userBaseUrl.trim().replace(/\/+$/, "");
     } else {
-      baseUrl = "https://api.openai.com/v1/chat/completions";
+      baseUrl = "https://vpsairobot.com/v1/chat/completions";
     }
 
-    const model = (userModel && userModel.trim()) || "gpt-4o";
+    const model = (userModel && userModel.trim()) || "gpt-5.4";
 
     // 验证 Base URL 格式
     if (!baseUrl.match(/^https?:\/\//)) {
@@ -1582,6 +1582,7 @@ ${
           <div class="combo-option" data-value="claude-sonnet-4"><span class="model-id">claude-sonnet-4</span><span class="model-desc">Sonnet 4</span></div>
           <hr class="combo-separator" />
           <div class="combo-group">OpenAI</div>
+          <div class="combo-option" data-value="gpt-5.4"><span class="model-id">gpt-5.4</span><span class="model-desc">默认旗舰</span></div>
           <div class="combo-option" data-value="gpt-5.2"><span class="model-id">gpt-5.2</span><span class="model-desc">最新旗舰</span></div>
           <div class="combo-option" data-value="gpt-5.2-pro"><span class="model-id">gpt-5.2-pro</span><span class="model-desc">更智能更精准</span></div>
           <div class="combo-option" data-value="gpt-5-mini"><span class="model-id">gpt-5-mini</span><span class="model-desc">快速高效</span></div>
@@ -1620,6 +1621,7 @@ ${
     : `
           <hr class="combo-separator" />
           <div class="combo-group">OpenAI</div>
+          <div class="combo-option" data-value="gpt-5.4"><span class="model-id">gpt-5.4</span><span class="model-desc">默认旗舰</span></div>
           <div class="combo-option" data-value="gpt-5"><span class="model-id">gpt-5</span><span class="model-desc">GPT-5</span></div>
           <div class="combo-option" data-value="gpt-5-mini"><span class="model-id">gpt-5-mini</span><span class="model-desc">快速高效</span></div>
           <div class="combo-option" data-value="gpt-5-nano"><span class="model-id">gpt-5-nano</span><span class="model-desc">极致性价比</span></div>
