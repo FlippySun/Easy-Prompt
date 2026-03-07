@@ -249,8 +249,8 @@ intellijPlatform {
             </ul>
             <h3>v5.2.0 — 默认模型升级</h3>
             <ul>
-                <li>升级：默认 AI 模型切换至 Claude Sonnet 4.5 (claude-sonnet-4-5-20250929)</li>
-                <li>升级：默认 API 提供商切换至 ModelVerse</li>
+                <li>升级：默认 AI 模型统一为 gpt-5.4</li>
+                <li>升级：默认 API 提供商统一为 VPS AI Robot（https://vpsairobot.com/v1/chat/completions）</li>
                 <li>同步：全端默认配置统一更新</li>
             </ul>
             <h3>v5.1.1 — 链接修正 & 多端同步</h3>
