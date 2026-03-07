@@ -243,8 +243,8 @@ Easy Prompt 生态新成员：**PromptHub**（[https://zhiz.chat](https://zhiz.c
 
 ### 默认模型升级
 
-- **升级**: 默认 AI 模型切换至 Claude Sonnet 4.5 (claude-sonnet-4-5-20250929)
-- **升级**: 默认 API 提供商切换至 ModelVerse (api.modelverse.cn)
+- **升级**: 默认 AI 模型统一为 gpt-5.4
+- **升级**: 默认 API 提供商统一为 VPS AI Robot (`https://vpsairobot.com/v1/chat/completions`)
 - **同步**: 全端（VSCode / IntelliJ / Web / Browser）默认配置统一更新
 - **同步**: 全端版本号统一升级至 5.2.0
 

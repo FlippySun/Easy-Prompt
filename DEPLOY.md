@@ -14,8 +14,9 @@ deploy/
 ├── deploy.sh             # 全端构建 & 发布主脚本
 ├── inject-provider.js    # Provider 动态注入引擎
 └── providers/            # Provider 配置文件
-    ├── modelverse.json   # 当前活跃提供商
-    ├── yyds168.json      # 备用提供商
+   ├── vpsairobot.json   # 当前活跃提供商
+   ├── modelverse.json   # 备用提供商
+   ├── yyds168.json      # 历史备用提供商
     └── template.json     # 新 Provider 模板
 ```
 
@@ -111,7 +112,7 @@ Provider 注入引擎（`inject-provider.js`）读取 `deploy/providers/<name>.j
 
 ```bash
 # 注入 Provider
-node deploy/inject-provider.js yyds168
+node deploy/inject-provider.js vpsairobot
 
 # 列出可用 Provider
 node deploy/inject-provider.js --list
