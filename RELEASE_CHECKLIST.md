@@ -19,7 +19,7 @@
 - [x] .vscodeignore 文件
 - [x] CHANGELOG.md
 - [x] handleCommandError 集中错误处理
-- [ ] **icon.png （128x128）** ⚠️ 需要设计师制作
+- [x] **128x128 图标资源**（`assets/images/logo-vscode@128x128.png`）
 - [ ] README.md 截图/GIF 演示
 - [ ] 测试所有命令功能（含智能增强 Ctrl+Alt+I）
 - [ ] 测试快捷键（7 个）
@@ -35,7 +35,7 @@
 - [x] WelcomeDialog 97 场景全覆盖
 - [ ] 测试所有 Action 功能（含智能增强 Ctrl+Alt+I）
 - [ ] 测试快捷键（7 个）
-- [ ] 检查资源文件（图标）
+- [x] 检查资源文件（图标）
 
 ### 文档
 
@@ -100,7 +100,7 @@
 3. **测试安装**
 
    ```bash
-   code --install-extension easy-prompt-ai-5.0.1.vsix
+   code --install-extension easy-prompt-ai-5.3.5.vsix
    ```
 
 4. **发布到市场**
@@ -111,12 +111,12 @@
 
 ### JetBrains Marketplace
 
-1. **构建插件（需 JDK 17）**
+1. **构建插件（需 JDK 21）**
 
    ```bash
    cd intellij
-   JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ./gradlew buildPlugin
-   # 输出：build/distributions/easy-prompt-5.0.1.zip
+   JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew buildPlugin
+   # 输出：build/distributions/easy-prompt-intellij-5.3.5.zip
    ```
 
 2. **测试安装**
@@ -152,14 +152,12 @@
 
 ### 高优先级
 
-1. **VSCode icon.png 缺失** - 需要设计 128x128 PNG 图标
-2. **IntelliJ 插件图标** - 检查是否需要额外图标资源
-3. **完整测试** - 至少在 macOS + VSCode 环境完整测试一遍
+1. **完整测试** - 至少在 macOS + VSCode 环境完整测试一遍
 
 ### 中优先级
 
-4. **README 截图** - 添加使用演示 GIF 或截图
-5. **FAQ 文档** - 整理常见问题和解决方案
+2. **README 截图** - 添加使用演示 GIF 或截图
+3. **FAQ 文档** - 整理常见问题和解决方案
 
 ## 📝 发布后待办
 
@@ -173,7 +171,7 @@
 - ✅ 核心功能完整
 - ✅ 代码质量优化完成
 - ✅ 基础文档齐全
-- ⚠️ 缺少图标文件
+- ✅ 图标资源已就绪
 - ⚠️ 缺少使用演示
 - ⚠️ 需要完整测试
 

@@ -340,7 +340,10 @@ assert(
   defaults.baseUrl && defaults.baseUrl.startsWith("https://"),
   "内置 baseUrl 以 https:// 开头",
 );
-assert(defaults.baseUrl.endsWith("/v1"), "内置 baseUrl 以 /v1 结尾");
+assert(
+  defaults.baseUrl.endsWith("/v1/chat/completions"),
+  "内置 baseUrl 以 /v1/chat/completions 结尾",
+);
 assert(
   defaults.apiKey && defaults.apiKey.startsWith("sk-"),
   "内置 apiKey 以 sk- 开头",
@@ -357,11 +360,11 @@ assert(defaults.apiKey === defaults2.apiKey, "多次调用返回一致的 apiKey
 // 10. 发布物料检查
 // ===========================
 console.log("\n=== 10. 发布物料检查 ===");
-const iconExists = fs.existsSync("./icon.png");
+const iconExists = fs.existsSync("./assets/images/logo-vscode@128x128.png");
 if (!iconExists) {
-  console.log("  ⚠️  缺少 icon.png — 不影响功能，但插件市场需要图标");
+  console.log("  ⚠️  缺少 128x128 图标资源 — 不影响功能，但插件市场需要图标");
 } else {
-  assert(true, "icon.png 存在");
+  assert(true, "128x128 图标资源存在");
 }
 
 const vscodeignoreExists = fs.existsSync("./.vscodeignore");
@@ -407,7 +410,7 @@ assert(
 assert(extCode.includes("🔥"), "场景列表含小火苗标记");
 
 // Welcome 页面更新
-assert(welcomeCode.includes("v4.0"), "Welcome 页面版本更新到 v4.0");
+assert(welcomeCode.includes("v5.3.5"), "Welcome 页面版本更新到 v5.3.5");
 assert(
   welcomeCode.includes("使用教程") && welcomeCode.includes("Alt</kbd>+<kbd>H"),
   "Welcome 含 Ctrl+Alt+H 快捷键",
@@ -415,7 +418,7 @@ assert(
 assert(welcomeCode.includes("状态栏"), "Welcome 提到状态栏功能");
 
 // package.json 版本
-assert(pkg.version === "5.0.1", "package.json 版本 = 5.0.1");
+assert(pkg.version === "5.3.5", "package.json 版本 = 5.3.5");
 assert(
   declaredCommands.includes("easy-prompt.statusBarMenu"),
   "package.json 声明 statusBarMenu 命令",

@@ -1,8 +1,8 @@
 # Easy Prompt — AI 智能 Prompt 增强器
 
-> 两步 AI 意图识别 + 85 个专业场景 + 10 大用户画像，将你的简单描述自动扩写为大师级 Prompt。
+> 两步 AI 意图识别 + 97 个专业场景 + 10 大用户画像，将你的简单描述自动扩写为大师级 Prompt。
 
-![Version](https://img.shields.io/badge/version-5.3.4-blue)
+![Version](https://img.shields.io/badge/version-5.3.5-blue)
 ![VSCode](https://img.shields.io/badge/VSCode-1.85%2B-blue)
 ![IntelliJ](https://img.shields.io/badge/IntelliJ-2024.1%2B-orange)
 ![Browser](https://img.shields.io/badge/Browser-Chrome%20%7C%20Firefox%20%7C%20Safari-yellow)
@@ -22,7 +22,7 @@
 - 🟣 **PromptHub 精选库**：独立 AI Prompt 精选库（[zhiz.chat](https://zhiz.chat)），发现/收藏/分享高质量 Prompt，含热门榜单、银河星图、7 大精选合集
 - ✨ **Smart Nudge**：浏览器扩展在 AI 网站（ChatGPT/Claude/Gemini 等 22 站）输入暂停后自动弹出增强提醒，一键增强
 - 🔑 **多供应商兼容**：OpenAI / Azure / Gemini / DeepSeek / Ollama
-- 🎯 **开箱即用**：内置 AI 服务，零配置即可使用
+- 🎯 **开箱即用**：内置 AI 服务，零配置即可使用（默认模型 `gpt-5.4`）
 - 🔒 **安全加固**：AES-256-CBC 加密内置凭证、2MB 响应限制、7 规则智能输入验证、竞态保护
 
 ## ✨ Key Features (English)
@@ -37,7 +37,7 @@
 - 🟣 **PromptHub Library**: Standalone AI prompt library ([zhiz.chat](https://zhiz.chat)) — discover, bookmark & share quality prompts with trending charts, Galaxy star-map & 7 curated collections
 - ✨ **Smart Nudge**: (Browser Extension) pops an enhancement reminder when you pause typing on AI sites (ChatGPT/Claude/Gemini, etc.)
 - 🔑 **Multi-provider**: OpenAI / Azure / Gemini / DeepSeek / Ollama
-- 🎯 **Works out of the box**: built-in AI service, zero config required
+- 🎯 **Works out of the box**: built-in AI service, zero config required (default model: `gpt-5.4`)
 - 🔒 **Hardened**: AES-256-CBC encrypted defaults, 2MB response cap, 7-rule input validation, race-condition protection
 
 ## 📦 安装
@@ -90,7 +90,7 @@ cd browser && node build.js chrome   # 仅构建 Chrome
 
 # 方式 2：本地打包安装
 npx @vscode/vsce package --allow-missing-repository
-code --install-extension easy-prompt-ai-5.3.4.vsix
+code --install-extension easy-prompt-ai-5.3.5.vsix
 
 # 方式 3：开发调试
 code .  # 按 F5 启动调试
@@ -102,10 +102,10 @@ code .  # 按 F5 启动调试
 # 方式 1：从 JetBrains Marketplace 安装（推荐）
 # Settings → Plugins → Marketplace → 搜索 "Easy Prompt"
 
-# 方式 2：本地构建安装（需要 JDK 17）
+# 方式 2：本地构建安装（需要 JDK 21）
 cd intellij && ./gradlew buildPlugin
 # Settings → Plugins → ⚙️ → Install Plugin from Disk
-# 选择 intellij/build/distributions/easy-prompt-intellij-5.3.4.zip
+# 选择 intellij/build/distributions/easy-prompt-intellij-5.3.5.zip
 ```
 
 ## 📦 Installation (English)
@@ -151,7 +151,7 @@ A standalone AI prompt curated library web app:
 
 ```bash
 npx @vscode/vsce package --allow-missing-repository
-code --install-extension easy-prompt-ai-5.3.4.vsix
+code --install-extension easy-prompt-ai-5.3.5.vsix
 ```
 
 ### IntelliJ IDEA
@@ -163,7 +163,7 @@ code --install-extension easy-prompt-ai-5.3.4.vsix
 cd intellij && ./gradlew buildPlugin
 ```
 
-Then: Settings → Plugins → ⚙️ → Install Plugin from Disk → select `intellij/build/distributions/easy-prompt-intellij-5.3.4.zip`
+Then: Settings → Plugins → ⚙️ → Install Plugin from Disk → select `intellij/build/distributions/easy-prompt-intellij-5.3.5.zip`
 
 ## ⚙️ 配置
 
@@ -177,7 +177,7 @@ Then: Settings → Plugins → ⚙️ → Install Plugin from Disk → select `i
 | ----------------------- | ---------------------- | -------- | --------------------------- |
 | `easyPrompt.apiKey`     | （可选）自定义 API Key | 内置服务 | `sk-xxxx`                   |
 | `easyPrompt.apiBaseUrl` | （可选）API 地址       | 内置服务 | `https://api.openai.com/v1` |
-| `easyPrompt.model`      | （可选）模型名称       | 内置模型 | `gpt-4o` / `deepseek-chat`  |
+| `easyPrompt.model`      | （可选）模型名称       | `gpt-5.4` | `gpt-4o` / `deepseek-chat`  |
 
 ### IntelliJ IDEA
 
@@ -197,7 +197,7 @@ Open Settings (`Cmd+,`) and search for `Easy Prompt`.
 | ----------------------- | ------------------------- | -------- | --------------------------- |
 | `easyPrompt.apiKey`     | (optional) Custom API Key | Built-in | `sk-xxxx`                   |
 | `easyPrompt.apiBaseUrl` | (optional) API Base URL   | Built-in | `https://api.openai.com/v1` |
-| `easyPrompt.model`      | (optional) Model name     | Built-in | `gpt-4o` / `deepseek-chat`  |
+| `easyPrompt.model`      | (optional) Model name     | Built-in (`gpt-5.4`) | `gpt-4o` / `deepseek-chat`  |
 
 ### IntelliJ IDEA
 
@@ -214,7 +214,7 @@ Settings → Tools → Easy Prompt (one-click “Test & Save”).
 | `Ctrl+Alt+I` | 智能增强 | 自动判断增强选中文本 / 当前文件 / 剪贴板，多来源时选择          |
 | `Ctrl+Alt+P` | 增强选中 | 选中文本 → AI 自动识别意图 → 原地替换（无选中时自动转智能增强） |
 | `Ctrl+Alt+O` | 快速输入 | 弹出输入框 → 输入描述 → 新标签页显示结果                        |
-| `Ctrl+Alt+L` | 浏览场景 | 查看所有 85 个可用场景详情（含痛点，按画像分组）                |
+| `Ctrl+Alt+L` | 浏览场景 | 查看所有 97 个可用场景详情（含痛点，按画像分组）                |
 | `Ctrl+Alt+M` | 指定场景 | 手动选择场景 → 跳过意图识别 → 精准定向增强                      |
 | `Ctrl+Alt+H` | 使用教程 | 随时打开引导页                                                  |
 | `Ctrl+Alt+Y` | 增强历史 | 查看历史增强记录，支持 before/after 对比和复制                  |
