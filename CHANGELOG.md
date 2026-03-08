@@ -5,6 +5,19 @@ All notable changes to the Easy Prompt project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.3.5] - 2026-03-09
+
+### 发布整理：版本号、默认模型说明与多端展示对齐
+
+本版本主要完成 5.3.5 发版对齐，修正多端界面、安装文档与测试脚本中的过期版本/文案，确保当前发布物与实际产品状态一致。
+
+#### 更新内容
+
+- **同步：全端版本号升级至 5.3.5** — VSCode / IntelliJ / Browser / Web 的版本显示与安装引用统一更新
+- **修正：内置默认模型说明** — VSCode 配置项中“留空使用内置默认模型”明确为 `gpt-5.4`
+- **修正：当前场景数量展示** — Welcome 页、Web 在线版、README、IntelliJ Marketplace 描述统一为 97 个场景
+- **修正：发布文档与校验脚本中的过期版本引用** — README、RELEASE_CHECKLIST、`test-full.js` 等同步更新
+
 ## [5.3.4] - 2026-03-08
 
 ### 修复：Upstream Request Failed 自动回退（全端同步）

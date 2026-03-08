@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.easyprompt"
-version = "5.3.4"
+version = "5.3.5"
 
 repositories {
     mavenCentral()
@@ -31,7 +31,7 @@ intellijPlatform {
         id = "com.easyprompt.plugin"
         name = "Easy Prompt"
         version = project.version.toString()
-        description = """            <b>Easy Prompt</b> — AI-powered prompt enhancer for IntelliJ IDEA. Two-step intent recognition + 85 professional scenes + 10 personas → turn rough text into structured, high-quality prompts.
+        description = """            <b>Easy Prompt</b> — AI-powered prompt enhancer for IntelliJ IDEA. Two-step intent recognition + 97 professional scenes + 10 personas → turn rough text into structured, high-quality prompts.
             <br/><br/>            <b>Easy Prompt</b> 是一款面向 IntelliJ IDEA 的 AI Prompt 增强插件：基于“两步意图识别 → 专业 Prompt 生成”，把你的简单描述自动扩写为结构化、高质量的 Prompt。
             <br/><br/>            <b>🟣 PromptHub — AI Prompt 精选库</b>
             <br/>
@@ -52,7 +52,7 @@ intellijPlatform {
             <ul>
                 <li><b>两步智能路由</b>：先识别意图/场景，再生成对应的专业 Prompt</li>
                 <li><b>复合意图支持</b>：一句话包含多个意图也能合并处理</li>
-                <li><b>85 个专业场景 + 10 大用户画像</b>：覆盖开发、内容、产品、营销、设计、数据、HR、客服、创业、教育等</li>
+                <li><b>97 个专业场景 + 10 大用户画像</b>：覆盖开发、内容、产品、营销、设计、数据、HR、客服、创业、教育等</li>
                 <li><b>智能增强</b>：自动判断增强选中文本 / 当前文件 / 剪贴板内容</li>
                 <li><b>增强历史</b>：查看 before/after，对比、复制、删除</li>
                 <li><b>Smart Nudge</b>：浏览器扩展在 AI 网站（ChatGPT/Claude/Gemini 等）输入暂停后自动弹出增强提醒，一键增强</li>
@@ -161,6 +161,14 @@ intellijPlatform {
             sinceBuild = "243"
         }
         changeNotes = """
+            <h3>v5.3.5 — 发布整理与默认模型说明对齐</h3>
+            <b>统一 5.3.5 版本展示，修正默认模型与场景数量文案</b>
+            <ul>
+                <li><b>版本号同步</b>：VSCode / IntelliJ / Browser / Web 统一升级至 5.3.5</li>
+                <li><b>默认模型说明修正</b>：配置说明明确内置默认模型为 gpt-5.4</li>
+                <li><b>场景数量展示对齐</b>：Marketplace 描述、Welcome、Web、README 当前文案统一为 97 个场景</li>
+                <li><b>发布文档更新</b>：安装示例、检查清单、测试脚本引用同步到当前版本</li>
+            </ul>
             <h3>v5.3.4 — Upstream Request Failed 自动回退</h3>
             <b>openai-responses 模式遇到上游故障时自动回退到 /chat/completions</b>
             <ul>

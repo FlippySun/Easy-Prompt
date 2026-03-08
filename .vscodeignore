@@ -10,6 +10,9 @@ browser/**
 # PromptHub Web 应用（独立产品，不属于 VSCode 插件）
 web-hub/**
 
+# 本地 MCP/Agent 运行时（不属于 VSCode 插件发布物）
+mcp-server/**
+
 # CI/CD 部署脚本（包含敏感凭证，不得打包）
 deploy/**
 
@@ -36,18 +39,23 @@ test-full.js
 test-api.js
 
 # 文档（不需要打包进插件）
+DEPLOY.md
 AUDIT_REPORT.md
+PROJECT_REVIEW_REPORT.md
+PROJECT_SUMMARY.md
 RELEASE_CHECKLIST.md
 API_CONFIG.md
 FAQ.md
 CLAUDE.md
 CONTRIBUTING.md
+doc/**
 
 # 开发配置
 .gitignore
 .yarnrc
 .mcp.json
 .mcp.json.bak*
+secrets.json
 
 # 打包产物
 easy-prompt-web-*.zip
