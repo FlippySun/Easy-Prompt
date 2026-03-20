@@ -35,6 +35,7 @@ class EasyPromptSettings : PersistentStateComponent<EasyPromptSettings.State> {
         @Deprecated("Use PasswordSafe instead. Kept for migration only.")
         var apiKey: String = "",
         var model: String = "",
+        var enhanceMode: String = "fast",
         var language: String = "zh-CN",
         /** 场景命中统计：JSON 格式 {"sceneId": count, ...} */
         var sceneStats: String = "{}",

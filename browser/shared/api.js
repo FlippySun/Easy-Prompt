@@ -343,6 +343,7 @@ async function callApi(config, systemPrompt, userMessage, options = {}) {
       });
     } catch (err) {
       let effectiveError = err;
+
       if (shouldTryResponsesFallback(err, config)) {
         try {
           return await callApiOnce(

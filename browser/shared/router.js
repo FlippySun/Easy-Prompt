@@ -7,6 +7,57 @@
 let cachedRouterPrompt = null;
 let cachedScenesRef = null;
 
+// ========================== 变更记录 ==========================
+// [日期]     2026-03-16
+// [类型]     重构
+// [描述]     Browser 端恢复 Fast/Deep，但仅影响第二步生成深度，不再改模型、端点或请求形状。
+// [思路]     浏览器端最敏感的是跨域与服务商风控，因此模式差异只放在 token 预算、温度与提示词密度层。
+// [影响范围] browser/shared/router.js，被 popup 与 background 共用。
+// [潜在风险] Fast 模式的提速幅度会比切轻量模型更温和，但可显著降低真实浏览器回归风险。
+// ==============================================================
+
+const ENHANCE_MODES = {
+  FAST: "fast",
+  DEEP: "deep",
+};
+
+const DEFAULT_ENHANCE_MODE = ENHANCE_MODES.FAST;
+
+function getEnhanceMode(config) {
+  return config?.enhanceMode === ENHANCE_MODES.DEEP
+    ? ENHANCE_MODES.DEEP
+    : DEFAULT_ENHANCE_MODE;
+}
+
+function getGenerationCallOptions(config, isComposite, onRetry, signal) {
+  if (getEnhanceMode(config) === ENHANCE_MODES.DEEP) {
+    return {
+      temperature: 0.7,
+      maxTokens: isComposite ? 8192 : 4096,
+      timeout: 120,
+      onRetry,
+      signal,
+    };
+  }
+
+  return {
+    temperature: 0.5,
+    maxTokens: isComposite ? 4096 : 2048,
+    timeout: 60,
+    onRetry,
+    signal,
+  };
+}
+
+function decorateGenerationPrompt(systemPrompt, config) {
+  const mode = getEnhanceMode(config);
+  const modeHint =
+    mode === ENHANCE_MODES.DEEP
+      ? "\n\n[增强模式: Deep]\n请优先保证完整性，补充关键边界条件、风险提示、验证步骤与输出结构，允许结果更充分展开。"
+      : "\n\n[增强模式: Fast]\n请在保证专业度与可执行性的前提下，优先输出更精炼、更直接的 Prompt，避免不必要的铺陈和重复说明。";
+  return `${systemPrompt}${modeHint}`;
+}
+
 /**
  * 检查输入文本是否适合进行 Prompt 增强
  * @param {string} text
@@ -201,12 +252,9 @@ function callGenerationApi(
   onRetry,
   signal,
 ) {
-  return Api.callApi(config, systemPrompt, userMessage, {
-    temperature: 0.7,
-    maxTokens: isComposite ? 8192 : 4096,
-    timeout: 120,
-    onRetry,
-    signal,
+  const effectiveSystemPrompt = decorateGenerationPrompt(systemPrompt, config);
+  return Api.callApi(config, effectiveSystemPrompt, userMessage, {
+    ...getGenerationCallOptions(config, isComposite, onRetry, signal),
   });
 }
 

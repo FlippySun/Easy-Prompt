@@ -309,6 +309,7 @@ function getConfig() {
   const userApiKey = cfg.get("apiKey", "");
   const userBaseUrl = cfg.get("apiBaseUrl", ""); // 兼容旧版
   const userModel = cfg.get("model", "");
+  const userEnhanceMode = cfg.get("enhanceMode", "fast");
   const userApiMode = cfg.get("apiMode", "");
   const userApiHost = cfg.get("apiHost", "");
   const userApiPath = cfg.get("apiPath", "");
@@ -352,6 +353,7 @@ function getConfig() {
       apiKey: userApiKey.trim(),
       model: model.trim(),
       apiMode,
+      enhanceMode: userEnhanceMode === "deep" ? "deep" : "fast",
     };
   }
 
@@ -362,6 +364,7 @@ function getConfig() {
     apiKey: defaults.apiKey,
     model: defaults.model,
     apiMode: detectApiMode(defaults.baseUrl),
+    enhanceMode: userEnhanceMode === "deep" ? "deep" : "fast",
   };
 }
 
@@ -1013,7 +1016,7 @@ function showWelcome(context) {
 }
 
 /**
- * 命令 6：配置自定义 API（带测试 + 保存）
+ * 命令 6：配置自定义 API 与增强模式（带测试 + 保存）
  */
 function configureApi(context) {
   return async () => {
@@ -1042,6 +1045,7 @@ function configureApi(context) {
     const savedBaseUrl = cfg.get("apiBaseUrl", "") || "";
     const savedApiKey = cfg.get("apiKey", "") || "";
     const savedModel = cfg.get("model", "") || "";
+    const savedEnhanceMode = cfg.get("enhanceMode", "fast") || "fast";
 
     panel.webview.html = getConfigHtml(
       savedApiMode,
@@ -1050,6 +1054,7 @@ function configureApi(context) {
       savedBaseUrl,
       savedApiKey,
       savedModel,
+      savedEnhanceMode,
     );
 
     panel.webview.onDidReceiveMessage(
@@ -1133,6 +1138,8 @@ function configureApi(context) {
             const apiPath = (msg.apiPath || "").trim();
             const apiKey = (msg.apiKey || "").trim();
             const model = (msg.model || "").trim();
+            const enhanceMode =
+              (msg.enhanceMode || "fast").trim() === "deep" ? "deep" : "fast";
 
             // 组装 baseUrl
             let baseUrl = "";
@@ -1164,6 +1171,7 @@ function configureApi(context) {
                 await cfgNow.update("apiBaseUrl", undefined, target);
                 await cfgNow.update("apiKey", undefined, target);
                 await cfgNow.update("model", undefined, target);
+                await cfgNow.update("enhanceMode", enhanceMode, target);
                 if (!panel.visible) return;
                 panel.webview.postMessage({
                   type: "saveResult",
@@ -1220,6 +1228,7 @@ function configureApi(context) {
               await cfgNow.update("apiBaseUrl", config.baseUrl, target);
               await cfgNow.update("apiKey", config.apiKey, target);
               await cfgNow.update("model", config.model, target);
+              await cfgNow.update("enhanceMode", enhanceMode, target);
 
               if (!panel.visible) return;
               panel.webview.postMessage({
@@ -1249,6 +1258,7 @@ function configureApi(context) {
               await cfgNow.update("apiBaseUrl", undefined, target);
               await cfgNow.update("apiKey", undefined, target);
               await cfgNow.update("model", undefined, target);
+              await cfgNow.update("enhanceMode", "fast", target);
 
               if (!panel.visible) return;
               panel.webview.postMessage({
@@ -1332,9 +1342,17 @@ function configureApi(context) {
 
 /**
  * 生成配置面板 Webview HTML
- * 支持 4 种 API 模式 + Host/Path 分离 + 模型获取
+ * 支持 4 种 API 模式 + Host/Path 分离 + 模型获取 + Fast/Deep 模式
  */
-function getConfigHtml(apiMode, apiHost, apiPath, baseUrl, apiKey, model) {
+function getConfigHtml(
+  apiMode,
+  apiHost,
+  apiPath,
+  baseUrl,
+  apiKey,
+  model,
+  enhanceMode,
+) {
   // HTML 实体转义（防 XSS）
   const esc = (s) =>
     String(s || "")
@@ -1659,6 +1677,15 @@ ${
     </div>
   </div>
 
+  <div class="form-group">
+    <label>增强模式</label>
+    <div class="hint">Fast / Deep 只影响输出深度，不会自动切换模型或更改请求接口；Fast 更精炼，Deep 更完整</div>
+    <select id="enhanceMode">
+      <option value="fast"${enhanceMode !== "deep" ? " selected" : ""}>Fast（默认，速度优先）</option>
+      <option value="deep"${enhanceMode === "deep" ? " selected" : ""}>Deep（质量优先）</option>
+    </select>
+  </div>
+
   <div class="btn-row">
     <button class="btn btn-test" id="btnTest" onclick="doTest()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="m21 21-4.343-4.343M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z"/></svg>
@@ -1799,6 +1826,7 @@ function getValues() {
     apiPath: document.getElementById('apiPath').value,
     apiKey: document.getElementById('apiKey').value,
     model: document.getElementById('model').value,
+    enhanceMode: document.getElementById('enhanceMode').value,
   };
 }
 
@@ -1901,6 +1929,7 @@ window.addEventListener('message', e => {
       document.getElementById('toggleKey').textContent = '显示';
       document.getElementById('model').value = '';
       document.getElementById('model').placeholder = '留空 = 使用内置默认模型';
+      document.getElementById('enhanceMode').value = 'fast';
       const section = document.getElementById('fetchedModelsSection');
       section.innerHTML = '';
       section.style.display = 'none';

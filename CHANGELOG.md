@@ -5,6 +5,21 @@ All notable changes to the Easy Prompt project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [5.3.6] - 2026-03-20
+
+### Fast / Deep 双模式（全端统一口径）
+
+本版本正式以 **Fast / Deep 双模式** 作为对外发布主题：两种模式保持**同模型、同接口**，只在第二步生成的输出深度上区分；Fast 更精炼，Deep 更完整。
+
+#### 发布要点
+
+- **发布：Fast / Deep 双模式** — 全端统一说明，保持现有模型配置与 API 协议不变
+- **语义统一：同模型、同接口** — `fast` / `deep` 不新增公共 API、不自动切换模型、不修改请求路径或协议
+- **结果差异：只体现在第二步输出深度** — Fast 更精炼直接，Deep 更完整充分
+- **Browser 稳定性优先** — 浏览器扩展中的 Fast / Deep 不改变请求形状，降低真实浏览器环境中的跨域与超时回归风险
+
 ## [5.3.5] - 2026-03-09
 
 ### 发布整理：版本号、默认模型说明与多端展示对齐

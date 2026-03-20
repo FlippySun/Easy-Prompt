@@ -16,8 +16,13 @@
 - `API Base URL`: API 服务地址（如 `https://api.openai.com/v1` 或 `https://api.example.com/v1/chat/completions`）— 留空使用内置服务
 - `API Key`: 访问密钥 — 留空使用内置服务
 - `Model`: 模型名称 — 留空使用默认模型
+- `Enhance Mode`: 增强模式（`fast` / `deep`）— 默认 `fast`
 
 > 💡 **智能 URL 拼接**：插件会自动检测 URL 是否已包含 `/chat/completions`，不再强制要求以 `/v1` 结尾。常见的 `/v1` 格式和完整路径格式均可正常使用。
+
+> 💡 **Fast / Deep 说明**：当前版本中，Fast / Deep 不会自动切换模型，也不会修改请求接口。它们只影响第二步生成的输出深度：`fast` 更精炼，`deep` 更完整。
+
+> 🌐 **浏览器扩展特别说明**：浏览器扩展直接在浏览器环境发请求，因此比 VSCode / IntelliJ / Web 在线版更敏感。为降低真实 Chrome / Firefox / Safari 中的跨域与超时回归，Browser 端的 Fast / Deep 也不会改变请求形状。
 
 ---
 
@@ -180,6 +185,13 @@ Model: gpt-4o
 ---
 
 ## ⚙️ 高级配置
+
+### Fast / Deep 选择建议
+
+- **日常使用 / 快速增强**：优先选择 `fast`
+- **复杂任务 / 复合任务 / 需要更完整边界条件**：选择 `deep`
+- **浏览器扩展中遇到超时**：先切回 `fast` 验证是否只是生成预算过重
+- **如果你想切更快或更强的模型**：请直接修改 `Model` 配置，而不是依赖 Fast / Deep 自动切换
 
 ### 代理设置
 

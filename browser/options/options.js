@@ -74,6 +74,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   if (config.apiKey) $("#input-api-key").value = config.apiKey;
   if (config.model) $("#input-model").value = config.model;
+  const enhanceModeEl = $("#input-enhance-mode");
+  if (enhanceModeEl) {
+    enhanceModeEl.value = config.enhanceMode === "deep" ? "deep" : "fast";
+  }
 
   // Mode change → auto-fill path
   $("#input-api-mode").addEventListener("change", () => {
@@ -125,6 +129,9 @@ function getFormValues() {
 
 async function handleSave() {
   const { apiMode, apiHost, apiPath, apiKey, model, baseUrl } = getFormValues();
+  const enhanceModeEl = $("#input-enhance-mode");
+  const enhanceMode =
+    (enhanceModeEl?.value || "fast") === "deep" ? "deep" : "fast";
 
   await Storage.saveConfig({
     apiMode,
@@ -133,6 +140,7 @@ async function handleSave() {
     baseUrl,
     apiKey,
     model,
+    enhanceMode,
   });
   showToast("配置已保存", "success");
 }

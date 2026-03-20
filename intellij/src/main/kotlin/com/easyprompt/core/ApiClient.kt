@@ -24,11 +24,23 @@ data class EffectiveConfig(
     val baseUrl: String,
     val apiKey: String,
     val model: String,
-    val apiMode: String
+    val apiMode: String,
+    val enhanceMode: String
 )
 
 object ApiClient {
     private val gson = Gson()
+
+    // ========================== 变更记录 ==========================
+    // [日期]     2026-03-16
+    // [类型]     重构
+    // [描述]     将 IntelliJ 端 Fast/Deep 调整为“同模型同端点、不同输出深度”的保守策略。
+    // [思路]     模式切换仅影响第二步生成的 token 预算、温度与提示词密度，不再触碰模型切换与请求形状。
+    // [影响范围] ApiClient 的 smartRoute / directGenerate / callApi。
+    // [潜在风险] Fast 模式的加速幅度会比轻量模型方案更温和，但换来跨端一致性与更低回归风险。
+    // ==============================================================
+
+    private const val DEFAULT_ENHANCE_MODE = "fast"
 
     // 输入长度限制（与 VSCode core/api.js 保持一致）
     private const val MAX_INPUT_LENGTH = 10000
@@ -202,13 +214,56 @@ object ApiClient {
                 throw RuntimeException("API Host 格式错误：必须以 http:// 或 https:// 开头")
             }
 
-            EffectiveConfig(baseUrl, userApiKey, model, apiMode)
+            EffectiveConfig(
+                baseUrl,
+                userApiKey,
+                model,
+                apiMode,
+                state.enhanceMode.ifBlank { DEFAULT_ENHANCE_MODE }
+            )
         } else {
             // 使用内置默认配置
             val defaults = BuiltinDefaults.getDefaults()
             val baseUrl = defaults.baseUrl.trimEnd('/')
-            EffectiveConfig(baseUrl, defaults.apiKey, defaults.model, detectApiMode(baseUrl))
+            EffectiveConfig(
+                baseUrl,
+                defaults.apiKey,
+                defaults.model,
+                detectApiMode(baseUrl),
+                state.enhanceMode.ifBlank { DEFAULT_ENHANCE_MODE }
+            )
         }
+    }
+
+    private data class GenerationPlan(
+        val temperature: Double,
+        val maxTokens: Int,
+        val timeout: Int
+    )
+
+    private fun buildGenerationPlan(baseConfig: EffectiveConfig, isComposite: Boolean): GenerationPlan {
+        return if (baseConfig.enhanceMode == "deep") {
+            GenerationPlan(
+                temperature = 0.7,
+                maxTokens = if (isComposite) 8192 else 4096,
+                timeout = 120000
+            )
+        } else {
+            GenerationPlan(
+                temperature = 0.5,
+                maxTokens = if (isComposite) 4096 else 2048,
+                timeout = 60000
+            )
+        }
+    }
+
+    private fun decorateGenerationPrompt(systemPrompt: String, baseConfig: EffectiveConfig): String {
+        val modeHint = if (baseConfig.enhanceMode == "deep") {
+            "\n\n[增强模式: Deep]\n请优先保证完整性，补充关键边界条件、风险提示、验证步骤与输出结构，允许结果更充分展开。"
+        } else {
+            "\n\n[增强模式: Fast]\n请在保证专业度与可执行性的前提下，优先输出更精炼、更直接的 Prompt，避免不必要的铺陈和重复说明。"
+        }
+        return systemPrompt + modeHint
     }
 
     /**
@@ -427,7 +482,8 @@ object ApiClient {
         maxTokens: Int = 4096,
         timeout: Int = 60000,
         onRetry: ((Int, String) -> Unit)? = null,
-        indicator: ProgressIndicator? = null
+        indicator: ProgressIndicator? = null,
+        configOverride: EffectiveConfig? = null
     ): String {
         // 输入长度检查
         if (userMessage.length > MAX_INPUT_LENGTH) {
@@ -435,14 +491,22 @@ object ApiClient {
         }
 
         var lastError: Exception? = null
-        val cfg = getEffectiveConfig()
+        val baseConfig = configOverride ?: getEffectiveConfig()
 
         for (attempt in 0..MAX_RETRIES) {
             if (indicator?.isCanceled == true) {
                 throw RuntimeException("已取消")
             }
             try {
-                return callApiOnce(systemPrompt, userMessage, temperature, maxTokens, timeout, indicator)
+                return callApiOnce(
+                    systemPrompt,
+                    userMessage,
+                    temperature,
+                    maxTokens,
+                    timeout,
+                    indicator,
+                    baseConfig
+                )
             } catch (e: Exception) {
                 var effectiveError = e
                 val errorMsg = e.message ?: "Unknown error"
@@ -453,11 +517,11 @@ object ApiClient {
                 }
 
                 // openai-responses 模式遇到 upstream request failed → 自动回退到 /chat/completions
-                if (shouldTryResponsesFallback(errorMsg, cfg.apiMode)) {
+                if (shouldTryResponsesFallback(errorMsg, baseConfig.apiMode)) {
                     try {
-                        val fallbackConfig = cfg.copy(
+                        val fallbackConfig = baseConfig.copy(
                             apiMode = "openai",
-                            baseUrl = stripApiEndpoint(cfg.baseUrl)
+                            baseUrl = stripApiEndpoint(baseConfig.baseUrl)
                         )
                         return callApiOnce(systemPrompt, userMessage, temperature, maxTokens, timeout, indicator, fallbackConfig)
                     } catch (fallbackErr: Exception) {
@@ -470,7 +534,7 @@ object ApiClient {
 
                 // 非重试类错误直接抛出（如 401, 403, 模型不存在等）
                 if (!isRetryableError(effectiveMsg)) {
-                    throw RuntimeException(friendlyError(effectiveMsg, cfg.model))
+                    throw RuntimeException(friendlyError(effectiveMsg, baseConfig.model))
                 }
 
                 // 最后一次重试失败
@@ -485,7 +549,7 @@ object ApiClient {
         }
 
         // 所有重试都失败
-        throw RuntimeException(friendlyError(lastError?.message ?: "Unknown error", cfg.model))
+        throw RuntimeException(friendlyError(lastError?.message ?: "Unknown error", baseConfig.model))
     }
 
     /**
@@ -578,6 +642,8 @@ object ApiClient {
             throw IllegalArgumentException("输入内容无效，请输入有意义的文本内容")
         }
 
+        val effectiveConfig = getEffectiveConfig()
+
         onProgress?.invoke("🔍 正在识别意图...")
 
         val onRetry: ((Int, String) -> Unit)? = onProgress?.let { progress ->
@@ -586,7 +652,16 @@ object ApiClient {
 
         // 第一步：意图识别
         val routerPrompt = Router.buildRouterPrompt()
-        val routerText = callApi(routerPrompt, userInput, temperature = 0.1, maxTokens = 500, timeout = 30000, onRetry = onRetry, indicator = indicator)
+        val routerText = callApi(
+            routerPrompt,
+            userInput,
+            temperature = 0.1,
+            maxTokens = 500,
+            timeout = 30000,
+            onRetry = onRetry,
+            indicator = indicator,
+            configOverride = effectiveConfig
+        )
         val routerResult = parseRouterResult(routerText)
 
         val sceneLabels = routerResult.scenes.map { Scenes.nameMap[it] ?: it }
@@ -595,8 +670,17 @@ object ApiClient {
 
         // 第二步：生成
         val genPrompt = Router.buildGenerationPrompt(routerResult)
-        val maxTokens = if (routerResult.composite) 8192 else 4096
-        val result = callApi(genPrompt, userInput, maxTokens = maxTokens, timeout = 120000, onRetry = onRetry, indicator = indicator)
+        val generationPlan = buildGenerationPlan(effectiveConfig, routerResult.composite)
+        val result = callApi(
+            decorateGenerationPrompt(genPrompt, effectiveConfig),
+            userInput,
+            temperature = generationPlan.temperature,
+            maxTokens = generationPlan.maxTokens,
+            timeout = generationPlan.timeout,
+            onRetry = onRetry,
+            indicator = indicator,
+            configOverride = effectiveConfig
+        )
 
         return SmartRouteResult(result, routerResult.scenes, routerResult.composite)
     }
@@ -606,6 +690,7 @@ object ApiClient {
      */
     fun directGenerate(userInput: String, sceneId: String, onProgress: ((String) -> Unit)? = null, indicator: ProgressIndicator? = null): String {
         val sceneName = Scenes.nameMap[sceneId] ?: sceneId
+        val effectiveConfig = getEffectiveConfig()
         onProgress?.invoke("✍️ 使用「${sceneName}」场景生成 Prompt...")
 
         val onRetry: ((Int, String) -> Unit)? = onProgress?.let { progress ->
@@ -614,7 +699,17 @@ object ApiClient {
 
         val routerResult = RouterResult(listOf(sceneId), false)
         val genPrompt = Router.buildGenerationPrompt(routerResult)
-        return callApi(genPrompt, userInput, maxTokens = 4096, timeout = 120000, onRetry = onRetry, indicator = indicator)
+        val generationPlan = buildGenerationPlan(effectiveConfig, false)
+        return callApi(
+            decorateGenerationPrompt(genPrompt, effectiveConfig),
+            userInput,
+            temperature = generationPlan.temperature,
+            maxTokens = generationPlan.maxTokens,
+            timeout = generationPlan.timeout,
+            onRetry = onRetry,
+            indicator = indicator,
+            configOverride = effectiveConfig
+        )
     }
 
     /**

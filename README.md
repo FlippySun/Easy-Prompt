@@ -2,7 +2,7 @@
 
 > 两步 AI 意图识别 + 97 个专业场景 + 10 大用户画像，将你的简单描述自动扩写为大师级 Prompt。
 
-![Version](https://img.shields.io/badge/version-5.3.5-blue)
+![Version](https://img.shields.io/badge/version-5.3.6-blue)
 ![VSCode](https://img.shields.io/badge/VSCode-1.85%2B-blue)
 ![IntelliJ](https://img.shields.io/badge/IntelliJ-2024.1%2B-orange)
 ![Browser](https://img.shields.io/badge/Browser-Chrome%20%7C%20Firefox%20%7C%20Safari-yellow)
@@ -13,6 +13,7 @@
 ## ✨ 核心功能
 
 - 🧠 **两步智能路由**：先识别意图场景，再用对应专业 Prompt 生成
+- ⚖️ **Fast / Deep 双模式**：同模型、同接口下控制输出深度；Fast 更精炼，Deep 更完整
 - 🔀 **复合意图支持**：一句话包含多个意图也能精准处理
 - ⚡ **智能增强**：自动判断增强选中文本 / 当前文件 / 剪贴板内容
 - 📦 **97 个场景**：覆盖开发全流程 + 内容创作 + 产品 + 营销 + 设计 + 数据 + HR + 客服 + 创业 + 教育
@@ -28,6 +29,7 @@
 ## ✨ Key Features (English)
 
 - 🧠 **Two-step Smart Routing**: detect intent/scene first, then generate a specialized professional prompt
+- ⚖️ **Fast / Deep Modes**: control output depth with the same model and endpoint; Fast is leaner, Deep is fuller
 - 🔀 **Composite Intents**: accurately handles multiple intents in a single sentence
 - ⚡ **Smart Enhance**: automatically enhances selection / current file / clipboard
 - 📦 **97 Scenes**: covers the full dev lifecycle + content + product + marketing + design + data + HR + support + startup + education
@@ -45,6 +47,8 @@
 ### 浏览器扩展（v5.0 新增）
 
 支持 Chrome、Firefox、Safari 三大平台：
+
+> 💡 **说明**：浏览器扩展中的 Fast / Deep 只影响第二步输出深度，不会自动切换模型，也不会修改请求接口形状；这样可以尽量避免真实浏览器环境中的跨域/超时回归。
 
 ```bash
 # 方式 1：从各平台扩展商店安装（推荐）
@@ -90,7 +94,7 @@ cd browser && node build.js chrome   # 仅构建 Chrome
 
 # 方式 2：本地打包安装
 npx @vscode/vsce package --allow-missing-repository
-code --install-extension easy-prompt-ai-5.3.5.vsix
+code --install-extension easy-prompt-ai-5.3.6.vsix
 
 # 方式 3：开发调试
 code .  # 按 F5 启动调试
@@ -105,7 +109,7 @@ code .  # 按 F5 启动调试
 # 方式 2：本地构建安装（需要 JDK 21）
 cd intellij && ./gradlew buildPlugin
 # Settings → Plugins → ⚙️ → Install Plugin from Disk
-# 选择 intellij/build/distributions/easy-prompt-intellij-5.3.5.zip
+# 选择 intellij/build/distributions/easy-prompt-intellij-5.3.6.zip
 ```
 
 ## 📦 Installation (English)
@@ -113,6 +117,8 @@ cd intellij && ./gradlew buildPlugin
 ### Browser Extension (v5.0+)
 
 Supports Chrome, Firefox and Safari.
+
+> 💡 **Note**: Fast / Deep in the browser extension only changes second-step output depth. It does **not** switch models or alter request shape, which helps avoid real-browser CORS/timeout regressions.
 
 - Option 1 (recommended): install from the extension stores — search "Easy Prompt"
 - Option 2: build locally:
@@ -151,7 +157,7 @@ A standalone AI prompt curated library web app:
 
 ```bash
 npx @vscode/vsce package --allow-missing-repository
-code --install-extension easy-prompt-ai-5.3.5.vsix
+code --install-extension easy-prompt-ai-5.3.6.vsix
 ```
 
 ### IntelliJ IDEA
@@ -163,7 +169,7 @@ code --install-extension easy-prompt-ai-5.3.5.vsix
 cd intellij && ./gradlew buildPlugin
 ```
 
-Then: Settings → Plugins → ⚙️ → Install Plugin from Disk → select `intellij/build/distributions/easy-prompt-intellij-5.3.5.zip`
+Then: Settings → Plugins → ⚙️ → Install Plugin from Disk → select `intellij/build/distributions/easy-prompt-intellij-5.3.6.zip`
 
 ## ⚙️ 配置
 
@@ -173,11 +179,14 @@ Then: Settings → Plugins → ⚙️ → Install Plugin from Disk → select `i
 
 > 💡 **开箱即用**：安装后无需任何配置即可使用内置 AI 服务。如需使用自己的 API，可通过命令面板 `Easy Prompt: 配置自定义 API` 一键配置（支持测试验证）。
 
-| 配置项                  | 说明                   | 默认     | 示例                        |
-| ----------------------- | ---------------------- | -------- | --------------------------- |
-| `easyPrompt.apiKey`     | （可选）自定义 API Key | 内置服务 | `sk-xxxx`                   |
-| `easyPrompt.apiBaseUrl` | （可选）API 地址       | 内置服务 | `https://api.openai.com/v1` |
-| `easyPrompt.model`      | （可选）模型名称       | `gpt-5.4` | `gpt-4o` / `deepseek-chat`  |
+| 配置项                   | 说明                   | 默认      | 示例                        |
+| ------------------------ | ---------------------- | --------- | --------------------------- |
+| `easyPrompt.apiKey`      | （可选）自定义 API Key | 内置服务  | `sk-xxxx`                   |
+| `easyPrompt.apiBaseUrl`  | （可选）API 地址       | 内置服务  | `https://api.openai.com/v1` |
+| `easyPrompt.model`       | （可选）模型名称       | `gpt-5.4` | `gpt-4o` / `deepseek-chat`  |
+| `easyPrompt.enhanceMode` | （可选）增强模式       | `fast`    | `fast` / `deep`             |
+
+> `easyPrompt.enhanceMode` 只影响第二步生成深度：`fast` 更精炼，`deep` 更完整；不会自动切换模型，也不会修改请求接口。
 
 ### IntelliJ IDEA
 
@@ -193,11 +202,14 @@ Open Settings (`Cmd+,`) and search for `Easy Prompt`.
 
 > 💡 **Works out of the box**: leave everything empty to use the built-in service. To use your own API, run the Command Palette action `Easy Prompt: 配置自定义 API` (includes connection test).
 
-| Setting                 | Meaning                   | Default  | Example                     |
-| ----------------------- | ------------------------- | -------- | --------------------------- |
-| `easyPrompt.apiKey`     | (optional) Custom API Key | Built-in | `sk-xxxx`                   |
-| `easyPrompt.apiBaseUrl` | (optional) API Base URL   | Built-in | `https://api.openai.com/v1` |
-| `easyPrompt.model`      | (optional) Model name     | Built-in (`gpt-5.4`) | `gpt-4o` / `deepseek-chat`  |
+| Setting                  | Meaning                   | Default              | Example                     |
+| ------------------------ | ------------------------- | -------------------- | --------------------------- |
+| `easyPrompt.apiKey`      | (optional) Custom API Key | Built-in             | `sk-xxxx`                   |
+| `easyPrompt.apiBaseUrl`  | (optional) API Base URL   | Built-in             | `https://api.openai.com/v1` |
+| `easyPrompt.model`       | (optional) Model name     | Built-in (`gpt-5.4`) | `gpt-4o` / `deepseek-chat`  |
+| `easyPrompt.enhanceMode` | (optional) Enhance mode   | `fast`               | `fast` / `deep`             |
+
+> `easyPrompt.enhanceMode` only changes the second-step output depth: `fast` is leaner, `deep` is more complete. It does not switch models or rewrite the request endpoint.
 
 ### IntelliJ IDEA
 

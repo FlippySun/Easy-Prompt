@@ -114,6 +114,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
  */
 async function getEffectiveConfig() {
   let config = await Storage.loadConfig();
+  const enhanceMode = config.enhanceMode === "deep" ? "deep" : "fast";
   // 从 apiHost + apiPath 构建 baseUrl（如果用户使用新版配置）
   if (config.apiHost && !config.baseUrl) {
     config.baseUrl =
@@ -127,8 +128,10 @@ async function getEffectiveConfig() {
       apiKey: config.apiKey || defaults.apiKey,
       model: config.model || defaults.model,
       apiMode: config.apiMode || "",
+      enhanceMode,
     };
   }
+  config.enhanceMode = enhanceMode;
   return config;
 }
 

@@ -19,6 +19,7 @@ class EasyPromptConfigurable : Configurable {
     private var apiPathField: JTextField? = null
     private var apiKeyField: JPasswordField? = null
     private var modelField: JComboBox<String>? = null
+    private var enhanceModeCombo: JComboBox<String>? = null
     private var statusLabel: JLabel? = null
     private var testPassed = false
 
@@ -28,6 +29,7 @@ class EasyPromptConfigurable : Configurable {
     private var lastSavedPath = ""
     private var lastSavedApiKey = ""
     private var lastSavedModel = ""
+    private var lastSavedEnhanceMode = "fast"
 
     /** API 模式列表（与 ApiClient.API_MODES 对应） */
     private val modeEntries = arrayOf(
@@ -36,6 +38,11 @@ class EasyPromptConfigurable : Configurable {
         "openai-responses" to "OpenAI Responses API",
         "claude" to "Claude API",
         "gemini" to "Google Gemini API"
+    )
+
+    private val enhanceModeEntries = arrayOf(
+        "fast" to "Fast（默认，输出更精炼）",
+        "deep" to "Deep（输出更完整）"
     )
 
     override fun getDisplayName(): String = "Easy Prompt"
@@ -49,6 +56,7 @@ class EasyPromptConfigurable : Configurable {
         lastSavedPath = settings.state.apiPath
         lastSavedApiKey = settings.getApiKey()
         lastSavedModel = settings.state.model
+        lastSavedEnhanceMode = settings.state.enhanceMode.ifBlank { "fast" }
 
         panel = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
@@ -133,6 +141,10 @@ class EasyPromptConfigurable : Configurable {
                 }
             }
         }
+        enhanceModeCombo = JComboBox(enhanceModeEntries.map { it.second }.toTypedArray()).apply {
+            val savedIdx = enhanceModeEntries.indexOfFirst { it.first == lastSavedEnhanceMode }
+            selectedIndex = if (savedIdx >= 0) savedIdx else 0
+        }
 
         // 输入变化时重置测试状态
         val resetTestState = {
@@ -144,6 +156,7 @@ class EasyPromptConfigurable : Configurable {
         apiKeyField!!.document.addDocumentListener(SimpleDocListener(resetTestState))
         // ComboBox 用 ActionListener 监听选择变化
         modelField!!.addActionListener { resetTestState() }
+        enhanceModeCombo!!.addActionListener { resetTestState() }
         (modelField!!.editor.editorComponent as? javax.swing.text.JTextComponent)?.document
             ?.addDocumentListener(SimpleDocListener(resetTestState))
 
@@ -156,6 +169,8 @@ class EasyPromptConfigurable : Configurable {
         panel!!.add(addField("API Key:", apiKeyField!!))
         panel!!.add(Box.createVerticalStrut(8))
         panel!!.add(addField("Model:", modelField!!))
+        panel!!.add(Box.createVerticalStrut(8))
+        panel!!.add(addField("增强模式:", enhanceModeCombo!!))
         panel!!.add(Box.createVerticalStrut(16))
 
         // 状态标签
@@ -191,7 +206,7 @@ class EasyPromptConfigurable : Configurable {
         panel!!.add(buttonPanel)
 
         panel!!.add(Box.createVerticalStrut(16))
-        panel!!.add(JLabel("<html><i>以上配置均为可选 — 留空即使用内置 AI 服务，无需任何配置即可使用。</i></html>").apply {
+        panel!!.add(JLabel("<html><i>以上配置均为可选 — 留空即使用内置 AI 服务。Fast / Deep 只影响输出深度，不会自动切换模型或修改请求接口。</i></html>").apply {
             alignmentX = JPanel.LEFT_ALIGNMENT
         })
         panel!!.add(Box.createVerticalStrut(4))
@@ -207,6 +222,11 @@ class EasyPromptConfigurable : Configurable {
     private fun getSelectedModeKey(): String {
         val idx = apiModeCombo?.selectedIndex ?: 0
         return if (idx in modeEntries.indices) modeEntries[idx].first else ""
+    }
+
+    private fun getSelectedEnhanceModeKey(): String {
+        val idx = enhanceModeCombo?.selectedIndex ?: 0
+        return if (idx in enhanceModeEntries.indices) enhanceModeEntries[idx].first else "fast"
     }
 
     /**
@@ -269,13 +289,21 @@ class EasyPromptConfigurable : Configurable {
             val settings = EasyPromptSettings.getInstance()
             val currentStats = settings.state.sceneStats
             val currentHistory = settings.state.historyRecords
-            settings.loadState(EasyPromptSettings.State(sceneStats = currentStats, historyRecords = currentHistory))
+            val currentLanguage = settings.state.language
+            val enhanceMode = getSelectedEnhanceModeKey()
+            settings.loadState(EasyPromptSettings.State(
+                enhanceMode = enhanceMode,
+                language = currentLanguage,
+                sceneStats = currentStats,
+                historyRecords = currentHistory
+            ))
             settings.setApiKey("")  // Clear from PasswordSafe
             lastSavedMode = ""
             lastSavedHost = ""
             lastSavedPath = ""
             lastSavedApiKey = ""
             lastSavedModel = ""
+            lastSavedEnhanceMode = enhanceMode
             statusLabel?.text = "✅ 已保存 — 当前使用内置免费服务"
             statusLabel?.foreground = Color(0x00, 0x88, 0x00)
             testPassed = true
@@ -294,6 +322,7 @@ class EasyPromptConfigurable : Configurable {
 
         val baseUrl = host + path
         val apiMode = modeKey.ifBlank { ApiClient.detectApiMode(baseUrl) }
+        val enhanceMode = getSelectedEnhanceModeKey()
 
         ApplicationManager.getApplication().executeOnPooledThread {
             val (ok, msg, latency) = ApiClient.testApiConfig(baseUrl, apiKey, model, apiMode)
@@ -303,11 +332,14 @@ class EasyPromptConfigurable : Configurable {
                     val settings = EasyPromptSettings.getInstance()
                     val currentStats = settings.state.sceneStats
                     val currentHistory = settings.state.historyRecords
+                    val currentLanguage = settings.state.language
                     settings.loadState(EasyPromptSettings.State(
                         apiMode = modeKey,
                         apiHost = host,
                         apiPath = path,
                         model = model,
+                        enhanceMode = enhanceMode,
+                        language = currentLanguage,
                         sceneStats = currentStats,
                         historyRecords = currentHistory
                     ))
@@ -317,6 +349,7 @@ class EasyPromptConfigurable : Configurable {
                     lastSavedPath = path
                     lastSavedApiKey = apiKey
                     lastSavedModel = model
+                    lastSavedEnhanceMode = enhanceMode
                     statusLabel?.text = "✅ 配置已保存并生效 · 响应耗时 ${latency}ms"
                     statusLabel?.foreground = Color(0x00, 0x88, 0x00)
                     testPassed = true
@@ -338,16 +371,24 @@ class EasyPromptConfigurable : Configurable {
         apiPathField?.text = ""
         apiKeyField?.text = ""
         modelField?.selectedItem = ""
+        enhanceModeCombo?.selectedIndex = 0
         val settings = EasyPromptSettings.getInstance()
         val currentStats = settings.state.sceneStats
         val currentHistory = settings.state.historyRecords
-        settings.loadState(EasyPromptSettings.State(sceneStats = currentStats, historyRecords = currentHistory))
+        val currentLanguage = settings.state.language
+        settings.loadState(EasyPromptSettings.State(
+            enhanceMode = "fast",
+            language = currentLanguage,
+            sceneStats = currentStats,
+            historyRecords = currentHistory
+        ))
         settings.setApiKey("")  // Clear from PasswordSafe
         lastSavedMode = ""
         lastSavedHost = ""
         lastSavedPath = ""
         lastSavedApiKey = ""
         lastSavedModel = ""
+        lastSavedEnhanceMode = "fast"
 
         statusLabel?.text = "✅ 已恢复为内置默认配置"
         statusLabel?.foreground = Color(0x00, 0x88, 0x00)
@@ -425,6 +466,7 @@ class EasyPromptConfigurable : Configurable {
         lastSavedPath = settings.state.apiPath
         lastSavedApiKey = settings.getApiKey()
         lastSavedModel = settings.state.model
+        lastSavedEnhanceMode = settings.state.enhanceMode.ifBlank { "fast" }
 
         val modeIdx = modeEntries.indexOfFirst { it.first == lastSavedMode }
         apiModeCombo?.selectedIndex = if (modeIdx >= 0) modeIdx else 0
@@ -432,6 +474,8 @@ class EasyPromptConfigurable : Configurable {
         apiPathField?.text = lastSavedPath
         apiKeyField?.text = lastSavedApiKey
         modelField?.selectedItem = lastSavedModel
+        val enhanceModeIdx = enhanceModeEntries.indexOfFirst { it.first == lastSavedEnhanceMode }
+        enhanceModeCombo?.selectedIndex = if (enhanceModeIdx >= 0) enhanceModeIdx else 0
         statusLabel?.text = ""
         testPassed = false
     }
