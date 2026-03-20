@@ -82,12 +82,13 @@
 
 ### VSCode Marketplace
 
-1. **准备发布物料**
+1. **准备发布物料 / 凭证**
 
    ```bash
    # 在项目根目录操作
    # 确保 icon.png 存在
    # 确保 README.md 有截图
+   # 若走自动发布，需先在 deploy/config.sh 中配置 VSCE_PAT
    ```
 
 2. **构建插件**
@@ -100,14 +101,32 @@
 3. **测试安装**
 
    ```bash
-   code --install-extension easy-prompt-ai-5.3.5.vsix
+   code --install-extension easy-prompt-ai-5.3.6.vsix
    ```
 
-4. **发布到市场**
+4. **发布途径**
+
+   **方式 A：自动发布（推荐）**
+
+   ```bash
+   ./deploy/deploy.sh vscode
+   ```
+
+   - 读取 `deploy/config.sh` 中的 `VSCE_PAT`
+   - 自动执行打包，并调用 `npx @vscode/vsce publish --pat "$VSCE_PAT"`
+
+   **方式 B：命令行直发**
+
+   ```bash
+   source deploy/config.sh
+   npx @vscode/vsce publish --pat "$VSCE_PAT"
+   ```
+
+   **方式 C：后台手动上传**
    - 访问 https://marketplace.visualstudio.com/manage
    - 登录 Microsoft 账号
    - 创建 Publisher（如果还没有）
-   - 上传 .vsix 文件
+   - 上传 `.vsix` 文件
 
 ### JetBrains Marketplace
 
@@ -116,14 +135,33 @@
    ```bash
    cd intellij
    JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew buildPlugin
-   # 输出：build/distributions/easy-prompt-intellij-5.3.5.zip
+   # 输出：build/distributions/easy-prompt-intellij-5.3.6.zip
    ```
 
 2. **测试安装**
    - IntelliJ IDEA → Settings → Plugins → ⚙️ → Install Plugin from Disk
    - 选择 ZIP 文件
 
-3. **发布到市场**
+3. **发布途径**
+
+   **方式 A：自动发布（推荐）**
+
+   ```bash
+   ./deploy/deploy.sh intellij
+   ```
+
+   - 读取 `deploy/config.sh` 中的 `JETBRAINS_TOKEN` 与 `JAVA_HOME`
+   - 自动执行构建，并调用 `./gradlew --no-daemon publishPlugin`
+
+   **方式 B：Gradle 命令行直发**
+
+   ```bash
+   source deploy/config.sh
+   cd intellij
+   JAVA_HOME="$JAVA_HOME" PUBLISH_TOKEN="$JETBRAINS_TOKEN" ./gradlew --no-daemon publishPlugin
+   ```
+
+   **方式 C：后台手动上传**
    - 访问 https://plugins.jetbrains.com/
    - 登录 JetBrains 账号
    - 上传插件 ZIP 文件
@@ -133,8 +171,8 @@
 1. **构建**
 
    ```bash
-   cd browser && node build.js
-   # 输出：dist/easy-prompt-chrome.zip / easy-prompt-firefox.zip / easy-prompt-safari.zip
+   cd browser && node build.js chrome firefox
+   # 输出：dist/easy-prompt-chrome.zip / easy-prompt-firefox.zip
    ```
 
 2. **Chrome Web Store**
@@ -145,8 +183,8 @@
    - 访问 https://addons.mozilla.org/developers/
    - 上传 `dist/easy-prompt-firefox.zip`
 
-4. **Safari Extensions**
-   - 需要通过 Xcode 打包并提交至 App Store Connect
+4. **Safari Extensions（本次 5.3.6 不包含）**
+   - 本轮发版不打包 Safari，不提交 App Store Connect
 
 ## ⚠️ 阻塞发布的问题
 

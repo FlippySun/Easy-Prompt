@@ -10,6 +10,15 @@ const { platform } = require("os");
 // 输入长度限制（10000 字符）
 const MAX_INPUT_LENGTH = 10000;
 
+// ========================== 变更记录 ==========================
+// [日期]     2026-03-16
+// [类型]     重构
+// [描述]     将 Fast/Deep 调整为“同模型同端点、不同输出深度”的保守策略，避免模式切换影响真实请求形状。
+// [思路]     仅让增强模式影响第二步生成的 token 预算、温度和提示词密度；第一步路由与网络参数始终保持稳定。
+// [影响范围] core/api.js 的 callGenerationApi / callRouterApi；VSCode 与其他复用 core 的入口都会继承该策略。
+// [潜在风险] Fast 模式主要依赖输出预算收敛来提速，速度收益会低于“切轻量模型”的激进方案，但兼容性更稳。
+// ==============================================================
+
 // API 模式常量
 const API_MODES = {
   OPENAI: "openai",
@@ -25,6 +34,13 @@ const DEFAULT_API_PATHS = {
   [API_MODES.CLAUDE]: "/v1/messages",
   [API_MODES.GEMINI]: "/v1beta",
 };
+
+const ENHANCE_MODES = {
+  FAST: "fast",
+  DEEP: "deep",
+};
+
+const DEFAULT_ENHANCE_MODE = ENHANCE_MODES.FAST;
 
 /**
  * 从 baseUrl 自动推断 API 模式（向后兼容）
@@ -104,6 +120,54 @@ function isRetryableError(error) {
   return retryablePatterns.some((p) =>
     msg.toLowerCase().includes(p.toLowerCase()),
   );
+}
+
+function getEnhanceMode(config) {
+  return config?.enhanceMode === ENHANCE_MODES.DEEP
+    ? ENHANCE_MODES.DEEP
+    : DEFAULT_ENHANCE_MODE;
+}
+
+function getRouterCallOptions(config, onRetry) {
+  return {
+    temperature: 0.1,
+    maxTokens: 500,
+    timeout: 30,
+    onRetry,
+  };
+}
+
+function getGenerationCallOptions(config, isComposite, onRetry) {
+  if (getEnhanceMode(config) === ENHANCE_MODES.DEEP) {
+    return {
+      temperature: 0.7,
+      maxTokens: isComposite ? 8192 : 4096,
+      timeout: 120,
+      onRetry,
+      model: config?.model,
+    };
+  }
+
+  return {
+    temperature: 0.5,
+    maxTokens: isComposite ? 4096 : 2048,
+    timeout: 60,
+    onRetry,
+  };
+}
+
+/**
+ * 为第二步生成追加模式提示，但不改变模型、端点或鉴权方式。
+ * Fast: 让输出更精炼，减少不必要展开。
+ * Deep: 允许输出更完整，覆盖更多边界条件与验证要求。
+ */
+function decorateGenerationSystemPrompt(systemPrompt, config) {
+  const mode = getEnhanceMode(config);
+  const modeHint =
+    mode === ENHANCE_MODES.DEEP
+      ? "\n\n[增强模式: Deep]\n请优先保证完整性，补充关键边界条件、风险提示、验证步骤与输出结构，允许结果更充分展开。"
+      : "\n\n[增强模式: Fast]\n请在保证专业度与可执行性的前提下，优先输出更精炼、更直接的 Prompt，避免不必要的铺陈和重复说明。";
+  return `${systemPrompt}${modeHint}`;
 }
 
 /**
@@ -520,6 +584,7 @@ async function callApi(config, systemPrompt, userMessage, options = {}) {
   }
 
   let lastError;
+
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       return await callApiOnce(config, systemPrompt, userMessage, callOptions);
@@ -568,12 +633,12 @@ async function callApi(config, systemPrompt, userMessage, options = {}) {
  * 两步路由：第一步意图识别（快速低温），第二步生成（正常温度）
  */
 async function callRouterApi(config, systemPrompt, userMessage, onRetry) {
-  return callApi(config, systemPrompt, userMessage, {
-    temperature: 0.1,
-    maxTokens: 500,
-    timeout: 30,
-    onRetry,
-  });
+  return callApi(
+    config,
+    systemPrompt,
+    userMessage,
+    getRouterCallOptions(config, onRetry),
+  );
 }
 
 async function callGenerationApi(
@@ -583,12 +648,16 @@ async function callGenerationApi(
   isComposite = false,
   onRetry,
 ) {
-  return callApi(config, systemPrompt, userMessage, {
-    temperature: 0.7,
-    maxTokens: isComposite ? 8192 : 4096,
-    timeout: 120,
-    onRetry,
-  });
+  const effectiveSystemPrompt = decorateGenerationSystemPrompt(
+    systemPrompt,
+    config,
+  );
+  return callApi(
+    config,
+    effectiveSystemPrompt,
+    userMessage,
+    getGenerationCallOptions(config, isComposite, onRetry),
+  );
 }
 
 module.exports = {

@@ -2,7 +2,7 @@
   "name": "easy-prompt-ai",
   "displayName": "Easy Prompt — AI 智能 Prompt 增强器",
   "description": "两步 AI 意图识别 + 97 个专业场景 + 10 大用户画像，将简单描述扩写为专业 Prompt。配套 PromptHub 精选库（zhiz.chat）。Two-step AI intent routing with 97 scenes & 10 personas for professional prompt generation. Includes PromptHub curated library (zhiz.chat). (VSCode / IntelliJ / Browser / Web).",
-  "version": "5.3.5",
+  "version": "5.3.6",
   "publisher": "FlippySun",
   "license": "MIT",
   "engines": {
@@ -241,6 +241,20 @@
           "markdownDescription": "自定义模型名称。\n\n**留空 = 使用内置默认模型**。从下拉列表选择常用模型，或在 `settings.json` 中手动填写其他模型名。\n\n> 💡 在 API 配置面板中可使用「获取模型」按钮自动获取可用模型列表。",
           "order": 6
         },
+        "easyPrompt.enhanceMode": {
+          "type": "string",
+          "default": "fast",
+          "enum": [
+            "fast",
+            "deep"
+          ],
+          "enumDescriptions": [
+            "Fast（默认）— 保持当前模型与接口不变，第二步输出更精炼",
+            "Deep — 保持当前模型与接口不变，第二步输出更完整"
+          ],
+          "markdownDescription": "Prompt 增强模式。\n\n**Fast（默认）**：保持当前模型与 API 接口不变，只让第二步生成更精炼、更短。\n\n**Deep**：保持当前模型与 API 接口不变，只让第二步生成更完整、更充分。\n\n> 该设置不会自动切换模型，也不会修改请求路径；尤其在 Browser 端会尽量保持请求形状稳定。",
+          "order": 7
+        },
         "easyPrompt.language": {
           "type": "string",
           "enum": [
@@ -249,7 +263,7 @@
           ],
           "default": "zh-CN",
           "description": "界面语言",
-          "order": 7
+          "order": 8
         }
       }
     }

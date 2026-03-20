@@ -635,12 +635,28 @@ button {
   box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
   overflow: hidden;
 }
-.btn-primary:hover:not(:disabled) {
+/* ========================== Change Record ==========================
+ * [Date]        2026-03-20
+ * [Type]        Bug Fix
+ * [Description] Prevent the generic hover/active visual state from
+ *               overriding the generating button's rotating halo layer.
+ * [Rationale]   The generating state relies on a pseudo-element behind
+ *               the button surface. Hover transform/background changes
+ *               created a different paint order and made the halo appear
+ *               on the same layer as the button face.
+ * [Params/Returns] N/A for CSS selectors.
+ * [Impact]      browser/popup/popup.html -> #btn-generate,
+ *               browser/popup/popup.js -> setGenerating(),
+ *               browser/popup/popup.css -> .btn-primary states.
+ * [Risk]        Low. Only the generating-state hover/active visuals are
+ *               narrowed; idle button interactions remain unchanged.
+ * ================================================================ */
+.btn-primary:hover:not(:disabled):not(.is-generating) {
   background: linear-gradient(135deg, var(--accent-hover), var(--gradient-end));
   box-shadow: 0 4px 16px rgba(139, 92, 246, 0.4);
   transform: translateY(-1px);
 }
-.btn-primary:active:not(:disabled) {
+.btn-primary:active:not(:disabled):not(.is-generating) {
   transform: translateY(0) scale(0.97);
   box-shadow: 0 1px 4px rgba(139, 92, 246, 0.2);
 }

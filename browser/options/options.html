@@ -159,6 +159,18 @@
             >
           </div>
 
+          <div class="form-group">
+            <label class="form-label" for="input-enhance-mode">增强模式</label>
+            <select id="input-enhance-mode" class="form-input form-select">
+              <option value="fast">Fast（默认，速度优先）</option>
+              <option value="deep">Deep（质量优先）</option>
+            </select>
+            <span class="form-hint"
+              >只影响第二步输出深度，不切换模型，也不改变 Browser
+              端的请求形状；Fast 更精炼，Deep 更完整。</span
+            >
+          </div>
+
           <div id="models-list" class="models-list" hidden></div>
 
           <div class="actions">

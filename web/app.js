@@ -347,6 +347,10 @@ async function getEffectiveConfig() {
     apiKey: (user.apiKey || "").trim() || builtin.apiKey,
     model: (user.model || "").trim() || builtin.model,
     apiMode: apiMode || detectApiMode(baseUrl),
+    enhanceMode:
+      (user.enhanceMode || "").trim() === ENHANCE_MODES.DEEP
+        ? ENHANCE_MODES.DEEP
+        : DEFAULT_ENHANCE_MODE,
   };
 }
 
@@ -894,6 +898,22 @@ const DEFAULT_API_PATHS = {
   gemini: "/v1beta",
 };
 
+// ========================== 变更记录 ==========================
+// [日期]     2026-03-16
+// [类型]     重构
+// [描述]     将 Web 端 Fast/Deep 收敛为“同模型同端点、不同输出深度”的保守策略，避免模式切换改变请求形状。
+// [思路]     保留增强模式配置，但只让第二步生成的 token 预算、温度与提示词密度发生变化，Browser/Web 不再受模型切换影响。
+// [影响范围] web/app.js 的 API 调用包装、设置持久化与增强调用链。
+// [潜在风险] Fast 模式的提速会比轻量模型方案温和，但能显著降低兼容性与跨域相关回归风险。
+// ==============================================================
+
+const ENHANCE_MODES = {
+  FAST: "fast",
+  DEEP: "deep",
+};
+
+const DEFAULT_ENHANCE_MODE = ENHANCE_MODES.FAST;
+
 /** 根据 baseUrl 路径自动推断 API 模式 */
 function detectApiMode(baseUrl) {
   if (!baseUrl) return "openai";
@@ -916,6 +936,52 @@ function detectApiMode(baseUrl) {
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getEnhanceMode(config) {
+  return config?.enhanceMode === ENHANCE_MODES.DEEP
+    ? ENHANCE_MODES.DEEP
+    : DEFAULT_ENHANCE_MODE;
+}
+
+function getRouterCallOptions(config, onRetry, signal) {
+  return {
+    temperature: 0.1,
+    maxTokens: 500,
+    timeout: 30,
+    onRetry,
+    signal,
+  };
+}
+
+function getGenerationCallOptions(config, isComposite, onRetry, signal) {
+  if (getEnhanceMode(config) === ENHANCE_MODES.DEEP) {
+    return {
+      temperature: 0.7,
+      maxTokens: isComposite ? 8192 : 4096,
+      timeout: 120,
+      onRetry,
+      signal,
+      model: config?.model,
+    };
+  }
+
+  return {
+    temperature: 0.5,
+    maxTokens: isComposite ? 4096 : 2048,
+    timeout: 60,
+    onRetry,
+    signal,
+  };
+}
+
+function decorateGenerationSystemPrompt(systemPrompt, config) {
+  const mode = getEnhanceMode(config);
+  const modeHint =
+    mode === ENHANCE_MODES.DEEP
+      ? "\n\n[增强模式: Deep]\n请优先保证完整性，补充关键边界条件、风险提示、验证步骤与输出结构，允许结果更充分展开。"
+      : "\n\n[增强模式: Fast]\n请在保证专业度与可执行性的前提下，优先输出更精炼、更直接的 Prompt，避免不必要的铺陈和重复说明。";
+  return `${systemPrompt}${modeHint}`;
 }
 
 /**
@@ -1130,13 +1196,12 @@ async function callRouterApi(
   onRetry,
   signal,
 ) {
-  return callApi(config, systemPrompt, userMessage, {
-    temperature: 0.1,
-    maxTokens: 500,
-    timeout: 30,
-    onRetry,
-    signal,
-  });
+  return callApi(
+    config,
+    systemPrompt,
+    userMessage,
+    getRouterCallOptions(config, onRetry, signal),
+  );
 }
 
 async function callGenerationApi(
@@ -1147,13 +1212,16 @@ async function callGenerationApi(
   onRetry,
   signal,
 ) {
-  return callApi(config, systemPrompt, userMessage, {
-    temperature: 0.7,
-    maxTokens: isComposite ? 8192 : 4096,
-    timeout: 120,
-    onRetry,
-    signal,
-  });
+  const effectiveSystemPrompt = decorateGenerationSystemPrompt(
+    systemPrompt,
+    config,
+  );
+  return callApi(
+    config,
+    effectiveSystemPrompt,
+    userMessage,
+    getGenerationCallOptions(config, isComposite, onRetry, signal),
+  );
 }
 
 async function testApiConfig(config) {
@@ -2043,6 +2111,13 @@ function populateSettings() {
 
   $("#setting-api-key").value = cfg.apiKey || "";
   $("#setting-model").value = cfg.model || "";
+  const enhanceModeEl = $("#setting-enhance-mode");
+  if (enhanceModeEl) {
+    enhanceModeEl.value =
+      cfg.enhanceMode === ENHANCE_MODES.DEEP
+        ? ENHANCE_MODES.DEEP
+        : DEFAULT_ENHANCE_MODE;
+  }
   // 隐藏模型列表
   const fetchedList = $("#fetched-models-list");
   if (fetchedList) {
@@ -2117,12 +2192,18 @@ async function handleTestApi() {
 }
 
 function handleSaveSettings() {
+  const enhanceModeEl = $("#setting-enhance-mode");
   const cfg = {
     apiMode: ($("#setting-api-mode").value || "").trim(),
     apiHost: ($("#setting-api-host").value || "").trim().replace(/\/+$/, ""),
     apiPath: ($("#setting-api-path").value || "").trim(),
     apiKey: ($("#setting-api-key").value || "").trim(),
     model: ($("#setting-model").value || "").trim(),
+    enhanceMode:
+      (enhanceModeEl?.value || DEFAULT_ENHANCE_MODE).trim() ===
+      ENHANCE_MODES.DEEP
+        ? ENHANCE_MODES.DEEP
+        : DEFAULT_ENHANCE_MODE,
   };
   saveConfig(cfg);
 

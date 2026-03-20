@@ -395,6 +395,7 @@ async function handleGenerate() {
 
   // Load config (merge with builtin defaults)
   let config = await Storage.loadConfig();
+  const enhanceMode = config.enhanceMode === "deep" ? "deep" : "fast";
   if (!config.apiKey || !config.baseUrl || !config.model) {
     try {
       const defaults = await Defaults.getBuiltinDefaults();
@@ -403,12 +404,15 @@ async function handleGenerate() {
         baseUrl: config.baseUrl || defaults.baseUrl,
         apiKey: config.apiKey || defaults.apiKey,
         model: config.model || defaults.model,
+        apiMode: config.apiMode || "",
+        enhanceMode,
       };
     } catch (e) {
       showToast("请先在设置中配置 API", "error");
       return;
     }
   }
+  config.enhanceMode = enhanceMode;
 
   // UI → generating state
   isGenerating = true;

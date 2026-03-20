@@ -452,7 +452,7 @@ kbd {
 <div class="container">
     <!-- Hero -->
     <div class="hero">
-        <div class="version-badge">v5.3.5</div>
+        <div class="version-badge">v5.3.6</div>
         <h1>Welcome to <span>Easy Prompt</span></h1>
         <p>AI 驱动的智能 Prompt 工程工具包 — 写一句大白话，生成专业级 Prompt，97 个场景 + 10 大画像覆盖你的全部开发与创作痛点</p>
     </div>
@@ -562,7 +562,7 @@ kbd {
 
     <!-- Footer -->
     <div class="footer">
-        <p>Easy Prompt v5.3.5 · Made with ❤️ · <a href="https://github.com/FlippySun/Easy-Prompt">GitHub</a> · <a href="https://prompt.zhiz.chat">Web 在线版</a> · <a href="https://zhiz.chat">PromptHub 精选库</a></p>
+        <p>Easy Prompt v5.3.6 · Made with ❤️ · <a href="https://github.com/FlippySun/Easy-Prompt">GitHub</a> · <a href="https://prompt.zhiz.chat">Web 在线版</a> · <a href="https://zhiz.chat">PromptHub 精选库</a></p>
         <p style="margin-top:8px;">💡 状态栏右侧 ✨ 图标可随时打开快捷菜单</p>
     </div>
 </div>

@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.easyprompt"
-version = "5.3.5"
+version = "5.3.6"
 
 repositories {
     mavenCentral()
@@ -161,6 +161,14 @@ intellijPlatform {
             sinceBuild = "243"
         }
         changeNotes = """
+            <h3>v5.3.6 — Fast / Deep 双模式</h3>
+            <b>以同模型、同接口、不同输出深度的统一语义正式发布 Fast / Deep</b>
+            <ul>
+                <li><b>Fast / Deep 正式发布</b>：两种模式保持当前模型与 API 接口不变</li>
+                <li><b>输出深度分层</b>：Fast 更精炼直接，Deep 更完整充分</li>
+                <li><b>无新增公共 API</b>：继续使用 <code>fast</code> / <code>deep</code> 配置，不自动切换模型</li>
+                <li><b>Browser 稳定性优先</b>：浏览器扩展中的 Fast / Deep 不改变请求形状，降低真实浏览器环境回归风险</li>
+            </ul>
             <h3>v5.3.5 — 发布整理与默认模型说明对齐</h3>
             <b>统一 5.3.5 版本展示，修正默认模型与场景数量文案</b>
             <ul>
