@@ -72,12 +72,13 @@ export async function extensionIdFromContext(
     if (id) return id;
   }
 
-  // ── 2. CDP: enumerate targets on the BrowserContext level ────────────
+  // ── 2. CDP: enumerate targets via a helper page ────────────────────────
+  // newCDPSession() only accepts Page | Frame (not BrowserContext), so we
+  // attach to the first open page. With Target.setDiscoverTargets enabled,
+  // it will also report service worker targets in the same context.
+  const helperPage = context.pages()[0] ?? (await context.newPage());
   try {
-    // newCDPSession() with a BrowserContext argument attaches at context scope,
-    // giving access to all targets (pages + service workers).
-    const cdp = await context.newCDPSession(context);
-    // Ensure the Target domain is active so it tracks SWs.
+    const cdp = await context.newCDPSession(helperPage);
     await cdp.send("Target.setDiscoverTargets", { discover: true });
 
     // Wait up to 5 s for the extension SW to register and appear.
