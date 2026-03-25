@@ -75,16 +75,12 @@ export async function extensionIdFromContext(
     if (id) return id;
   }
 
-  // ── 2. CDP: attach to the service worker directly ───────────────────
-  // We need a CDPSession attached to the SW target itself to enumerate targets.
-  // Launch a fresh page so we have a stable CDP session root.
+  // ── 2. CDP: enumerate all targets via Chrome DevTools Protocol ────────────
   const helperPage = await context.newPage();
   try {
     const cdp = await context.newCDPSession(helperPage);
-    // Enabling Target domain registers it so we can discover other targets.
     await cdp.send("Target.setDiscoverTargets", { discover: true });
-    // Wait for the SW to appear as a target.
-    const swTarget = await cdp.send("Target.getTargets") as {
+    const swTarget = (await cdp.send("Target.getTargets")) as unknown as {
       targetInfo: { targetId: string; url: string; type: string };
     }[];
     const extTarget = swTarget.find(
@@ -94,11 +90,15 @@ export async function extensionIdFromContext(
     );
     if (extTarget) {
       const id = extTarget.targetInfo.url.split("/")[2];
-      if (id) return id;
+      if (id) {
+        await helperPage.close().catch(() => {});
+        return id;
+      }
     }
   } catch {
-    // CDP may not work — fall through to route interception
+    // CDP may not work — fall through
   }
+  await helperPage.close().catch(() => {});
 
   // ── 3. Route interception fallback ─────────────────────────────────────
   return new Promise<string>((resolve, reject) => {
