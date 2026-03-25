@@ -3,7 +3,7 @@
 <!-- ========================== Change Record ========================== -->
 <!-- [Date]        2026-03-24                                           -->
 <!-- [Type]        Configuration change                                  -->
-<!-- [Description] Reorganize the browser extension developer guide after the WXT migration, add Safari converter usage, and document local loading flows for Chrome and Firefox. -->
+<!-- [Description] Reorganize the browser extension developer guide after the WXT migration, add Safari converter usage, and document local loading flows for Chrome, Firefox, Safari, and Edge. -->
 <!-- [Approach]    Promote README from a short command note to a full developer handbook so the browser workspace can be used without reopening the root documentation. -->
 <!-- [Params/Returns] N/A for Markdown documentation.                    -->
 <!-- [Impact]      browser/README.md, browser/package.json, package.json, browser/scripts/convert-safari.mjs, browser/wxt.config.ts. -->
@@ -34,11 +34,17 @@ npm install
 | `npm run dev` | 启动 Chrome MV3 开发模式 |
 | `npm run dev:firefox` | 启动 Firefox MV3 开发模式 |
 | `npm run dev:safari` | 启动 Safari MV3 开发模式 |
+| `npm run dev:edge` | 启动 Edge MV3 开发模式 |
 | `npm run build` | 构建 Chrome MV3 产物 |
 | `npm run build:firefox` | 构建 Firefox MV3 产物 |
 | `npm run build:safari` | 构建 Safari MV3 产物 |
-| `npm run build:all` | 一次性构建 Chrome / Firefox / Safari |
-| `npm run zip:all` | 一次性输出三端 ZIP 包 |
+| `npm run build:edge` | 构建 Edge MV3 产物 |
+| `npm run build:all` | 一次性构建 Chrome / Firefox / Safari / Edge 四端 |
+| `npm run zip:chrome` | 打包 Chrome ZIP |
+| `npm run zip:firefox` | 打包 Firefox ZIP |
+| `npm run zip:safari` | 打包 Safari ZIP |
+| `npm run zip:edge` | 打包 Edge ZIP |
+| `npm run zip:all` | 一次性输出四端 ZIP 包 |
 | `npm run typecheck` | 执行 TypeScript 类型检查 |
 | `npm run safari:convert` | 先构建 Safari，再生成 Xcode 工程 |
 | `npm run safari:convert:dry-run` | 仅打印 Safari converter 实际命令，不执行 |
@@ -79,6 +85,7 @@ browser/
 | Chrome MV3 | `browser/dist/chrome-mv3/` | 本地加载 / 手动验证 |
 | Firefox MV3 | `browser/dist/firefox-mv3/` | 本地临时加载 / 手动验证 |
 | Safari MV3 | `browser/dist/safari-mv3/` | 提供给 `safari-web-extension-converter` 输入 |
+| Edge MV3 | `browser/dist/edge-mv3/` | 本地加载 / Microsoft Add-ons 上传 |
 | Safari Xcode 工程 | `browser/dist/safari-xcode/` | `npm run safari:convert` 生成 |
 
 ZIP 包默认输出到 `browser/dist/` 根目录。
@@ -178,7 +185,31 @@ EASY_PROMPT_SAFARI_COPY_RESOURCES=1 npm run safari:convert
 
 > 如果 `xcrun safari-web-extension-converter` 不存在，请先安装 Xcode Command Line Tools。
 
-## 7. 开发与维护建议
+## 7. Edge 本地加载扩展
+
+先构建 Edge 产物：
+
+```bash
+cd browser
+npm run build:edge
+```
+
+然后：
+
+1. 打开 `edge://extensions`
+2. 打开左侧 **开发者模式**
+3. 点击 **加载扩展**
+4. 选择目录：`browser/dist/edge-mv3`
+5. 修改代码后重新执行 `npm run build:edge`，然后点击扩展卡片的 **刷新按钮**
+
+### Edge 注意事项
+
+- Edge 基于 Chromium，内核与 Chrome 高度兼容，扩展加载流程几乎相同
+- `wxt.config.ts` 中的 manifest hook 会为 Edge 生成 `browser_specific_settings.edge.strict_min_version: "130"`
+- Edge 支持 Chrome Web Store 的部分 API，`chrome.storage`、`chrome.runtime`、`chrome.tabs` 等核心 API 均可正常工作
+- 如需上架 Microsoft Add-ons 商店，可直接使用 `npm run zip:edge` 生成的 ZIP 包上传
+
+## 8. 开发与维护建议
 
 ### 推荐工作流
 
@@ -188,10 +219,11 @@ EASY_PROMPT_SAFARI_COPY_RESOURCES=1 npm run safari:convert
 cd browser
 npm run build
 npm run build:firefox
+npm run build:edge
 npm run typecheck
 ```
 
-#### 三端回归
+#### 四端回归
 
 ```bash
 cd browser
@@ -204,7 +236,7 @@ npm run safari:convert:dry-run
 
 `browser/build.js` 仍保留 `node build.js [target]` 的调用方式，是为了兼容旧文档、旧脚本和已有心智；它本身已经不再维护自定义构建逻辑，而是转发到 WXT scripts。
 
-## 8. 常见排查
+## 9. 常见排查
 
 ### 1) 加载后 Popup / Options 页面异常
 
