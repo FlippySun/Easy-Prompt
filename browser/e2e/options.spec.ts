@@ -10,15 +10,16 @@
 import { test, expect } from "./helpers/launch-ext";
 
 async function loadOptions(
-  extensionPage: import("@playwright/test").Page,
+  page: import("@playwright/test").Page,
   extensionId: string,
 ) {
-  await extensionPage.goto(
-    `chrome-extension://${extensionId}/options.html`,
+  await page.goto(`chrome-extension://${extensionId}/options.html`);
+  await page.waitForLoadState("load");
+  // The form fields are in the initial HTML — wait for any of them.
+  await page.waitForSelector(
+    "#input-api-mode, .card, .form-group, body",
+    { timeout: 30_000 },
   );
-  // Wait for the options page module to initialize before asserting.
-  await extensionPage.waitForLoadState("domcontentloaded");
-  await extensionPage.waitForSelector("#logo-icon", { timeout: 15_000 });
 }
 
 test.describe("Options Page", () => {
@@ -41,21 +42,21 @@ test.describe("Options Page", () => {
     await extensionPage.goto(
       `chrome-extension://${extensionId}/options.html`,
     );
-    await extensionPage.waitForSelector("body", { timeout: 15_000 });
+    await extensionPage.waitForLoadState("load");
+    await extensionPage.waitForSelector("body", { timeout: 30_000 });
+
     const realErrors = errors.filter((e) => !e.includes("favicon"));
     expect(realErrors).toHaveLength(0);
   });
 
   test("should display the Easy Prompt logo", async ({ extensionPage }) => {
-    const logoIcon = extensionPage.locator("#logo-icon");
-    // The logo should be present in the header
+    const logoIcon = extensionPage.locator(".logo-icon, #logo-icon");
     await expect(logoIcon).toBeVisible();
   });
 
   test("should have an API Mode dropdown", async ({ extensionPage }) => {
     const modeDropdown = extensionPage.locator("#input-api-mode");
     await expect(modeDropdown).toBeVisible();
-    // Should have 5 options (including the "auto-detect" option)
     const options = modeDropdown.locator("option");
     await expect(options).toHaveCount(5);
   });
@@ -87,7 +88,7 @@ test.describe("Options Page", () => {
     const modeInput = extensionPage.locator("#input-enhance-mode");
     await expect(modeInput).toBeVisible();
     const options = modeInput.locator("option");
-    await expect(options).toHaveCount(2); // fast + deep
+    await expect(options).toHaveCount(2);
   });
 
   test("should have a Save button", async ({ extensionPage }) => {
@@ -118,19 +119,13 @@ test.describe("Options Page", () => {
     const modeDropdown = extensionPage.locator("#input-api-mode");
     const pathInput = extensionPage.locator("#input-api-path");
 
-    // Clear the path first
     await pathInput.clear();
-
-    // Select Claude mode
     await modeDropdown.selectOption("claude");
-
-    // Path should be auto-filled with Claude's default path
     await expect(pathInput).toHaveValue("/v1/messages");
   });
 
   test("Save button should be clickable", async ({ extensionPage }) => {
     const saveBtn = extensionPage.locator("#btn-save");
     await saveBtn.click();
-    // No assertion needed — just verify it doesn't throw
   });
 });

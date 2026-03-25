@@ -6,7 +6,11 @@
  * flags; Edge-targeted builds are still validated by loading `edge-mv3` via
  * Chromium. See: https://playwright.dev/docs/chrome-extensions
  */
-import { test as base, chromium, type BrowserContext } from "@playwright/test";
+import {
+  test as base,
+  chromium,
+  type BrowserContext,
+} from "@playwright/test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -16,7 +20,6 @@ export const DIST_DIR = path.resolve(__dirname, "../dist");
 
 /**
  * Returns the dist subdirectory for a given browser target.
- * @param browserName "chromium" | "firefox" | "edge"
  */
 export function getDistDir(browserName: string): string {
   const map: Record<string, string> = {
@@ -29,10 +32,6 @@ export function getDistDir(browserName: string): string {
 
 /**
  * Launch a Chromium-based browser context with the Easy Prompt extension loaded.
- * Works for both Chrome and Edge (both use Chromium).
- *
- * @param browserName "chromium" | "edge"
- * @param options Additional Playwright browser options
  */
 export async function launchChromiumExtension(
   browserName: "chromium" | "edge",
@@ -44,63 +43,85 @@ export async function launchChromiumExtension(
     channel: "chromium",
     headless: true,
     ...options,
-    args: [
-      `--disable-extensions-except=${extPath}`,
-      `--load-extension=${extPath}`,
-    ],
+    args: [`--load-extension=${extPath}`],
   });
 
   return context;
 }
 
 /**
- * Resolve the extension id for the loaded MV3 extension.
+ * Resolve the MV3 extension id.
  *
- * Strategy:
- *  1. Fast path: try serviceWorkers() immediately (may be empty if SW is still
- *     registering, but it's free to check).
- *  2. CDP: attach a Chrome DevTools Protocol session to the SW and call
- *     Target.getTargets to list all targets including service workers. The SW
- *     URL (chrome-extension://<id>/background.js) contains the id.
- *  3. Route interception: as a fallback, intercept the first
- *     chrome-extension:// request to extract the id from the URL.
+ * Strategy (fastest first):
+ *  1. Fast path: active SW already registered → grab id from its URL.
+ *  2. CDP on BrowserContext: attach a CDP session at the context level and
+ *     call Target.getTargets.  The service worker target URL is
+ *     chrome-extension://<id>/background.js.
+ *
+ * The 2-step approach avoids Playwright's unreliable "serviceworker" event
+ * in headless Chromium and avoids chrome-extension:// route interception
+ * (which is subject to SW fetch handler interception internals).
  */
 export async function extensionIdFromContext(
   context: BrowserContext,
 ): Promise<string> {
-  // ── 1. Fast path ──────────────────────────────────────────────────────
-  let sw = context.serviceWorkers()[0];
-  if (sw) {
-    const id = sw.url().split("/")[2];
+  // ── 1. Fast path: SW already active ─────────────────────────────────
+  const active = context.serviceWorkers();
+  if (active.length > 0) {
+    const id = active[0].url().split("/")[2];
     if (id) return id;
   }
 
-  // ── 2. CDP: enumerate all targets via Chrome DevTools Protocol ────────────
-  const helperPage = await context.newPage();
+  // ── 2. CDP: enumerate targets on the BrowserContext level ────────────
   try {
-    const cdp = await context.newCDPSession(helperPage);
+    // newCDPSession() with a BrowserContext argument attaches at context scope,
+    // giving access to all targets (pages + service workers).
+    const cdp = await context.newCDPSession(context);
+    // Ensure the Target domain is active so it tracks SWs.
     await cdp.send("Target.setDiscoverTargets", { discover: true });
-    const swTarget = (await cdp.send("Target.getTargets")) as unknown as {
-      targetInfo: { targetId: string; url: string; type: string };
+
+    // Wait up to 5 s for the extension SW to register and appear.
+    const deadline = Date.now() + 5_000;
+    let targets: { targetInfo: { type: string; url: string } }[] = [];
+
+    while (Date.now() < deadline) {
+      const result = (await cdp.send(
+        "Target.getTargets",
+      )) as unknown as { targetInfo: { type: string; url: string } }[];
+      targets = result;
+
+      const sw = targets.find(
+        (t) =>
+          t.targetInfo.type === "service_worker" &&
+          t.targetInfo.url.includes("background.js"),
+      );
+      if (sw) {
+        const id = sw.targetInfo.url.split("/")[2];
+        if (id) return id;
+      }
+
+      // No SW yet — the SW may still be starting. Give it a moment.
+      await new Promise((r) => setTimeout(r, 500));
+    }
+
+    // If we still haven't found the SW, try one more broad search.
+    const all = (await cdp.send("Target.getTargets")) as unknown as {
+      targetInfo: { type: string; url: string };
     }[];
-    const extTarget = swTarget.find(
+    const ext = all.find(
       (t) =>
         t.targetInfo.type === "service_worker" &&
         t.targetInfo.url.includes("background.js"),
     );
-    if (extTarget) {
-      const id = extTarget.targetInfo.url.split("/")[2];
-      if (id) {
-        await helperPage.close().catch(() => {});
-        return id;
-      }
+    if (ext) {
+      const id = ext.targetInfo.url.split("/")[2];
+      if (id) return id;
     }
   } catch {
-    // CDP may not work — fall through
+    // CDP failed — fall through to route interception
   }
-  await helperPage.close().catch(() => {});
 
-  // ── 3. Route interception fallback ─────────────────────────────────────
+  // ── 3. Route interception (final fallback) ────────────────────────────
   return new Promise<string>((resolve, reject) => {
     let settled = false;
 
@@ -128,9 +149,7 @@ export async function extensionIdFromContext(
       },
     );
 
-    // Open a new page — this wakes the extension SW (if not yet running)
-    // and it will make a chrome-extension:// request (e.g. for scenes.json)
-    // that hits our route handler.
+    // Trigger the SW by opening a new page.
     context.newPage().then((p) => {
       p.goto("chrome://newtab/").catch(() => {});
       setTimeout(() => p.close().catch(() => {}), 2_000);
@@ -138,28 +157,13 @@ export async function extensionIdFromContext(
   });
 }
 
-/**
- * Extended test fixture that provides a fresh extension context.
- * Use this in your spec files instead of plain `test`.
- * Which browser loads the extension follows `playwright.config` project
- * (`--project=chromium|edge`).
- *
- * @example
- * import { test as extTest } from './helpers/launch-ext';
- * extTest('Options page loads', async ({ extensionPage }) => {
- *   await extensionPage.goto('options.html');
- *   await expect(extensionPage.locator('#logo-icon')).toBeVisible();
- * });
- */
 export interface ExtensionFixtures {
   extensionPage: import("@playwright/test").Page;
   extensionContext: BrowserContext;
   extensionId: string;
 }
 
-function extensionBrowserFromProject(
-  projectName: string,
-): "chromium" | "edge" {
+function extensionBrowserFromProject(projectName: string): "chromium" | "edge" {
   if (projectName === "edge") return "edge";
   return "chromium";
 }
@@ -168,7 +172,6 @@ export const test = base.extend<ExtensionFixtures>({
   extensionContext: async ({}, use, testInfo) => {
     const browserName = extensionBrowserFromProject(testInfo.project.name);
     const context = await launchChromiumExtension(browserName);
-
     await use(context);
     await context.close();
   },
