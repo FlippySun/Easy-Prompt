@@ -25,12 +25,22 @@
     "zip:edge": "wxt zip -b edge --mv3",
     "zip:all": "npm run zip && npm run zip:firefox && npm run zip:safari && npm run zip:edge",
     "typecheck": "tsc --noEmit",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:chromium": "playwright test --project=chromium",
+    "test:e2e:firefox": "playwright test --project=firefox",
+    "test:e2e:edge": "playwright test --project=edge",
+    "playwright:install": "playwright install --with-deps chromium",
     "safari:convert": "npm run build:safari && node ./scripts/convert-safari.mjs",
     "safari:convert:dry-run": "npm run build:safari && node ./scripts/convert-safari.mjs --dry-run",
     "postinstall": "wxt prepare"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "jsdom": "^29.0.1",
     "typescript": "^5.9.3",
+    "vitest": "^4.1.1",
     "wxt": "^0.20.20"
   },
   "type": "module"
