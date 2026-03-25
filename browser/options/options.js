@@ -3,6 +3,19 @@
  * API 配置（Mode / Host / Path / API Key / Model）+ 测试连接 + 获取模型
  */
 
+// ========================== 变更记录 ==========================
+// [日期]     2026-03-24
+// [类型]     配置变更
+// [描述]     将 Options 脚本切换为 WXT ESM 入口模式，显式导入配置与 API 模块。
+// [思路]     延续原有表单交互与校验逻辑，仅移除对全局脚本注入顺序的隐式依赖。
+// [影响范围] browser/options/options.js、browser/shared/storage.js、browser/shared/defaults.js、browser/shared/api.js。
+// [潜在风险] 旧版经典 script 装载方式不再适用；WXT 构建链路不受影响。
+// ==============================================================
+
+import { Storage } from "../shared/storage.js";
+import { Defaults } from "../shared/defaults.js";
+import { Api } from "../shared/api.js";
+
 const $ = (sel) => document.querySelector(sel);
 
 /* ─── Safe DOM Helper (avoids innerHTML for Firefox AMO compliance) ─── */

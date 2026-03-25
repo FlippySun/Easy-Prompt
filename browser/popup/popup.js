@@ -3,6 +3,22 @@
  * 主界面交互：输入 → 智能路由/指定场景 → 生成 Prompt → 历史
  */
 
+// ========================== 变更记录 ==========================
+// [日期]     2026-03-24
+// [类型]     配置变更
+// [描述]     将 Popup 脚本切换为 WXT 可打包的 ESM 入口，显式导入共享模块，避免依赖经典 script 顺序。
+// [思路]     保留现有 DOM 与业务逻辑，只把共享依赖改为 import，降低迁移到 WXT 的改动面。
+// [影响范围] browser/popup/popup.js、browser/shared/*、browser/wxt-entrypoints/popup/*。
+// [潜在风险] 若后续重新走旧版 build.js 经典脚本链路，将不再兼容；当前已统一迁移到 WXT。
+// ==============================================================
+
+import { Storage } from "../shared/storage.js";
+import { Defaults } from "../shared/defaults.js";
+import { Scenes } from "../shared/scenes.js";
+import { Api } from "../shared/api.js";
+import { Router } from "../shared/router.js";
+import { Icons } from "../shared/icons.js";
+
 /* ─── Safe DOM Helper (avoids innerHTML for Firefox AMO compliance) ─── */
 const _htmlParser = new DOMParser();
 function _setHTML(el, html) {

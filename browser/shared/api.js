@@ -480,3 +480,4 @@ const Api = {
   fetchModels,
   friendlyError,
 };
+export { Api };

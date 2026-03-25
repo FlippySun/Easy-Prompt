@@ -4,6 +4,18 @@
  * 与 core/router.js、web/app.js 完全一致的逻辑
  */
 
+// ========================== 变更记录 ==========================
+// [日期]     2026-03-24
+// [类型]     配置变更
+// [描述]     为 Router 增加 ESM 显式依赖声明，适配 WXT 的模块打包方式。
+// [思路]     仅补充 Api 与 Scenes 的 import/export，不改变路由识别与生成逻辑，降低回归面。
+// [影响范围] browser/shared/router.js、browser/popup/popup.js、browser/background/service-worker.js。
+// [潜在风险] 无已知风险。
+// ==============================================================
+
+import { Api } from "./api.js";
+import { Scenes } from "./scenes.js";
+
 let cachedRouterPrompt = null;
 let cachedScenesRef = null;
 
@@ -346,3 +358,4 @@ const Router = {
   smartRoute,
   directGenerate,
 };
+export { Router };

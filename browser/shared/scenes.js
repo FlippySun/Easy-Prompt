@@ -214,3 +214,4 @@ const Scenes = {
   getScenes,
   getSceneNames,
 };
+export { Scenes };

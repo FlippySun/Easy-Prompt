@@ -89,3 +89,4 @@ async function getBuiltinDefaults() {
 
 // eslint-disable-next-line no-unused-vars
 const Defaults = { getBuiltinDefaults };
+export { Defaults };
