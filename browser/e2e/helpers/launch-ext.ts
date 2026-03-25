@@ -47,47 +47,95 @@ export async function launchChromiumExtension(
     args: [
       `--disable-extensions-except=${extPath}`,
       `--load-extension=${extPath}`,
-      ...((options.args as string[]) ?? []),
     ],
   });
 
   return context;
 }
 
+/**
+ * Resolve the extension id for the loaded MV3 extension.
+ *
+ * Strategy:
+ *  1. Fast path: try serviceWorkers() immediately (may be empty if SW is still
+ *     registering, but it's free to check).
+ *  2. CDP: attach a Chrome DevTools Protocol session to the SW and call
+ *     Target.getTargets to list all targets including service workers. The SW
+ *     URL (chrome-extension://<id>/background.js) contains the id.
+ *  3. Route interception: as a fallback, intercept the first
+ *     chrome-extension:// request to extract the id from the URL.
+ */
 export async function extensionIdFromContext(
   context: BrowserContext,
 ): Promise<string> {
-  // ── 1. Service worker URL (works when SW is active) ───────────────────
-  let [sw] = context.serviceWorkers();
+  // ── 1. Fast path ──────────────────────────────────────────────────────
+  let sw = context.serviceWorkers()[0];
   if (sw) {
     const id = sw.url().split("/")[2];
     if (id) return id;
   }
 
-  // ── 2. MV3 background page via service worker URL ───────────────────────
-  // If the SW hasn't fired yet, open the background page URL briefly to
-  // trigger it, then retry serviceWorkers().
-  const bgPages = context.backgroundPages();
-  if (bgPages.length > 0) {
-    const id = bgPages[0].url().split("/")[2];
-    if (id) return id;
+  // ── 2. CDP: attach to the service worker directly ───────────────────
+  // We need a CDPSession attached to the SW target itself to enumerate targets.
+  // Launch a fresh page so we have a stable CDP session root.
+  const helperPage = await context.newPage();
+  try {
+    const cdp = await context.newCDPSession(helperPage);
+    // Enabling Target domain registers it so we can discover other targets.
+    await cdp.send("Target.setDiscoverTargets", { discover: true });
+    // Wait for the SW to appear as a target.
+    const swTarget = await cdp.send("Target.getTargets") as {
+      targetInfo: { targetId: string; url: string; type: string };
+    }[];
+    const extTarget = swTarget.find(
+      (t) =>
+        t.targetInfo.type === "service_worker" &&
+        t.targetInfo.url.includes("background.js"),
+    );
+    if (extTarget) {
+      const id = extTarget.targetInfo.url.split("/")[2];
+      if (id) return id;
+    }
+  } catch {
+    // CDP may not work — fall through to route interception
   }
 
-  // ── 3. Read from manifest.json on disk ────────────────────────────────
-  // The extension id in MV3 is deterministic (derived from the signing key).
-  // Use it as the authoritative fallback.
-  try {
-    // Dynamic import so this only runs in Node (not browser).
-    const { readFile } = await import("node:fs/promises");
-    const manifestPath = path.join(DIST_DIR, "manifest.json");
-    const raw = await readFile(manifestPath, "utf-8");
-    const parsed = JSON.parse(raw);
-    if (parsed.id) return parsed.id;
-  } catch {}
+  // ── 3. Route interception fallback ─────────────────────────────────────
+  return new Promise<string>((resolve, reject) => {
+    let settled = false;
 
-  throw new Error(
-    "Could not resolve extension id — tried serviceWorker, backgroundPages, and manifest.json",
-  );
+    const settle = (id: string) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      context.unrouteAll().catch(() => {});
+      resolve(id);
+    };
+
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        reject(new Error("Timed out waiting for extension id (10s)"));
+      }
+    }, 10_000);
+
+    context.route(
+      (url) => url.protocol === "chrome-extension:",
+      (route) => {
+        const id = route.request().url().split("/")[2];
+        if (id) settle(id);
+        route.continue();
+      },
+    );
+
+    // Open a new page — this wakes the extension SW (if not yet running)
+    // and it will make a chrome-extension:// request (e.g. for scenes.json)
+    // that hits our route handler.
+    context.newPage().then((p) => {
+      p.goto("chrome://newtab/").catch(() => {});
+      setTimeout(() => p.close().catch(() => {}), 2_000);
+    });
+  });
 }
 
 /**
