@@ -10,6 +10,9 @@ browser/**
 # PromptHub Web 应用（独立产品，不属于 VSCode 插件）
 web-hub/**
 
+# DeerFlow（独立项目，不属于 VSCode 插件）
+deer-flow/**
+
 # 本地 MCP/Agent 运行时（不属于 VSCode 插件发布物）
 mcp-server/**
 
