@@ -10,21 +10,17 @@
 import { test, expect } from "./helpers/launch-ext";
 
 test.describe("Options Page", () => {
-  test.beforeEach(async ({ extensionPage }) => {
-    // Navigate to the options page using chrome-extension:// URL
-    const pages = extensionPage.context().pages();
-    const optionsPage = pages.find(
-      (p) => p.url().includes("options.html") || p.url().includes("options"),
+  test.beforeEach(async ({ extensionPage, extensionId }, testInfo) => {
+    if (testInfo.title === "should load the options page without errors") return;
+    await extensionPage.goto(
+      `chrome-extension://${extensionId}/options.html`,
     );
-
-    if (optionsPage) {
-      await optionsPage.bringToFront();
-    }
   });
 
-  test("should load the options page without errors", async ({ extensionPage }) => {
-    // Navigate directly to options.html
-    // Note: Extension pages use chrome-extension:// URLs
+  test("should load the options page without errors", async ({
+    extensionPage,
+    extensionId,
+  }) => {
     const errors: string[] = [];
     extensionPage.on("console", (msg) => {
       if (msg.type() === "error") {
@@ -32,14 +28,10 @@ test.describe("Options Page", () => {
       }
     });
 
-    // Try to find the options page among open pages
-    const allPages = extensionPage.context().pages();
-    const optionsPage =
-      allPages.find((p) => p.url().includes("options")) ?? extensionPage;
-
-    // Check that the page has loaded (has title or body)
-    await optionsPage.goto("options.html");
-    const body = optionsPage.locator("body");
+    await extensionPage.goto(
+      `chrome-extension://${extensionId}/options.html`,
+    );
+    const body = extensionPage.locator("body");
     await expect(body).toBeVisible();
     expect(errors.filter((e) => !e.includes("favicon"))).toHaveLength(0);
   });
