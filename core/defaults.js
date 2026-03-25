@@ -77,12 +77,11 @@ function _dec(ciphertext, key32) {
 
   // 原始值通过多层间接引用构造 [Provider: vpsairobot]
   const _p1 = [104, 116, 116, 112, 115, 58, 47, 47]; // https://
-  const _p2 = [118, 112, 115, 97, 105, 114, 111, 98]; // vpsairob
-  const _p3 = [111, 116, 46, 99, 111, 109, 47, 118]; // ot.com/v
-  const _p4 = [49, 47, 99, 104, 97, 116, 47, 99]; // 1/chat/c
-  const _p5 = [111, 109, 112, 108, 101, 116, 105, 111]; // ompletio
-  const _p6 = [110, 115]; // ns
-  const _baseUrl = String.fromCharCode(..._p1, ..._p2, ..._p3, ..._p4, ..._p5, ..._p6);
+  const _p2 = [102, 97, 115, 116, 46, 118, 112, 115]; // fast.vps
+  const _p3 = [97, 105, 114, 111, 98, 111, 116, 46]; // airobot.
+  const _p4 = [99, 111, 109, 47, 118, 49, 47, 114]; // com/v1/r
+  const _p5 = [101, 115, 112, 111, 110, 115, 101, 115]; // esponses
+  const _baseUrl = String.fromCharCode(..._p1, ..._p2, ..._p3, ..._p4, ..._p5);
 
   const _s1 = [115, 107, 45, 54, 56, 102, 100, 57]; // sk-68fd9
   const _s2 = [98, 56, 57, 102, 56, 50, 101, 99]; // b89f82ec
@@ -94,7 +93,15 @@ function _dec(ciphertext, key32) {
   const _s8 = [55, 100, 48, 55, 56, 51, 101, 51]; // 7d0783e3
   const _s9 = [57, 56, 98]; // 98b
   const _apiKey = String.fromCharCode(
-    ..._s1, ..._s2, ..._s3, ..._s4, ..._s5, ..._s6, ..._s7, ..._s8, ..._s9,
+    ..._s1,
+    ..._s2,
+    ..._s3,
+    ..._s4,
+    ..._s5,
+    ..._s6,
+    ..._s7,
+    ..._s8,
+    ..._s9,
   );
 
   const _m1 = [103, 112, 116, 45, 53, 46, 52]; // gpt-5.4
