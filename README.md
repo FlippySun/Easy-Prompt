@@ -5,7 +5,7 @@
 ![Version](https://img.shields.io/badge/version-5.3.6-blue)
 ![VSCode](https://img.shields.io/badge/VSCode-1.85%2B-blue)
 ![IntelliJ](https://img.shields.io/badge/IntelliJ-2024.1%2B-orange)
-![Browser](https://img.shields.io/badge/Browser-Chrome%20%7C%20Firefox%20%7C%20Safari-yellow)
+![Browser](https://img.shields.io/badge/Browser-Chrome%20%7C%20Firefox%20%7C%20Safari%20%7C%20Edge-yellow)
 ![Web](https://img.shields.io/badge/Web-Online-brightgreen)
 ![PromptHub](https://img.shields.io/badge/PromptHub-zhiz.chat-purple)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -19,7 +19,7 @@
 - 📦 **97 个场景**：覆盖开发全流程 + 内容创作 + 产品 + 营销 + 设计 + 数据 + HR + 客服 + 创业 + 教育
 - 🧑‍💼 **10 大画像**：软件工程师/内容创作者/产品经理/市场运营/设计师/数据分析师/HR/客服/创业者/学生教育
 - 🕐 **增强历史**：查看历史记录，支持 before/after 对比、一键复制、删除
-- 🌐 **四端覆盖**：VSCode 扩展 + IntelliJ 插件 + 浏览器扩展（Chrome/Firefox/Safari） + Web 在线版，全场景使用
+- 🌐 **四端覆盖**：VSCode 扩展 + IntelliJ 插件 + 浏览器扩展（Chrome/Firefox/Safari/Edge） + Web 在线版，全场景使用
 - 🟣 **PromptHub 精选库**：独立 AI Prompt 精选库（[zhiz.chat](https://zhiz.chat)），发现/收藏/分享高质量 Prompt，含热门榜单、银河星图、7 大精选合集
 - ✨ **Smart Nudge**：浏览器扩展在 AI 网站（ChatGPT/Claude/Gemini 等 22 站）输入暂停后自动弹出增强提醒，一键增强
 - 🔑 **多供应商兼容**：OpenAI / Azure / Gemini / DeepSeek / Ollama
@@ -35,7 +35,7 @@
 - 📦 **97 Scenes**: covers the full dev lifecycle + content + product + marketing + design + data + HR + support + startup + education
 - 🧑‍💼 **10 Personas**: engineer / creator / PM / growth / designer / analyst / HR / support / founder / student-educator
 - 🕐 **History**: before/after comparison, copy, delete
-- 🌐 **Multi-platform**: VSCode extension + IntelliJ plugin + Browser extension (Chrome/Firefox/Safari) + Web
+- 🌐 **Multi-platform**: VSCode extension + IntelliJ plugin + Browser extension (Chrome/Firefox/Safari/Edge) + Web
 - 🟣 **PromptHub Library**: Standalone AI prompt library ([zhiz.chat](https://zhiz.chat)) — discover, bookmark & share quality prompts with trending charts, Galaxy star-map & 7 curated collections
 - ✨ **Smart Nudge**: (Browser Extension) pops an enhancement reminder when you pause typing on AI sites (ChatGPT/Claude/Gemini, etc.)
 - 🔑 **Multi-provider**: OpenAI / Azure / Gemini / DeepSeek / Ollama
@@ -46,21 +46,32 @@
 
 ### 浏览器扩展（v5.0 新增）
 
-支持 Chrome、Firefox、Safari 三大平台：
+支持 Chrome、Firefox、Safari、Edge 四大平台：
 
 > 💡 **说明**：浏览器扩展中的 Fast / Deep 只影响第二步输出深度，不会自动切换模型，也不会修改请求接口形状；这样可以尽量避免真实浏览器环境中的跨域/超时回归。
 
 ```bash
 # 方式 1：从各平台扩展商店安装（推荐）
-# Chrome Web Store / Firefox Add-ons / Safari Extensions 搜索 "Easy Prompt"
+# Chrome Web Store / Firefox Add-ons / Safari Extensions / Microsoft Add-ons 搜索 "Easy Prompt"
 
-# 方式 2：本地构建安装
-cd browser && node build.js          # 构建所有平台（chrome/firefox/safari）
+# 方式 2：本地构建安装（WXT）
+cd browser && npm install
+cd browser && node build.js          # 构建所有平台（chrome/firefox/safari/edge）
 cd browser && node build.js chrome   # 仅构建 Chrome
-# 输出：browser/dist/<target>/ (解压目录) + browser/dist/easy-prompt-<target>.zip
+# 输出：browser/dist/<target>-mv3/ + browser/dist/easy-prompt-browser-<version>-<target>.zip
 
 # Chrome 开发者模式加载：
-# chrome://extensions → 开启「开发者模式」→ 加载已解压的扩展 → 选择 browser/dist/chrome/
+# chrome://extensions → 开启「开发者模式」→ 加载已解压的扩展程序 → 选择 browser/dist/chrome-mv3/
+
+# Firefox 临时加载：
+# about:debugging#/runtime/this-firefox → Load Temporary Add-on... → 选择 browser/dist/firefox-mv3/manifest.json
+
+# Edge 开发者模式加载：
+# edge://extensions → 开启「开发者模式」→ 加载已解压的扩展程序 → 选择 browser/dist/edge-mv3/
+
+# Safari 本地调试：
+# cd browser && npm run safari:convert
+# 然后打开 browser/dist/safari-xcode/ 中生成的 Xcode 工程
 ```
 
 ### Web 在线版（v4.0 新增）
@@ -474,14 +485,17 @@ easy-prompt/
 │   ├── app.js               # 应用逻辑（路由 + 场景 + API 调用）
 │   └── scenes.json          # 97 场景数据（由 core 生成）
 ├── browser/                 # 浏览器扩展（v5.0 新增，Chrome/Firefox/Safari MV3）
-│   ├── manifest.*.json      # 三平台 manifest（chrome/firefox/safari）
-│   ├── build.js             # 构建脚本（自动打包 + zip）
+│   ├── package.json         # Browser 子项目依赖与脚本（WXT）
+│   ├── wxt.config.ts        # WXT 配置（manifest + 多浏览器兼容）
+│   ├── wxt-entrypoints/     # WXT 入口层（background/content/popup/options）
+│   ├── public/              # 扩展静态资源（icons + scenes.json）
+│   ├── scripts/             # 辅助脚本（Safari converter 等）
+│   ├── build.js             # 兼容旧入口的 WXT 构建包装器
 │   ├── popup/               # Popup 面板（输入/增强/场景/历史）
 │   ├── options/             # 设置页（API 配置 + 测试连接）
 │   ├── background/          # Service Worker（上下文菜单 + 快捷键）
 │   ├── content/             # Content Script（浮动增强按钮）
-│   ├── shared/              # 共享模块（Storage/API/Router/Scenes/Defaults/Icons）
-│   └── scenes.json          # 97 场景数据
+│   └── shared/              # 共享模块（Storage/API/Router/Scenes/Defaults/Icons）
 ├── web-hub/                 # 🟣 PromptHub 独立 Web 应用（v5.3 新增）
 │   ├── package.json         # 独立依赖（React + TypeScript + Vite + Tailwind CSS v4）
 │   ├── vite.config.ts       # Vite 构建配置（代码分割策略）
