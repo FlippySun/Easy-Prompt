@@ -13,6 +13,7 @@ import { test, expect } from "./helpers/launch-ext";
 test.describe("Popup UI", () => {
   test("should load the popup page without console errors", async ({
     extensionPage,
+    extensionId,
   }) => {
     const errors: string[] = [];
     extensionPage.on("console", (msg) => {
@@ -21,8 +22,9 @@ test.describe("Popup UI", () => {
       }
     });
 
-    // Popup is the first page that loads when the extension opens
-    await extensionPage.goto("popup.html");
+    await extensionPage.goto(
+      `chrome-extension://${extensionId}/popup.html`,
+    );
 
     const body = extensionPage.locator("body");
     await expect(body).toBeVisible();
@@ -36,8 +38,13 @@ test.describe("Popup UI", () => {
     expect(realErrors).toHaveLength(0);
   });
 
-  test("should display the Easy Prompt logo", async ({ extensionPage }) => {
-    await extensionPage.goto("popup.html");
+  test("should display the Easy Prompt logo", async ({
+    extensionPage,
+    extensionId,
+  }) => {
+    await extensionPage.goto(
+      `chrome-extension://${extensionId}/popup.html`,
+    );
     // Look for logo element (typically a header icon or SVG)
     const header = extensionPage.locator(".header");
     await expect(header).toBeVisible();
@@ -45,22 +52,35 @@ test.describe("Popup UI", () => {
 
   test("should have an input textarea for user text", async ({
     extensionPage,
+    extensionId,
   }) => {
-    await extensionPage.goto("popup.html");
+    await extensionPage.goto(
+      `chrome-extension://${extensionId}/popup.html`,
+    );
     // The main input area should be visible
     const textarea = extensionPage.locator("textarea");
     await expect(textarea).toBeVisible();
   });
 
-  test("should have an enhance button", async ({ extensionPage }) => {
-    await extensionPage.goto("popup.html");
+  test("should have an enhance button", async ({
+    extensionPage,
+    extensionId,
+  }) => {
+    await extensionPage.goto(
+      `chrome-extension://${extensionId}/popup.html`,
+    );
     const enhanceBtn = extensionPage.locator("button");
     // At least one button should be present (enhance / submit)
     await expect(enhanceBtn.first()).toBeVisible();
   });
 
-  test("should display scene selection UI", async ({ extensionPage }) => {
-    await extensionPage.goto("popup.html");
+  test("should display scene selection UI", async ({
+    extensionPage,
+    extensionId,
+  }) => {
+    await extensionPage.goto(
+      `chrome-extension://${extensionId}/popup.html`,
+    );
     // Look for scene-related elements (may be a list, chips, or quick-pick)
     const sceneArea = extensionPage.locator(
       ".scenes, .scene-list, .scene-grid, #scenes, [class*='scene']",
@@ -74,8 +94,13 @@ test.describe("Popup UI", () => {
     expect(sceneExists).toBe(true);
   });
 
-  test("should have a theme toggle", async ({ extensionPage }) => {
-    await extensionPage.goto("popup.html");
+  test("should have a theme toggle", async ({
+    extensionPage,
+    extensionId,
+  }) => {
+    await extensionPage.goto(
+      `chrome-extension://${extensionId}/popup.html`,
+    );
     const themeBtn = extensionPage.locator(
       "#btn-theme, .btn-theme, button[title*='主题'], button[title*='theme']",
     );
@@ -84,8 +109,11 @@ test.describe("Popup UI", () => {
 
   test("should have a history button or history indicator", async ({
     extensionPage,
+    extensionId,
   }) => {
-    await extensionPage.goto("popup.html");
+    await extensionPage.goto(
+      `chrome-extension://${extensionId}/popup.html`,
+    );
     // History might be a button, tab, or section
     const historyExists =
       (await extensionPage.locator(

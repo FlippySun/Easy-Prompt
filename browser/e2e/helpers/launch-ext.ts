@@ -1,13 +1,12 @@
 /**
  * E2E Test Helper: Launch Easy Prompt extension in a browser page
  *
- * For Chromium (Chrome/Edge): uses chrome://extensions + loadExtension approach
- * via browser.contextBridge.experimental.webdriver (Playwright native support)
- *
- * This helper provides a consistent way to interact with the extension's
- * options.html and popup.html pages across all supported browsers.
+ * Playwright only reliably supports MV3 extensions with the bundled Chromium
+ * (`channel: "chromium"`). Chrome/Edge stable channels removed the sideload
+ * flags; Edge-targeted builds are still validated by loading `edge-mv3` via
+ * Chromium. See: https://playwright.dev/docs/chrome-extensions
  */
-import { test as base, chromium, firefox, type BrowserContext } from "@playwright/test";
+import { test as base, chromium, type BrowserContext } from "@playwright/test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -39,12 +38,10 @@ export async function launchChromiumExtension(
   browserName: "chromium" | "edge",
   options: Record<string, unknown> = {},
 ): Promise<BrowserContext> {
-  const browserType = chromium;
   const extPath = getDistDir(browserName);
-  const channel = browserName === "edge" ? "msedge" : undefined;
 
-  const context = await browserType.launchPersistentContext("", {
-    channel,
+  const context = await chromium.launchPersistentContext("", {
+    channel: "chromium",
     headless: true,
     ...options,
     args: [
@@ -57,33 +54,25 @@ export async function launchChromiumExtension(
   return context;
 }
 
-/**
- * Launch Firefox with the Easy Prompt extension loaded.
- *
- * @param options Additional Playwright browser options
- */
-export async function launchFirefoxExtension(
-  options: Record<string, unknown> = {},
-): Promise<BrowserContext> {
-  const extPath = getDistDir("firefox");
-
-  const context = await firefox.launchPersistentContext("", {
-    headless: true,
-    ...options,
-    args: [
-      `--extensions-dir=${extPath}`,
-      ...((options.args as string[]) ?? []),
-    ],
-  });
-
-  return context;
+export async function extensionIdFromContext(
+  context: BrowserContext,
+): Promise<string> {
+  let [sw] = context.serviceWorkers();
+  if (!sw) {
+    sw = await context.waitForEvent("serviceworker");
+  }
+  const id = sw.url().split("/")[2];
+  if (!id) {
+    throw new Error(`Could not parse extension id from ${sw.url()}`);
+  }
+  return id;
 }
 
 /**
  * Extended test fixture that provides a fresh extension context.
  * Use this in your spec files instead of plain `test`.
  * Which browser loads the extension follows `playwright.config` project
- * (`--project=chromium|firefox|edge`).
+ * (`--project=chromium|edge`).
  *
  * @example
  * import { test as extTest } from './helpers/launch-ext';
@@ -95,12 +84,12 @@ export async function launchFirefoxExtension(
 export interface ExtensionFixtures {
   extensionPage: import("@playwright/test").Page;
   extensionContext: BrowserContext;
+  extensionId: string;
 }
 
 function extensionBrowserFromProject(
   projectName: string,
-): "chromium" | "firefox" | "edge" {
-  if (projectName === "firefox") return "firefox";
+): "chromium" | "edge" {
   if (projectName === "edge") return "edge";
   return "chromium";
 }
@@ -108,13 +97,14 @@ function extensionBrowserFromProject(
 export const test = base.extend<ExtensionFixtures>({
   extensionContext: async ({}, use, testInfo) => {
     const browserName = extensionBrowserFromProject(testInfo.project.name);
-    const context =
-      browserName === "firefox"
-        ? await launchFirefoxExtension()
-        : await launchChromiumExtension(browserName);
+    const context = await launchChromiumExtension(browserName);
 
     await use(context);
     await context.close();
+  },
+
+  extensionId: async ({ extensionContext }, use) => {
+    await use(await extensionIdFromContext(extensionContext));
   },
 
   extensionPage: async ({ extensionContext }, use) => {

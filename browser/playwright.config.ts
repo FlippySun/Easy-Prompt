@@ -1,13 +1,13 @@
 /**
  * Playwright Configuration for Easy Prompt Browser Extension E2E Tests
  *
- * Targets: Chromium (Chrome/Edge) and Firefox
+ * Targets: Chromium (Chrome MV3 + Edge MV3 build via bundled Chromium)
  * Tests: Options page, Popup UI (via extension launch)
  *
  * Usage:
  *   npx playwright test                    # Run all tests
  *   npx playwright test --project=chromium  # Chromium only
- *   npx playwright test --project=firefox  # Firefox only
+ *   npx playwright test --project=edge     # Edge-targeted MV3 build
  */
 
 import { defineConfig, devices } from "@playwright/test";
@@ -49,26 +49,12 @@ export default defineConfig({
       testMatch: /.*\.spec\.ts/,
     },
 
-    // ── Firefox ────────────────────────────────────────────────────────────
-    {
-      name: "firefox",
-      use: {
-        ...devices["Desktop Firefox"],
-        launchOptions: {
-          args: [
-            `--extensions-dir=${path.resolve(__dirname, "../dist/firefox-mv3")}`,
-          ],
-        },
-      },
-      testMatch: /.*\.spec\.ts/,
-    },
-
-    // ── Edge (Chromium-based) ──────────────────────────────────────────────
+    // ── Edge MV3 build (loaded with Playwright Chromium, not Microsoft Edge) ─
     {
       name: "edge",
       use: {
-        ...devices["Desktop Edge"],
-        channel: "msedge",
+        ...devices["Desktop Chrome"],
+        channel: "chromium",
         launchOptions: {
           args: [
             `--disable-extensions-except=${path.resolve(__dirname, "../dist/edge-mv3")}`,
