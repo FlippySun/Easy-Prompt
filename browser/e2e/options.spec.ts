@@ -10,7 +10,7 @@
 import { test, expect } from "./helpers/launch-ext";
 
 test.describe("Options Page", () => {
-  test.beforeEach(async ({ extensionPage, browserName }) => {
+  test.beforeEach(async ({ extensionPage }) => {
     // Navigate to the options page using chrome-extension:// URL
     const pages = extensionPage.context().pages();
     const optionsPage = pages.find(
