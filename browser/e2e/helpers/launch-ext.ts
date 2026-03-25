@@ -57,15 +57,37 @@ export async function launchChromiumExtension(
 export async function extensionIdFromContext(
   context: BrowserContext,
 ): Promise<string> {
+  // ── 1. Service worker URL (works when SW is active) ───────────────────
   let [sw] = context.serviceWorkers();
-  if (!sw) {
-    sw = await context.waitForEvent("serviceworker");
+  if (sw) {
+    const id = sw.url().split("/")[2];
+    if (id) return id;
   }
-  const id = sw.url().split("/")[2];
-  if (!id) {
-    throw new Error(`Could not parse extension id from ${sw.url()}`);
+
+  // ── 2. MV3 background page via service worker URL ───────────────────────
+  // If the SW hasn't fired yet, open the background page URL briefly to
+  // trigger it, then retry serviceWorkers().
+  const bgPages = context.backgroundPages();
+  if (bgPages.length > 0) {
+    const id = bgPages[0].url().split("/")[2];
+    if (id) return id;
   }
-  return id;
+
+  // ── 3. Read from manifest.json on disk ────────────────────────────────
+  // The extension id in MV3 is deterministic (derived from the signing key).
+  // Use it as the authoritative fallback.
+  try {
+    // Dynamic import so this only runs in Node (not browser).
+    const { readFile } = await import("node:fs/promises");
+    const manifestPath = path.join(DIST_DIR, "manifest.json");
+    const raw = await readFile(manifestPath, "utf-8");
+    const parsed = JSON.parse(raw);
+    if (parsed.id) return parsed.id;
+  } catch {}
+
+  throw new Error(
+    "Could not resolve extension id — tried serviceWorker, backgroundPages, and manifest.json",
+  );
 }
 
 /**
