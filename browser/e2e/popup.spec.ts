@@ -10,6 +10,19 @@
 
 import { test, expect } from "./helpers/launch-ext";
 
+async function loadPopup(
+  extensionPage: import("@playwright/test").Page,
+  extensionId: string,
+) {
+  await extensionPage.goto(
+    `chrome-extension://${extensionId}/popup.html`,
+  );
+  // Wait for the module script to execute and populate the UI.
+  // The popup main.js mounts styles/behaviour via the module script.
+  await extensionPage.waitForLoadState("domcontentloaded");
+  await extensionPage.waitForSelector(".header", { timeout: 15_000 });
+}
+
 test.describe("Popup UI", () => {
   test("should load the popup page without console errors", async ({
     extensionPage,
@@ -25,11 +38,8 @@ test.describe("Popup UI", () => {
     await extensionPage.goto(
       `chrome-extension://${extensionId}/popup.html`,
     );
+    await extensionPage.waitForSelector("body", { timeout: 15_000 });
 
-    const body = extensionPage.locator("body");
-    await expect(body).toBeVisible();
-
-    // Ignore known benign errors (favicon, etc.)
     const realErrors = errors.filter(
       (e) =>
         !e.includes("favicon") &&
@@ -42,10 +52,7 @@ test.describe("Popup UI", () => {
     extensionPage,
     extensionId,
   }) => {
-    await extensionPage.goto(
-      `chrome-extension://${extensionId}/popup.html`,
-    );
-    // Look for logo element (typically a header icon or SVG)
+    await loadPopup(extensionPage, extensionId);
     const header = extensionPage.locator(".header");
     await expect(header).toBeVisible();
   });
@@ -54,10 +61,7 @@ test.describe("Popup UI", () => {
     extensionPage,
     extensionId,
   }) => {
-    await extensionPage.goto(
-      `chrome-extension://${extensionId}/popup.html`,
-    );
-    // The main input area should be visible
+    await loadPopup(extensionPage, extensionId);
     const textarea = extensionPage.locator("textarea");
     await expect(textarea).toBeVisible();
   });
@@ -66,11 +70,8 @@ test.describe("Popup UI", () => {
     extensionPage,
     extensionId,
   }) => {
-    await extensionPage.goto(
-      `chrome-extension://${extensionId}/popup.html`,
-    );
+    await loadPopup(extensionPage, extensionId);
     const enhanceBtn = extensionPage.locator("button");
-    // At least one button should be present (enhance / submit)
     await expect(enhanceBtn.first()).toBeVisible();
   });
 
@@ -78,19 +79,10 @@ test.describe("Popup UI", () => {
     extensionPage,
     extensionId,
   }) => {
-    await extensionPage.goto(
-      `chrome-extension://${extensionId}/popup.html`,
-    );
-    // Look for scene-related elements (may be a list, chips, or quick-pick)
-    const sceneArea = extensionPage.locator(
-      ".scenes, .scene-list, .scene-grid, #scenes, [class*='scene']",
-    );
-    // The popup should contain some scene-related UI
-    // (either visible or present in DOM)
+    await loadPopup(extensionPage, extensionId);
+    // Match any element whose class or id contains "scene"
     const sceneExists =
-      (await sceneArea.count()) > 0 ||
-      (await extensionPage.locator(".quick-pick, .scene-tabs, #scene-select").count()) >
-        0;
+      (await extensionPage.locator("[class*='scene'], #scene-select").count()) > 0;
     expect(sceneExists).toBe(true);
   });
 
@@ -98,9 +90,7 @@ test.describe("Popup UI", () => {
     extensionPage,
     extensionId,
   }) => {
-    await extensionPage.goto(
-      `chrome-extension://${extensionId}/popup.html`,
-    );
+    await loadPopup(extensionPage, extensionId);
     const themeBtn = extensionPage.locator(
       "#btn-theme, .btn-theme, button[title*='主题'], button[title*='theme']",
     );
@@ -111,10 +101,7 @@ test.describe("Popup UI", () => {
     extensionPage,
     extensionId,
   }) => {
-    await extensionPage.goto(
-      `chrome-extension://${extensionId}/popup.html`,
-    );
-    // History might be a button, tab, or section
+    await loadPopup(extensionPage, extensionId);
     const historyExists =
       (await extensionPage.locator(
         ".history, #history, button[title*='历史'], [class*='history']",

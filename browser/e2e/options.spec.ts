@@ -9,12 +9,22 @@
 
 import { test, expect } from "./helpers/launch-ext";
 
+async function loadOptions(
+  extensionPage: import("@playwright/test").Page,
+  extensionId: string,
+) {
+  await extensionPage.goto(
+    `chrome-extension://${extensionId}/options.html`,
+  );
+  // Wait for the options page module to initialize before asserting.
+  await extensionPage.waitForLoadState("domcontentloaded");
+  await extensionPage.waitForSelector("#logo-icon", { timeout: 15_000 });
+}
+
 test.describe("Options Page", () => {
   test.beforeEach(async ({ extensionPage, extensionId }, testInfo) => {
     if (testInfo.title === "should load the options page without errors") return;
-    await extensionPage.goto(
-      `chrome-extension://${extensionId}/options.html`,
-    );
+    await loadOptions(extensionPage, extensionId);
   });
 
   test("should load the options page without errors", async ({
@@ -31,9 +41,9 @@ test.describe("Options Page", () => {
     await extensionPage.goto(
       `chrome-extension://${extensionId}/options.html`,
     );
-    const body = extensionPage.locator("body");
-    await expect(body).toBeVisible();
-    expect(errors.filter((e) => !e.includes("favicon"))).toHaveLength(0);
+    await extensionPage.waitForSelector("body", { timeout: 15_000 });
+    const realErrors = errors.filter((e) => !e.includes("favicon"));
+    expect(realErrors).toHaveLength(0);
   });
 
   test("should display the Easy Prompt logo", async ({ extensionPage }) => {
