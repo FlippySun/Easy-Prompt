@@ -82,6 +82,8 @@ export async function launchFirefoxExtension(
 /**
  * Extended test fixture that provides a fresh extension context.
  * Use this in your spec files instead of plain `test`.
+ * Which browser loads the extension follows `playwright.config` project
+ * (`--project=chromium|firefox|edge`).
  *
  * @example
  * import { test as extTest } from './helpers/launch-ext';
@@ -95,22 +97,29 @@ export interface ExtensionFixtures {
   extensionContext: BrowserContext;
 }
 
-export const test = base.extend<ExtensionFixtures>({
-  // Default to Chromium; override with test.use({ browserName: 'firefox' })
-  browserName: ["chromium", { option: true }],
+function extensionBrowserFromProject(
+  projectName: string,
+): "chromium" | "firefox" | "edge" {
+  if (projectName === "firefox") return "firefox";
+  if (projectName === "edge") return "edge";
+  return "chromium";
+}
 
-  extensionContext: async ({ browserName }, use) => {
+export const test = base.extend<ExtensionFixtures>({
+  extensionContext: async ({}, use, testInfo) => {
+    const browserName = extensionBrowserFromProject(testInfo.project.name);
     const context =
       browserName === "firefox"
         ? await launchFirefoxExtension()
-        : await launchChromiumExtension(browserName as "chromium" | "edge");
+        : await launchChromiumExtension(browserName);
 
     await use(context);
     await context.close();
   },
 
   extensionPage: async ({ extensionContext }, use) => {
-    const page = extensionContext.pages[0] ?? await extensionContext.newPage();
+    const pages = extensionContext.pages();
+    const page = pages[0] ?? (await extensionContext.newPage());
     await use(page);
   },
 });
