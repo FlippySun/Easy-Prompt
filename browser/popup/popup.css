@@ -645,7 +645,7 @@ button {
  *               created a different paint order and made the halo appear
  *               on the same layer as the button face.
  * [Params/Returns] N/A for CSS selectors.
- * [Impact]      browser/popup/popup.html -> #btn-generate,
+ * [Impact]      browser/wxt-entrypoints/popup/index.html -> #btn-generate,
  *               browser/popup/popup.js -> setGenerating(),
  *               browser/popup/popup.css -> .btn-primary states.
  * [Risk]        Low. Only the generating-state hover/active visuals are

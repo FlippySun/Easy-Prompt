@@ -143,3 +143,4 @@ const Storage = {
   loadPopupState,
   clearPopupState,
 };
+export { Storage };
