@@ -1,0 +1,37 @@
+{
+  "name": "easy-prompt-browser",
+  "version": "5.3.6",
+  "private": true,
+  "description": "Easy Prompt browser extension powered by WXT",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "dev": "wxt --mv3",
+    "dev:chrome": "wxt --mv3",
+    "dev:firefox": "wxt -b firefox --mv3",
+    "dev:safari": "wxt -b safari --mv3",
+    "dev:edge": "wxt -b edge --mv3",
+    "build": "wxt build --mv3",
+    "build:chrome": "wxt build --mv3",
+    "build:firefox": "wxt build -b firefox --mv3",
+    "build:safari": "wxt build -b safari --mv3",
+    "build:edge": "wxt build -b edge --mv3",
+    "build:all": "npm run build && npm run build:firefox && npm run build:safari && npm run build:edge",
+    "zip": "wxt zip --mv3",
+    "zip:chrome": "wxt zip --mv3",
+    "zip:firefox": "wxt zip -b firefox --mv3",
+    "zip:safari": "wxt zip -b safari --mv3",
+    "zip:edge": "wxt zip -b edge --mv3",
+    "zip:all": "npm run zip && npm run zip:firefox && npm run zip:safari && npm run zip:edge",
+    "typecheck": "tsc --noEmit",
+    "safari:convert": "npm run build:safari && node ./scripts/convert-safari.mjs",
+    "safari:convert:dry-run": "npm run build:safari && node ./scripts/convert-safari.mjs --dry-run",
+    "postinstall": "wxt prepare"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "wxt": "^0.20.20"
+  },
+  "type": "module"
+}
