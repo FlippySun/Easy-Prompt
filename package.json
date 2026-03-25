@@ -270,6 +270,23 @@
   },
   "scripts": {
     "package": "npx @vscode/vsce package",
-    "install-ext": "code --install-extension easy-prompt-*.vsix"
+    "install-ext": "code --install-extension easy-prompt-*.vsix",
+    "browser:dev": "npm --prefix browser run dev",
+    "browser:dev:firefox": "npm --prefix browser run dev:firefox",
+    "browser:dev:safari": "npm --prefix browser run dev:safari",
+    "browser:build": "npm --prefix browser run build",
+    "browser:build:firefox": "npm --prefix browser run build:firefox",
+    "browser:build:safari": "npm --prefix browser run build:safari",
+    "browser:zip": "npm --prefix browser run zip",
+    "browser:zip:firefox": "npm --prefix browser run zip:firefox",
+    "browser:zip:safari": "npm --prefix browser run zip:safari",
+    "browser:install": "npm --prefix browser install",
+    "browser:typecheck": "npm --prefix browser run typecheck",
+    "browser:safari:convert": "npm --prefix browser run safari:convert",
+    "browser:safari:convert:dry-run": "npm --prefix browser run safari:convert:dry-run",
+    "browser:build:all": "npm --prefix browser run build:all",
+    "browser:zip:all": "npm --prefix browser run zip:all",
+    "browser:test:unit": "npm --prefix browser run test:unit",
+    "test:parity": "node tests/test-parity.js"
   }
 }
