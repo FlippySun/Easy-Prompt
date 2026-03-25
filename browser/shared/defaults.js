@@ -34,9 +34,9 @@ function _dk() {
 
 // === 混淆层 3: 预加密的数据 (AES-256-CBC, base64 iv:ciphertext) ===
 const _vault = {
-  _a: "+44gh/+s1iXQBtTCR+x1YA==:phye5hjYypnVP2ZPT5/pQ/1mMrRLVAzdIXW+KCgRGD8jSPcBQCPF7Qa05VC6YTtL",
-  _b: "ppafnJVpGlag2IbvdFs04Q==:NdUmCIrQnpAWNkFAJWllrvLcJ9g6pBKRkzc8ndY6JnFcogsg1kAJ7I5+n9udhj1No8zKmt2BWAn8U8aoI5pgbhHoFHqiLgpDcR6c+jh4rQQ=",
-  _c: "Ilw20uzsHvdkr7OBefa0Gw==:JY5R9RGbz1kyxYdDeIxCNQ==",
+  _a: "k313mtKSe4Wbv2wu1bz++w==:uye3jIJbkwQTb5xJ98c8Sf7jhO/DH+X1UbpFbqNWqM7QDWbbRhra82e9DMt+uYKw",
+  _b: "CTI9rnIIGEq1z+CGhNLuAA==:I6eSlDaD0UNDCc4IGmppIBjJ6nhLfcYFivyy5lXkkNLv8d8YMC+TVxrgZK8rayAZHJOrNJH675vQvzc34e9Bw0tqK+aKhbdkTMEgdeYQHPE=",
+  _c: "xCcJTunqN4nH0FkIJlKOgA==:l7HFzaqNj8dfo0iS4F3osQ==",
 };
 
 let _builtinCache = null;

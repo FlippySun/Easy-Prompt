@@ -341,8 +341,8 @@ assert(
   "内置 baseUrl 以 https:// 开头",
 );
 assert(
-  defaults.baseUrl.endsWith("/v1/chat/completions"),
-  "内置 baseUrl 以 /v1/chat/completions 结尾",
+  defaults.baseUrl.endsWith("/v1/responses"),
+  "内置 baseUrl 以 /v1/responses 结尾",
 );
 assert(
   defaults.apiKey && defaults.apiKey.startsWith("sk-"),
@@ -410,7 +410,7 @@ assert(
 assert(extCode.includes("🔥"), "场景列表含小火苗标记");
 
 // Welcome 页面更新
-assert(welcomeCode.includes("v5.3.6"), "Welcome 页面版本更新到 v5.3.6");
+assert(welcomeCode.includes("v5.3.7"), "Welcome 页面版本更新到 v5.3.7");
 assert(
   welcomeCode.includes("使用教程") && welcomeCode.includes("Alt</kbd>+<kbd>H"),
   "Welcome 含 Ctrl+Alt+H 快捷键",
@@ -418,7 +418,7 @@ assert(
 assert(welcomeCode.includes("状态栏"), "Welcome 提到状态栏功能");
 
 // package.json 版本
-assert(pkg.version === "5.3.6", "package.json 版本 = 5.3.6");
+assert(pkg.version === "5.3.7", "package.json 版本 = 5.3.7");
 assert(
   declaredCommands.includes("easy-prompt.statusBarMenu"),
   "package.json 声明 statusBarMenu 命令",

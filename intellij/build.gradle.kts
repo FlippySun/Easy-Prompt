@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.easyprompt"
-version = "5.3.6"
+version = "5.3.7"
 
 repositories {
     mavenCentral()
@@ -161,6 +161,15 @@ intellijPlatform {
             sinceBuild = "243"
         }
         changeNotes = """
+            <h3>v5.3.7 — Edge 浏览器支持 + E2E 测试 + WXT + 内置服务商 URL 更新</h3>
+            <b>浏览器插件端全面升级：接入 Edge、完善 E2E 测试、引入 WXT 管理、更新内置服务商请求地址</b>
+            <ul>
+                <li><b>Edge 浏览器支持</b>：浏览器扩展正式接入 Microsoft Edge，四大平台全覆盖（Chrome/Firefox/Safari/Edge）</li>
+                <li><b>E2E 测试完善</b>：新增并完善浏览器插件端的 Playwright E2E 测试覆盖</li>
+                <li><b>WXT 框架引入</b>：浏览器插件端迁移至 WXT 管理，统一多浏览器构建与开发流程</li>
+                <li><b>内置服务商 URL 更新</b>：内置服务商请求地址迁移至 fast.vpsairobot.com，API 端点切换至 Responses API（/v1/responses）</li>
+                <li><b>全端版本同步</b>：VSCode / IntelliJ / Browser / Web 统一升级至 5.3.7</li>
+            </ul>
             <h3>v5.3.6 — Fast / Deep 双模式</h3>
             <b>以同模型、同接口、不同输出深度的统一语义正式发布 Fast / Deep</b>
             <ul>

@@ -29,14 +29,19 @@ export default defineConfig({
   publicDir: "public",
   outDir: "dist",
   manifest: ({ browser, manifestVersion }) => ({
-    name: "Easy Prompt AI",
+    name:
+      browser === "chrome"
+        ? "__MSG_extName__" // "Easy Prompt AI" — kept in public/_locales/*/messages.json
+        : "Easy Prompt", // Edge, Firefox, Safari, etc.
+    default_locale: "en",
     version: extensionVersion,
     description:
       "AI Prompt 增强工具：97 场景、10 画像、两步路由，支持网页一键增强，含 PromptHub 精选库（zhiz.chat）。",
     icons: sharedIcons,
     action: {
       default_icon: sharedIcons,
-      default_title: "Easy Prompt AI",
+      default_title:
+        browser === "chrome" ? "__MSG_extName__" : "Easy Prompt",
     },
     permissions: ["storage", "contextMenus", "activeTab", "scripting"],
     host_permissions: ["https://*/*", "http://*/*"],

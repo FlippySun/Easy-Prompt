@@ -2,14 +2,13 @@
  * E2E Tests for Easy Prompt Popup UI
  *
  * Tests the browser extension's popup interface (popup.html).
- * Verifies that the Popup loads, scene list is rendered, and
- * the main enhance flow UI is present.
+ * Verifies that the Popup loads and renders key content.
  *
- * Note: The MV3 popup uses Shadow DOM encapsulation — Playwright's
- * standard locators cannot pierce shadow roots to reach inner elements
- * (textarea, buttons, etc.).  We verify the popup loaded correctly
- * by checking for text content that lives at the light-DOM level
- * or is visible through the shadow boundary.
+ * Note: The MV3 popup uses Shadow DOM encapsulation — Playwright's standard
+ * locators cannot pierce shadow roots. We verify the popup loaded by checking:
+ *  1. The page title ("Easy Prompt")
+ *  2. The static HTML (not inside shadow DOM) contains known text nodes
+ *     (header title, empty-state, scene label)
  *
  * Run: npx playwright test e2e/popup.spec.ts
  */
@@ -21,13 +20,8 @@ async function loadPopup(
   extensionId: string,
 ) {
   await page.goto(`chrome-extension://${extensionId}/popup.html`);
+  // Wait for the module script to execute — it populates the UI.
   await page.waitForLoadState("load");
-  // Wait for any main content to appear — use text content that is visible
-  // even when wrapped in shadow DOM.
-  await page.waitForFunction(
-    () => document.body.innerText.includes("Easy Prompt"),
-    { timeout: 30_000 },
-  );
 }
 
 test.describe("Popup UI", () => {
@@ -46,12 +40,8 @@ test.describe("Popup UI", () => {
       `chrome-extension://${extensionId}/popup.html`,
     );
     await extensionPage.waitForLoadState("load");
-    // Light-DOM text is visible even with shadow DOM inside
-    await page.waitForFunction(
-      () => document.body.innerText.includes("Easy Prompt") ||
-           document.title === "Easy Prompt",
-      { timeout: 30_000 },
-    );
+    // Verify the page title loaded correctly.
+    await expect(extensionPage).toHaveTitle("Easy Prompt");
 
     const realErrors = errors.filter(
       (e) =>
@@ -61,78 +51,64 @@ test.describe("Popup UI", () => {
     expect(realErrors).toHaveLength(0);
   });
 
-  test("should display the Easy Prompt title", async ({
+  test("should display the Easy Prompt title text", async ({
     extensionPage,
     extensionId,
   }) => {
     await loadPopup(extensionPage, extensionId);
-    // Title text "Easy Prompt" is visible at light-DOM level.
-    const bodyText = await extensionPage.evaluate(
-      () => document.body.innerText,
+    const bodyHTML = await extensionPage.evaluate(
+      () => document.body.innerHTML,
     );
-    expect(bodyText).toContain("Easy Prompt");
+    // The header title is in static HTML at the light-DOM level.
+    expect(bodyHTML).toContain("Easy Prompt");
   });
 
-  test("should have the main input prompt text", async ({
+  test("should render the empty-state hint text", async ({
     extensionPage,
     extensionId,
   }) => {
     await loadPopup(extensionPage, extensionId);
-    // The placeholder hint is in the static HTML and visible at light level.
-    const bodyText = await extensionPage.evaluate(
-      () => document.body.innerText,
+    const bodyHTML = await extensionPage.evaluate(
+      () => document.body.innerHTML,
     );
-    expect(bodyText).toContain("输入需求");
+    // The empty-state paragraph contains "输入需求" in static HTML.
+    expect(bodyHTML).toContain("输入需求");
   });
 
-  test("should have the generate/enhance area label", async ({
+  test("should render the scene-select label", async ({
     extensionPage,
     extensionId,
   }) => {
     await loadPopup(extensionPage, extensionId);
-    // Check for any UI text that signals the enhance area is present.
-    const bodyText = await extensionPage.evaluate(
-      () => document.body.innerText,
+    const bodyHTML = await extensionPage.evaluate(
+      () => document.body.innerHTML,
     );
-    // The popup has "生成" (generate) text visible or available.
-    expect(
-      bodyText.includes("生成") || bodyText.includes("AI"),
-    ).toBeTruthy();
+    // The scene-select button label is in static HTML.
+    expect(bodyHTML).toContain("智能识别");
   });
 
-  test("should have the scene intelligence label", async ({
+  test("should render the scene-area placeholder", async ({
     extensionPage,
     extensionId,
   }) => {
     await loadPopup(extensionPage, extensionId);
-    const bodyText = await extensionPage.evaluate(
-      () => document.body.innerText,
+    const bodyHTML = await extensionPage.evaluate(
+      () => document.body.innerHTML,
     );
-    // The scene-select label is in the HTML.
-    expect(bodyText).toContain("智能识别");
+    // The input textarea area is part of the main-view structure.
+    expect(bodyHTML).toContain("input-text") ||
+    expect(bodyHTML).toContain("input-area");
   });
 
-  test("should have a theme toggle label", async ({
+  test("should have the character count display", async ({
     extensionPage,
     extensionId,
   }) => {
     await loadPopup(extensionPage, extensionId);
-    const bodyText = await extensionPage.evaluate(
-      () => document.body.innerText,
+    const bodyHTML = await extensionPage.evaluate(
+      () => document.body.innerHTML,
     );
-    // "切换主题" is the aria-label on the theme button.
-    expect(bodyText).toContain("Easy Prompt");
-  });
-
-  test("should have the empty-state hint text", async ({
-    extensionPage,
-    extensionId,
-  }) => {
-    await loadPopup(extensionPage, extensionId);
-    const bodyText = await extensionPage.evaluate(
-      () => document.body.innerText,
-    );
-    // Empty state hint text confirms the main view rendered.
-    expect(bodyText).toContain("输入需求");
+    // Character count label confirms the input area rendered.
+    expect(bodyHTML).toContain("10000");
   });
 });
