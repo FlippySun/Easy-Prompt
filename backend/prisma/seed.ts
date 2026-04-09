@@ -18,6 +18,7 @@ import crypto from 'crypto';
 import categories from './data/categories.json';
 import models from './data/models.json';
 import scenes from './data/scenes.json';
+import prompts from './data/prompts.json';
 
 const prisma = new PrismaClient();
 
@@ -157,6 +158,36 @@ async function main() {
     });
   }
   console.log(`  ✅ Scenes: ${scenes.length} seeded`);
+
+  // ── 6. 示例 Prompt 数据（published）────────────────
+  // 2026-04-09 新增 — 初始化已发布 Prompt 数据，供前端集成测试使用
+  const adminUser = await prisma.user.findFirst({ where: { role: 'super_admin' } });
+  let promptCount = 0;
+  for (const p of prompts) {
+    // 使用 title 作为幂等性标识（避免重复插入）
+    const existing = await prisma.prompt.findFirst({ where: { title: p.title } });
+    if (!existing) {
+      await prisma.prompt.create({
+        data: {
+          title: p.title,
+          description: p.description ?? null,
+          content: p.content,
+          tags: p.tags ?? [],
+          category: p.category,
+          model: p.model ?? null,
+          authorId: adminUser?.id ?? null,
+          status: p.status ?? 'published',
+          likesCount: p.likesCount ?? 0,
+          viewsCount: p.viewsCount ?? 0,
+          copiesCount: p.copiesCount ?? 0,
+        },
+      });
+      promptCount++;
+    }
+  }
+  console.log(
+    `  ✅ Prompts: ${promptCount} created (${prompts.length - promptCount} already existed)`,
+  );
 
   console.log('\n🎉 Seed completed successfully!');
 }

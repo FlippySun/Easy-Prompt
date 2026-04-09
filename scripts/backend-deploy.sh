@@ -54,19 +54,31 @@ if ! $SKIP_BUILD; then
 fi
 
 # ── 2. Rsync ──
-RSYNC_FLAGS="-avz --delete --exclude='node_modules' --exclude='.env' --exclude='logs'"
+# 2026-04-09 修复：分目录 rsync，避免 --delete 误删 .env/logs/node_modules
 SSH_CMD="ssh -i ${VPS_KEY} -o StrictHostKeyChecking=no"
-
+DRY_FLAG=""
 if $DRY_RUN; then
-  RSYNC_FLAGS="${RSYNC_FLAGS} --dry-run"
+  DRY_FLAG="--dry-run"
   echo "📋 Dry run — showing rsync plan..."
 fi
 
-echo "📋 Syncing files to VPS..."
-rsync $RSYNC_FLAGS \
+echo "📋 Syncing dist/ to VPS..."
+rsync -avz --delete $DRY_FLAG \
   -e "$SSH_CMD" \
-  dist/ prisma/ package.json package-lock.json ecosystem.config.js \
-  "${VPS_USER}@${VPS_HOST}:${REMOTE_DIR}/"
+  dist/ "${VPS_USER}@${VPS_HOST}:${REMOTE_DIR}/dist/"
+
+echo "📋 Syncing prisma/ to VPS..."
+rsync -avz --delete $DRY_FLAG \
+  -e "$SSH_CMD" \
+  prisma/ "${VPS_USER}@${VPS_HOST}:${REMOTE_DIR}/prisma/"
+
+echo "📋 Uploading config files to VPS..."
+if ! $DRY_RUN; then
+  scp -i "$VPS_KEY" package.json package-lock.json ecosystem.config.js \
+    "${VPS_USER}@${VPS_HOST}:${REMOTE_DIR}/"
+else
+  echo "  (dry-run) would upload: package.json package-lock.json ecosystem.config.js"
+fi
 
 if $DRY_RUN; then
   echo ""
