@@ -12,6 +12,10 @@
 // [潜在风险] 旧版经典 script 装载方式不再适用；WXT 构建链路不受影响。
 // ==============================================================
 
+// 2026-04-08 P9.04: 新增后端开关 UI + 健康检测
+// 设计思路：读写 chrome.storage.local 中的 ep-backend-enabled，与 shared/api.js 的 isBackendEnabled() 对齐
+// 影响范围：options 页面新增「后端服务」卡片
+// 潜在风险：无已知风险
 import { Storage } from "../shared/storage.js";
 import { Defaults } from "../shared/defaults.js";
 import { Api } from "../shared/api.js";
@@ -127,6 +131,67 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Fetch models
   $("#btn-fetch-models").addEventListener("click", handleFetchModels);
+
+  // 2026-04-08 P9.09: Backend mode selector — load saved 3-mode state
+  const backendMode = await Api.getBackendMode();
+  const backendModeSelect = $("#input-backend-mode");
+  if (backendModeSelect) {
+    backendModeSelect.value = backendMode;
+    backendModeSelect.addEventListener("change", async () => {
+      await Api.setBackendMode(backendModeSelect.value);
+      const labels = {
+        auto: "Auto 模式",
+        "backend-only": "Backend Only 模式",
+        "local-only": "Local Only 模式",
+      };
+      showToast(
+        `已切换为 ${labels[backendModeSelect.value] || backendModeSelect.value}`,
+        "success",
+      );
+    });
+  }
+
+  // Backend health check button
+  const btnBackendTest = $("#btn-backend-test");
+  if (btnBackendTest) {
+    btnBackendTest.addEventListener("click", handleBackendHealthCheck);
+  }
+
+  // 2026-04-08 P9.10: Access Token 手动输入（首期 SSO）
+  // 设计思路：从 chrome.storage.local 读写 ep-access-token，与 shared/api.js getAccessToken() 对齐
+  // 影响范围：options 页面新增 Token 输入/保存/可见性切换
+  // 潜在风险：无已知风险
+  const tokenInput = $("#input-access-token");
+  if (tokenInput) {
+    const savedToken = await Api.getAccessToken();
+    if (savedToken) tokenInput.value = savedToken;
+
+    // Visibility toggle
+    const btnToggle = $("#btn-toggle-token-visibility");
+    if (btnToggle) {
+      btnToggle.addEventListener("click", () => {
+        tokenInput.type = tokenInput.type === "password" ? "text" : "password";
+        btnToggle.textContent = tokenInput.type === "password" ? "👁" : "🙈";
+      });
+    }
+
+    // Save token button
+    const btnSaveToken = $("#btn-save-token");
+    if (btnSaveToken) {
+      btnSaveToken.addEventListener("click", async () => {
+        const token = tokenInput.value.trim();
+        try {
+          await chrome.storage.local.set({ "ep-access-token": token || "" });
+          showToast(
+            token ? "Token 已保存" : "Token 已清除（匿名模式）",
+            "success",
+          );
+        } catch (err) {
+          showToast("保存失败: " + err.message, "error");
+        }
+      });
+    }
+  }
 });
 
 /** 从表单读取当前值 */
@@ -268,6 +333,52 @@ function renderModelsList(models) {
     });
     container.appendChild(chip);
   });
+}
+
+/**
+ * 2026-04-08 P9.04: 检测后端健康状态
+ * 调用 https://api.zhiz.chat/health 检查后端是否可用
+ */
+async function handleBackendHealthCheck() {
+  const btn = $("#btn-backend-test");
+  const statusEl = $("#backend-status");
+  const dotEl = $("#backend-status-dot");
+  const textEl = $("#backend-status-text");
+
+  btn.disabled = true;
+  btn.querySelector("span").textContent = "检测中…";
+  statusEl.hidden = false;
+  dotEl.className = "status-dot status-dot--pending";
+  textEl.textContent = "正在连接后端服务...";
+
+  try {
+    const start = Date.now();
+    const resp = await fetch(`${Api.BACKEND_API_BASE}/health`, {
+      method: "GET",
+      signal: AbortSignal.timeout(10000),
+    });
+    const latency = Date.now() - start;
+
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data.status === "ok") {
+        dotEl.className = "status-dot status-dot--ok";
+        textEl.textContent = `后端服务正常 · ${latency}ms`;
+      } else {
+        dotEl.className = "status-dot status-dot--warn";
+        textEl.textContent = `后端返回异常状态: ${data.status}`;
+      }
+    } else {
+      dotEl.className = "status-dot status-dot--error";
+      textEl.textContent = `后端 HTTP ${resp.status}`;
+    }
+  } catch (err) {
+    dotEl.className = "status-dot status-dot--error";
+    textEl.textContent = `连接失败: ${err.message}`;
+  } finally {
+    btn.disabled = false;
+    btn.querySelector("span").textContent = "检测后端连接";
+  }
 }
 
 function showToast(message, type = "info") {

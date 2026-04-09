@@ -57,7 +57,7 @@ export function setupBackground() {
   if (_backgroundInitialized) return;
   _backgroundInitialized = true;
 
-/* ─── Context Menu ─── */
+  /* ─── Context Menu ─── */
   chrome.runtime.onInstalled.addListener(() => {
     // 先清除旧菜单再创建, 避免扩展更新时重复 ID 报错
     chrome.contextMenus.removeAll(() => {
@@ -68,13 +68,13 @@ export function setupBackground() {
       });
     });
   });
-  
+
   chrome.contextMenus.onClicked.addListener((info) => {
     if (info.menuItemId === "easy-prompt-enhance" && info.selectionText) {
       openPopupWithText(info.selectionText.trim());
     }
   });
-  
+
   /* ─── Keyboard Shortcuts ─── */
   chrome.commands.onCommand.addListener(async (command) => {
     if (command === "smart-enhance") {
@@ -107,14 +107,14 @@ export function setupBackground() {
       }
     }
   });
-  
+
   /* ─── Message Relay ─── */
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === "ENHANCE_TEXT") {
       openPopupWithText(message.text).then(() => sendResponse({ ok: true }));
       return true; // Keep channel open for async
     }
-  
+
     if (message.type === "ENHANCE_INLINE") {
       const tabId = sender.tab?.id;
       handleInlineEnhance(message.text, tabId)
@@ -123,9 +123,9 @@ export function setupBackground() {
       return true; // Keep channel open for async
     }
   });
-  
+
   /* ─── Inline Enhance (AI 聊天网站原地增强) ─── */
-  
+
   /**
    * 获取有效 API 配置（用户配置 + 内置默认值合并）
    * 返回 { baseUrl, apiKey, model, apiMode }
@@ -152,7 +152,7 @@ export function setupBackground() {
     config.enhanceMode = enhanceMode;
     return config;
   }
-  
+
   /**
    * 处理内联增强请求
    * @param {string} text — 用户输入的原始文本
@@ -171,7 +171,7 @@ export function setupBackground() {
         error: `输入文本过长（最多 ${Api.MAX_INPUT_LENGTH} 字）`,
       };
     }
-  
+
     // Progress callback — send updates to content script
     const onProgress = tabId
       ? (stage, message) => {
@@ -186,17 +186,27 @@ export function setupBackground() {
           }
         }
       : null;
-  
+
     try {
       // Ensure scenes are loaded
       const scenesOk = await Scenes.loadScenes();
       if (!scenesOk) {
         return { ok: false, error: "场景数据加载失败\n\n请刷新页面后重试" };
       }
-  
+
       const config = await getEffectiveConfig();
-      const result = await Router.smartRoute(config, text.trim(), onProgress);
-  
+
+      // 2026-04-08 P2.11: 双轨模式 — 优先后端 API，失败回退本地直连
+      const localEnhanceFn = async (cfg, input, progress) => {
+        return await Router.smartRoute(cfg, input, progress);
+      };
+      const result = await Api.dualTrackEnhance(
+        config,
+        text.trim(),
+        localEnhanceFn,
+        onProgress,
+      );
+
       // Save to history (mirrors popup.js handleGenerate)
       try {
         const sceneNames = Scenes.getSceneNames();
@@ -214,12 +224,13 @@ export function setupBackground() {
       } catch (e) {
         console.warn("[EP] Failed to save inline enhance to history:", e);
       }
-  
+
       return {
         ok: true,
         result: result.result,
         scenes: result.scenes,
         composite: result.composite,
+        source: result.source || "local",
       };
     } catch (err) {
       // Provide user-friendly error messages
@@ -230,7 +241,10 @@ export function setupBackground() {
         errorMsg.includes("Failed")
       ) {
         errorMsg = "网络连接失败\n\n请检查网络连接后重试";
-      } else if (errorMsg.includes("401") || errorMsg.includes("Unauthorized")) {
+      } else if (
+        errorMsg.includes("401") ||
+        errorMsg.includes("Unauthorized")
+      ) {
         errorMsg = "API Key 无效\n\n请在扩展设置中检查 API 配置";
       } else if (
         errorMsg.includes("429") ||
@@ -244,5 +258,4 @@ export function setupBackground() {
       return { ok: false, error: errorMsg };
     }
   }
-  
 }

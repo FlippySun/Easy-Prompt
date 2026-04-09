@@ -436,28 +436,40 @@ async function handleGenerate() {
   setGenerating(true);
 
   try {
-    let result;
-    if (selectedScene) {
-      result = await Router.directGenerate(
-        config,
-        text,
-        selectedScene,
-        onProgress,
-        currentAbortController.signal,
-      );
-    } else {
-      result = await Router.smartRoute(
-        config,
-        text,
-        onProgress,
-        currentAbortController.signal,
-      );
-    }
+    // 2026-04-08 P9.04: 双轨模式 — 优先后端 API，失败回退本地直连
+    // 设计思路：复用 Api.dualTrackEnhance，与 service-worker inline 路径对齐
+    // 影响范围：popup 增强流程
+    // 潜在风险：后端不可用时增加一次失败延迟（已用 timeout 限制）
+    const localEnhanceFn = async (cfg, input, progress, signal) => {
+      if (selectedScene) {
+        return await Router.directGenerate(
+          cfg,
+          input,
+          selectedScene,
+          progress,
+          signal,
+        );
+      }
+      return await Router.smartRoute(cfg, input, progress, signal);
+    };
+
+    const result = await Api.dualTrackEnhance(
+      config,
+      text,
+      localEnhanceFn,
+      onProgress,
+      currentAbortController.signal,
+    );
 
     const promptOnlyResult = sanitizeEnhancedPrompt(result.result);
+    const source = result.source || "local";
 
-    // Show output (prompt-only)
-    showOutput(promptOnlyResult, result.scenes, result.composite);
+    // Show output with source indicator
+    showOutput(promptOnlyResult, result.scenes, result.composite, true, source);
+
+    if (source === "local-fallback") {
+      showToast("已通过本地模式完成（后端服务暂不可用）", "warning");
+    }
 
     // Save to history
     const sceneNames = Scenes.getSceneNames();
@@ -518,7 +530,8 @@ function hideStatus() {
   $("#status-bar").hidden = true;
 }
 
-function showOutput(text, sceneIds, composite, animate = true) {
+// 2026-04-08 P9.04: source 参数新增 — 显示数据来源标记（backend/local/local-fallback）
+function showOutput(text, sceneIds, composite, animate = true, source = "") {
   const scenes = Scenes.getSceneNames();
   const badge = sceneIds
     .map((s) => scenes[s] || s)
@@ -547,6 +560,26 @@ function showOutput(text, sceneIds, composite, animate = true) {
   }
   $("#output-scene-badge").textContent = badge;
   $("#output-content").textContent = text;
+
+  // 2026-04-08 P9.04: 显示数据来源标记
+  const sourceBadge = $("#output-source-badge");
+  if (sourceBadge) {
+    if (source === "backend") {
+      sourceBadge.textContent = "☁️ 后端";
+      sourceBadge.className = "output-area__source-badge source--backend";
+      sourceBadge.hidden = false;
+    } else if (source === "local-fallback") {
+      sourceBadge.textContent = "⚡ 本地回退";
+      sourceBadge.className = "output-area__source-badge source--fallback";
+      sourceBadge.hidden = false;
+    } else if (source === "local") {
+      sourceBadge.textContent = "⚡ 本地";
+      sourceBadge.className = "output-area__source-badge source--local";
+      sourceBadge.hidden = false;
+    } else {
+      sourceBadge.hidden = true;
+    }
+  }
 
   // Reset copy button icon (reuse same button, no cloneNode needed)
   _setHTML($("#btn-copy"), Icons.copy);

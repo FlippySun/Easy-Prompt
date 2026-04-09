@@ -208,6 +208,72 @@
           </div>
         </section>
 
+        <!-- 2026-04-08 P9.04: 后端服务配置 -->
+        <section class="card">
+          <h2 class="card__title">后端服务</h2>
+          <p class="card__desc">
+            启用后优先通过 Easy Prompt 后端 AI 服务增强，失败自动回退本地直连。
+          </p>
+
+          <div class="form-group">
+            <label class="form-label" for="input-backend-mode">运行模式</label>
+            <select id="input-backend-mode" class="form-input form-select">
+              <option value="auto">Auto（默认，后端优先 + 本地回退）</option>
+              <option value="backend-only">
+                Backend Only（仅后端，不回退）
+              </option>
+              <option value="local-only">Local Only（仅本地直连）</option>
+            </select>
+            <span class="form-hint"
+              >Auto = 优先后端失败回退本地；Backend Only = 仅后端不回退；Local
+              Only = 仅本地直连</span
+            >
+          </div>
+
+          <!-- 2026-04-08 P9.10: Access Token 手动输入（首期 SSO） -->
+          <div class="form-group">
+            <label class="form-label" for="input-access-token"
+              >Access Token</label
+            >
+            <div class="input-with-action">
+              <input
+                type="password"
+                id="input-access-token"
+                class="form-input"
+                placeholder="粘贴从 zhiz.chat 获取的 Access Token..."
+                autocomplete="off"
+              />
+              <button
+                type="button"
+                id="btn-toggle-token-visibility"
+                class="icon-btn icon-btn--sm"
+                title="显示/隐藏"
+                aria-label="切换 Token 可见性"
+              >
+                👁
+              </button>
+            </div>
+            <span class="form-hint"
+              >登录 zhiz.chat
+              后在个人设置中获取。留空则以匿名身份使用（受更严格限流）</span
+            >
+          </div>
+
+          <div id="backend-status" class="backend-status" hidden>
+            <span id="backend-status-dot" class="status-dot"></span>
+            <span id="backend-status-text">检测中...</span>
+          </div>
+
+          <div class="actions">
+            <button id="btn-backend-test" class="btn btn--secondary">
+              <span>检测后端连接</span>
+            </button>
+            <button id="btn-save-token" class="btn btn--primary">
+              <span>保存 Token</span>
+            </button>
+          </div>
+        </section>
+
         <!-- 关于 -->
         <section class="card">
           <h2 class="card__title">关于</h2>

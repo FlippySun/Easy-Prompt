@@ -910,6 +910,32 @@ button {
   font-weight: 500;
   border: 1px solid rgba(139, 92, 246, 0.15);
 }
+/* 2026-04-08 P9.04: 数据来源标记 */
+.output-area__source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 20px;
+  font-size: 0.68rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.source--backend {
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--success, #22c55e);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+.source--local {
+  background: rgba(161, 161, 170, 0.1);
+  color: var(--text-secondary, #a1a1aa);
+  border: 1px solid rgba(161, 161, 170, 0.15);
+}
+.source--fallback {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
 .output-area__content {
   padding: 12px;
   font-size: 0.85rem;
