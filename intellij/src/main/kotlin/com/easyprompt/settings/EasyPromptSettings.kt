@@ -37,6 +37,13 @@ class EasyPromptSettings : PersistentStateComponent<EasyPromptSettings.State> {
         var model: String = "",
         var enhanceMode: String = "fast",
         var language: String = "zh-CN",
+        /** 2026-04-08 P9.09: 三模式开关 — auto | backend-only | local-only */
+        var backendMode: String = "auto",
+        /** 2026-04-08 P9.10: Access Token（手动输入，留空匿名） */
+        var backendToken: String = "",
+        /** @deprecated 旧版布尔开关，保留用于迁移兼容 */
+        @Deprecated("Use backendMode instead")
+        var backendEnabled: Boolean = true,
         /** 场景命中统计：JSON 格式 {"sceneId": count, ...} */
         var sceneStats: String = "{}",
         /** 增强历史记录：JSON 数组格式 */

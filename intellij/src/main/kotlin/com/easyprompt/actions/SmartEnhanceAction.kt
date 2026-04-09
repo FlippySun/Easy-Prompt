@@ -203,8 +203,8 @@ class SmartEnhanceAction : AnAction() {
 
             override fun run(indicator: com.intellij.openapi.progress.ProgressIndicator) {
                 try {
-                    // 使用 ApiClient.smartRoute 进行两步路由（意图识别 + 生成）
-                    val result = ApiClient.smartRoute(text, { msg ->
+                    // 2026-04-08 P2.13: 双轨模式 — 优先后端 API，失败回退本地
+                    val result = ApiClient.dualTrackEnhance(text, { msg ->
                         indicator.text = msg
                     }, indicator)
 

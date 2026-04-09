@@ -862,6 +862,178 @@ object ApiClient {
         }
     }
 
+    /* ═══════════════════════════════════════════════════
+       Backend API Client (dual-track mode)
+       2026-04-08 新增 — P2.13 IntelliJ Plugin 客户端迁移 + P2.14 requestId 透传
+       设计思路：优先调用后端 API（JVM HttpURLConnection），失败自动回退本地直连。
+         认证暂留 placeholder（后续 SSO 集成时补充）。
+       影响范围：smartRoute / directGenerate 调用入口
+       潜在风险：后端不可用时增加一次失败延迟（已用 30s timeout 限制）
+       ═══════════════════════════════════════════════════ */
+
+    private const val BACKEND_API_BASE = "https://api.zhiz.chat"
+    private const val BACKEND_TIMEOUT_MS = 30000
+
+    /** 后端增强结果 */
+    data class BackendEnhanceResult(
+        val result: String,
+        val scenes: List<String>,
+        val composite: Boolean,
+        val source: String,
+        val requestId: String
+    )
+
+    /**
+     * 生成 UUID v4（用于 requestId 透传 — P2.14）
+     */
+    fun generateRequestId(): String = java.util.UUID.randomUUID().toString()
+
+    /**
+     * 后端错误码 → 用户友好中文提示
+     */
+    private val BACKEND_ERROR_MAP = mapOf(
+        "AI_PROVIDER_ERROR" to "AI 服务暂时不可用，正在回退到本地模式...",
+        "AI_TIMEOUT" to "AI 服务响应超时，正在回退到本地模式...",
+        "RATE_LIMIT_EXCEEDED" to "请求过于频繁，请稍后再试",
+        "AUTH_TOKEN_EXPIRED" to "登录已过期，请重新登录",
+        "VALIDATION_FAILED" to "请求参数有误",
+        "BLACKLISTED" to "您的访问已被限制，请联系管理员"
+    )
+
+    private fun mapBackendError(code: String, default: String): String =
+        BACKEND_ERROR_MAP[code] ?: default.ifBlank { "后端服务异常" }
+
+    /**
+     * 调用后端 AI 增强 API（JVM HttpURLConnection 实现）
+     * @param input 用户输入
+     * @param enhanceMode fast/deep
+     * @param model 模型名称
+     * @param indicator 进度指示器（用于取消检测）
+     * @return BackendEnhanceResult
+     */
+    fun callBackendEnhance(
+        input: String,
+        enhanceMode: String = "fast",
+        model: String = "",
+        indicator: ProgressIndicator? = null
+    ): BackendEnhanceResult {
+        val requestId = generateRequestId()
+        val postBody = JsonObject().apply {
+            addProperty("input", input)
+            addProperty("enhanceMode", enhanceMode)
+            addProperty("model", model)
+            addProperty("language", "zh-CN")
+            addProperty("clientType", "intellij")
+        }
+
+        val url = URI("$BACKEND_API_BASE/api/v1/ai/enhance").toURL()
+        val conn = url.openConnection() as HttpURLConnection
+        try {
+            conn.requestMethod = "POST"
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.setRequestProperty("X-Request-Id", requestId)
+            // 2026-04-08 P9.10: Bearer Token 认证（手动输入）
+            val token = EasyPromptSettings.getInstance().state.backendToken
+            if (token.isNotBlank()) {
+                conn.setRequestProperty("Authorization", "Bearer $token")
+            }
+            conn.connectTimeout = BACKEND_TIMEOUT_MS
+            conn.readTimeout = BACKEND_TIMEOUT_MS
+            conn.doOutput = true
+
+            if (indicator?.isCanceled == true) throw RuntimeException("已取消")
+
+            conn.outputStream.write(postBody.toString().toByteArray())
+
+            if (indicator?.isCanceled == true) throw RuntimeException("已取消")
+
+            val responseCode = conn.responseCode
+            val responseBody = if (responseCode in 200..299) {
+                conn.inputStream.bufferedReader().readText()
+            } else {
+                val errBody = try {
+                    conn.errorStream?.bufferedReader()?.readText() ?: "Unknown error"
+                } catch (_: Exception) { "Unknown error" }
+                throw RuntimeException("Backend HTTP $responseCode: $errBody")
+            }
+
+            val data = gson.fromJson(responseBody, JsonObject::class.java)
+            val success = data.get("success")?.asBoolean ?: false
+
+            if (!success) {
+                val errObj = data.getAsJsonObject("error")
+                val errCode = errObj?.get("code")?.asString ?: "UNKNOWN"
+                val errMsg = errObj?.get("message")?.asString ?: "Backend error"
+                if (errCode == "RATE_LIMIT_EXCEEDED" || errCode == "BLACKLISTED") {
+                    throw RuntimeException(mapBackendError(errCode, errMsg))
+                }
+                throw RuntimeException(errMsg)
+            }
+
+            val dataObj = data.getAsJsonObject("data")
+            val output = dataObj?.get("output")?.asString ?: throw RuntimeException("Backend response missing output")
+            val scenes = dataObj.getAsJsonArray("scenes")?.map { it.asString } ?: listOf("optimize")
+            val composite = dataObj.get("composite")?.asBoolean ?: false
+
+            return BackendEnhanceResult(output, scenes, composite, "backend", requestId)
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    /**
+     * 2026-04-08 P9.09: 三模式双轨增强
+     * mode: "auto" | "backend-only" | "local-only"
+     * 向后兼容：backendMode 为空时参考旧版 backendEnabled 布尔值
+     */
+    fun dualTrackEnhance(
+        userInput: String,
+        onProgress: ((String) -> Unit)? = null,
+        indicator: ProgressIndicator? = null
+    ): SmartRouteResult {
+        val settings = EasyPromptSettings.getInstance()
+        // 2026-04-08 P9.09: 解析运行模式 — backendMode 优先，backendEnabled 向后兼容
+        @Suppress("DEPRECATION")
+        val mode = settings.state.backendMode.ifBlank {
+            if (settings.state.backendEnabled) "auto" else "local-only"
+        }
+
+        // local-only: 直接走本地
+        if (mode == "local-only") {
+            return smartRoute(userInput, onProgress, indicator)
+        }
+
+        // auto / backend-only: 尝试后端
+        try {
+            onProgress?.invoke("🌐 正在连接后端 AI 服务...")
+            val config = getEffectiveConfig()
+            val result = callBackendEnhance(
+                input = userInput,
+                enhanceMode = config.enhanceMode,
+                model = config.model,
+                indicator = indicator
+            )
+            return SmartRouteResult(result.result, result.scenes, result.composite)
+        } catch (e: Exception) {
+            val msg = e.message ?: ""
+            // 用户取消 → 不回退
+            if (msg == "已取消" || indicator?.isCanceled == true) {
+                throw RuntimeException("已取消")
+            }
+            // 限流/黑名单 → 不回退
+            if (msg.contains("请求过于频繁") || msg.contains("访问已被限制")) {
+                throw e
+            }
+            // backend-only: 不回退，直接抛出
+            if (mode == "backend-only") {
+                throw RuntimeException("后端服务不可用: $msg")
+            }
+            // auto: 回退本地
+            onProgress?.invoke("⚠️ 后端服务不可用，正在切换到本地模式...")
+            return smartRoute(userInput, onProgress, indicator)
+        }
+    }
+
     /**
      * 获取可用模型列表（支持 4 种 API 模式）
      * @return Triple(ok, models, message)

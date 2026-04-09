@@ -20,6 +20,8 @@ class EasyPromptConfigurable : Configurable {
     private var apiKeyField: JPasswordField? = null
     private var modelField: JComboBox<String>? = null
     private var enhanceModeCombo: JComboBox<String>? = null
+    private var backendModeCombo: JComboBox<String>? = null
+    private var backendTokenField: JPasswordField? = null
     private var statusLabel: JLabel? = null
     private var testPassed = false
 
@@ -30,6 +32,8 @@ class EasyPromptConfigurable : Configurable {
     private var lastSavedApiKey = ""
     private var lastSavedModel = ""
     private var lastSavedEnhanceMode = "fast"
+    private var lastSavedBackendMode = "auto"
+    private var lastSavedBackendToken = ""
 
     /** API 模式列表（与 ApiClient.API_MODES 对应） */
     private val modeEntries = arrayOf(
@@ -45,6 +49,13 @@ class EasyPromptConfigurable : Configurable {
         "deep" to "Deep（输出更完整）"
     )
 
+    /** 2026-04-08 P9.09: 后端运行模式列表 */
+    private val backendModeEntries = arrayOf(
+        "auto" to "Auto（默认，后端优先 + 本地回退）",
+        "backend-only" to "Backend Only（仅后端，不回退）",
+        "local-only" to "Local Only（仅本地直连）"
+    )
+
     override fun getDisplayName(): String = "Easy Prompt"
 
     override fun createComponent(): JComponent {
@@ -57,6 +68,8 @@ class EasyPromptConfigurable : Configurable {
         lastSavedApiKey = settings.getApiKey()
         lastSavedModel = settings.state.model
         lastSavedEnhanceMode = settings.state.enhanceMode.ifBlank { "fast" }
+        lastSavedBackendMode = settings.state.backendMode.ifBlank { "auto" }
+        lastSavedBackendToken = settings.state.backendToken
 
         panel = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
@@ -171,6 +184,53 @@ class EasyPromptConfigurable : Configurable {
         panel!!.add(addField("Model:", modelField!!))
         panel!!.add(Box.createVerticalStrut(8))
         panel!!.add(addField("增强模式:", enhanceModeCombo!!))
+        panel!!.add(Box.createVerticalStrut(16))
+
+        // 2026-04-08 P9.09+P9.10: 后端服务配置区域
+        panel!!.add(JSeparator().apply {
+            maximumSize = java.awt.Dimension(Int.MAX_VALUE, 2)
+            alignmentX = JPanel.LEFT_ALIGNMENT
+        })
+        panel!!.add(Box.createVerticalStrut(8))
+        panel!!.add(JLabel("后端服务配置").apply {
+            font = font.deriveFont(java.awt.Font.BOLD)
+            alignmentX = JPanel.LEFT_ALIGNMENT
+        })
+        panel!!.add(Box.createVerticalStrut(8))
+
+        backendModeCombo = JComboBox(backendModeEntries.map { it.second }.toTypedArray()).apply {
+            val savedIdx = backendModeEntries.indexOfFirst { it.first == lastSavedBackendMode }
+            selectedIndex = if (savedIdx >= 0) savedIdx else 0
+            addActionListener {
+                val idx = selectedIndex
+                val modeKey = if (idx in backendModeEntries.indices) backendModeEntries[idx].first else "auto"
+                lastSavedBackendMode = modeKey
+                val settings = EasyPromptSettings.getInstance()
+                settings.state.backendMode = modeKey
+            }
+        }
+        panel!!.add(addField("运行模式:", backendModeCombo!!))
+        panel!!.add(Box.createVerticalStrut(8))
+
+        backendTokenField = PlaceholderPasswordField("留空 = 匿名使用（受更严格限流）", 40).apply {
+            text = lastSavedBackendToken
+        }
+        panel!!.add(addField("Access Token:", backendTokenField!!))
+        panel!!.add(Box.createVerticalStrut(4))
+        panel!!.add(JLabel("<html><i>登录 zhiz.chat 后在个人设置中获取。留空则以匿名身份使用。</i></html>").apply {
+            alignmentX = JPanel.LEFT_ALIGNMENT
+        })
+
+        // Save backend token on focus lost
+        backendTokenField!!.addFocusListener(object : java.awt.event.FocusAdapter() {
+            override fun focusLost(e: java.awt.event.FocusEvent?) {
+                val token = String(backendTokenField?.password ?: charArrayOf()).trim()
+                lastSavedBackendToken = token
+                val settings = EasyPromptSettings.getInstance()
+                settings.state.backendToken = token
+            }
+        })
+
         panel!!.add(Box.createVerticalStrut(16))
 
         // 状态标签
@@ -295,7 +355,9 @@ class EasyPromptConfigurable : Configurable {
                 enhanceMode = enhanceMode,
                 language = currentLanguage,
                 sceneStats = currentStats,
-                historyRecords = currentHistory
+                historyRecords = currentHistory,
+                backendMode = lastSavedBackendMode,
+                backendToken = lastSavedBackendToken
             ))
             settings.setApiKey("")  // Clear from PasswordSafe
             lastSavedMode = ""
@@ -341,7 +403,9 @@ class EasyPromptConfigurable : Configurable {
                         enhanceMode = enhanceMode,
                         language = currentLanguage,
                         sceneStats = currentStats,
-                        historyRecords = currentHistory
+                        historyRecords = currentHistory,
+                        backendMode = lastSavedBackendMode,
+                        backendToken = lastSavedBackendToken
                     ))
                     settings.setApiKey(apiKey)
                     lastSavedMode = modeKey
@@ -372,6 +436,8 @@ class EasyPromptConfigurable : Configurable {
         apiKeyField?.text = ""
         modelField?.selectedItem = ""
         enhanceModeCombo?.selectedIndex = 0
+        backendModeCombo?.selectedIndex = 0  // "auto"
+        backendTokenField?.text = ""
         val settings = EasyPromptSettings.getInstance()
         val currentStats = settings.state.sceneStats
         val currentHistory = settings.state.historyRecords
@@ -380,7 +446,9 @@ class EasyPromptConfigurable : Configurable {
             enhanceMode = "fast",
             language = currentLanguage,
             sceneStats = currentStats,
-            historyRecords = currentHistory
+            historyRecords = currentHistory,
+            backendMode = "auto",
+            backendToken = ""
         ))
         settings.setApiKey("")  // Clear from PasswordSafe
         lastSavedMode = ""
@@ -389,6 +457,8 @@ class EasyPromptConfigurable : Configurable {
         lastSavedApiKey = ""
         lastSavedModel = ""
         lastSavedEnhanceMode = "fast"
+        lastSavedBackendMode = "auto"
+        lastSavedBackendToken = ""
 
         statusLabel?.text = "✅ 已恢复为内置默认配置"
         statusLabel?.foreground = Color(0x00, 0x88, 0x00)
@@ -467,6 +537,8 @@ class EasyPromptConfigurable : Configurable {
         lastSavedApiKey = settings.getApiKey()
         lastSavedModel = settings.state.model
         lastSavedEnhanceMode = settings.state.enhanceMode.ifBlank { "fast" }
+        lastSavedBackendMode = settings.state.backendMode.ifBlank { "auto" }
+        lastSavedBackendToken = settings.state.backendToken
 
         val modeIdx = modeEntries.indexOfFirst { it.first == lastSavedMode }
         apiModeCombo?.selectedIndex = if (modeIdx >= 0) modeIdx else 0
@@ -476,6 +548,10 @@ class EasyPromptConfigurable : Configurable {
         modelField?.selectedItem = lastSavedModel
         val enhanceModeIdx = enhanceModeEntries.indexOfFirst { it.first == lastSavedEnhanceMode }
         enhanceModeCombo?.selectedIndex = if (enhanceModeIdx >= 0) enhanceModeIdx else 0
+        // 2026-04-08 P9.09+P9.10: 恢复后端配置 UI
+        val backendModeIdx = backendModeEntries.indexOfFirst { it.first == lastSavedBackendMode }
+        backendModeCombo?.selectedIndex = if (backendModeIdx >= 0) backendModeIdx else 0
+        backendTokenField?.text = lastSavedBackendToken
         statusLabel?.text = ""
         testPassed = false
     }
