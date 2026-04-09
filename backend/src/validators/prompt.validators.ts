@@ -16,7 +16,8 @@ const PROMPT_STATUSES = ['draft', 'pending', 'published', 'rejected'] as const;
 // ── 列表查询参数 ──────────────────────────────────────
 export const listPromptsQuery = z.object({
   page: z.coerce.number().int().min(1).optional().default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).optional().default(20),
+  // 2026-04-09 修改 — max 从 100 提升到 200，匹配 web-hub 全量加载需求
+  pageSize: z.coerce.number().int().min(1).max(200).optional().default(20),
   sort: z.string().optional(),
   category: z.string().max(50).optional(),
   model: z.string().max(50).optional(),
@@ -78,7 +79,8 @@ export const featuredPromptsQuery = z.object({
 export const searchPromptsQuery = z.object({
   keyword: z.string().min(1, 'Keyword is required').max(200),
   page: z.coerce.number().int().min(1).optional().default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).optional().default(20),
+  // 2026-04-09 修改 — max 从 100 提升到 200，与 listPromptsQuery 保持一致
+  pageSize: z.coerce.number().int().min(1).max(200).optional().default(20),
   category: z.string().max(50).optional(),
   model: z.string().max(50).optional(),
   tags: z

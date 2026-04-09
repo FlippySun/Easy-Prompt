@@ -24,7 +24,8 @@ export const MAX_BAN_LEVEL = 7;
 export const PAGINATION = {
   DEFAULT_PAGE: 1,
   DEFAULT_LIMIT: 20,
-  MAX_LIMIT: 100,
+  // 2026-04-09 修改 — 从 100 提升到 200，匹配 web-hub 全量加载需求（当前 ~102 条 Prompt）
+  MAX_LIMIT: 200,
 } as const;
 
 // ── 密码强度要求 ──────────────────────────────────────

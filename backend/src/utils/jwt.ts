@@ -58,6 +58,14 @@ export function signRefreshToken(payload: TokenPayload): string {
   return jwt.sign(payload, config.JWT_SECRET, { expiresIn });
 }
 
+/**
+ * 获取 Access Token 的有效期（秒）
+ * 2026-04-09 新增 — 供 auth.service 返回给前端用于调度自动刷新
+ */
+export function getAccessTokenExpiresInSec(): number {
+  return parseDurationToSeconds(config.JWT_ACCESS_EXPIRES);
+}
+
 // ── 验证 ──────────────────────────────────────────────
 
 /**

@@ -30,11 +30,12 @@ const authorSelect = {
   avatarUrl: true,
 } as const;
 
-// ── 列表精简字段 select ────────────────────────────────
+// ── 列表精简字段 select（2026-04-09 增加 content，卡片需展示 prompt 内容）──
 const summarySelect = {
   id: true,
   title: true,
   description: true,
+  content: true,
   tags: true,
   category: true,
   model: true,
@@ -60,6 +61,7 @@ function toSummary(row: Record<string, unknown>): PromptSummary {
     id: r.id as string,
     title: r.title as string,
     description: r.description as string | null,
+    content: r.content as string,
     tags: r.tags as string[],
     category: r.category as string,
     model: r.model as string | null,

@@ -32,10 +32,12 @@ const authorSelect = {
 } as const;
 
 // ── 列表精简字段（含 status，admin 需要看到）──────────────
+// 2026-04-09 增加 content 字段，对齐 PromptSummary 接口
 const pendingSelect = {
   id: true,
   title: true,
   description: true,
+  content: true,
   tags: true,
   category: true,
   model: true,
@@ -76,6 +78,7 @@ export async function getPendingPrompts(
     id: r.id,
     title: r.title,
     description: r.description,
+    content: r.content,
     tags: r.tags,
     category: r.category,
     model: r.model,
@@ -113,7 +116,10 @@ export async function approvePrompt(
   }
 
   if (existing.status !== 'pending') {
-    throw new AppError('VALIDATION_FAILED', `Cannot approve prompt with status "${existing.status}", expected "pending"`);
+    throw new AppError(
+      'VALIDATION_FAILED',
+      `Cannot approve prompt with status "${existing.status}", expected "pending"`,
+    );
   }
 
   const updated = await prisma.prompt.update({
@@ -169,7 +175,10 @@ export async function rejectPrompt(
   }
 
   if (existing.status !== 'pending') {
-    throw new AppError('VALIDATION_FAILED', `Cannot reject prompt with status "${existing.status}", expected "pending"`);
+    throw new AppError(
+      'VALIDATION_FAILED',
+      `Cannot reject prompt with status "${existing.status}", expected "pending"`,
+    );
   }
 
   const updated = await prisma.prompt.update({

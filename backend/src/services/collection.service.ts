@@ -16,8 +16,32 @@ import { AppError } from '../utils/errors';
 import { createChildLogger } from '../utils/logger';
 import { parsePagination, parseSort, buildPaginatedResponse } from '../utils/pagination';
 import type { PaginatedResponse } from '../types/common';
+import type { PromptSummary } from '../types/prompt';
 
 const log = createChildLogger('collection-service');
+
+// 2026-04-09 修复 — author + prompt 精简字段 select，供 CollectionDetail 返回完整 PromptSummary
+const authorSelect = {
+  id: true,
+  username: true,
+  displayName: true,
+  avatarUrl: true,
+} as const;
+
+const promptSummarySelect = {
+  id: true,
+  title: true,
+  description: true,
+  content: true,
+  tags: true,
+  category: true,
+  model: true,
+  likesCount: true,
+  viewsCount: true,
+  copiesCount: true,
+  createdAt: true,
+  author: { select: authorSelect },
+} as const;
 
 // ── 允许排序的字段白名单 ──────────────────────────────
 const SORTABLE_FIELDS = ['createdAt', 'savedCount'];
@@ -51,7 +75,9 @@ export interface CollectionDetailResult {
   estimatedTime: string | null;
   savedCount: number;
   createdAt: string;
-  prompts: { id: string; title: string; category: string; sortOrder: number }[];
+  // 2026-04-09 修复 — 返回完整 PromptSummary，前端需要完整卡片数据
+  prompts: PromptSummary[];
+  promptCount: number;
   isSaved: boolean;
 }
 
@@ -139,10 +165,11 @@ export async function getCollectionDetail(
   const row = await prisma.collection.findUnique({
     where: { id },
     include: {
+      // 2026-04-09 修复 — 选择完整 PromptSummary 字段，前端需要完整卡片数据
       prompts: {
         include: {
           prompt: {
-            select: { id: true, title: true, category: true },
+            select: promptSummarySelect,
           },
         },
         orderBy: { position: 'asc' },
@@ -162,29 +189,40 @@ export async function getCollectionDetail(
     isSaved = !!save;
   }
 
-  // row 类型包含 include 结果
-  const rowWithPrompts = row as typeof row & {
-    prompts: Array<{ prompt: { id: string; title: string; category: string }; position: number }>;
-  };
+  // 2026-04-09 修复 — 映射为完整 PromptSummary，前端 mapPromptItem 依赖全部字段
+  const rowAny = row as any;
+  const mappedPrompts: PromptSummary[] = (rowAny.prompts ?? []).map((cp: any) => {
+    const p = cp.prompt;
+    return {
+      id: p.id,
+      title: p.title,
+      description: p.description,
+      content: p.content,
+      tags: p.tags,
+      category: p.category,
+      model: p.model,
+      author: p.author ?? { id: '', username: 'anonymous', displayName: null, avatarUrl: null },
+      likesCount: p.likesCount,
+      viewsCount: p.viewsCount,
+      copiesCount: p.copiesCount,
+      createdAt: p.createdAt instanceof Date ? p.createdAt.toISOString() : String(p.createdAt),
+    };
+  });
 
   return {
-    id: rowWithPrompts.id,
-    title: rowWithPrompts.title,
-    description: rowWithPrompts.description,
-    icon: rowWithPrompts.icon,
-    gradientFrom: rowWithPrompts.gradientFrom,
-    gradientTo: rowWithPrompts.gradientTo,
-    tags: rowWithPrompts.tags,
-    difficulty: rowWithPrompts.difficulty,
-    estimatedTime: rowWithPrompts.estimatedTime,
-    savedCount: rowWithPrompts.savedCount,
-    createdAt: rowWithPrompts.createdAt.toISOString(),
-    prompts: rowWithPrompts.prompts.map((cp) => ({
-      id: cp.prompt.id,
-      title: cp.prompt.title,
-      category: cp.prompt.category,
-      sortOrder: cp.position,
-    })),
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    icon: row.icon,
+    gradientFrom: row.gradientFrom,
+    gradientTo: row.gradientTo,
+    tags: row.tags,
+    difficulty: row.difficulty,
+    estimatedTime: row.estimatedTime,
+    savedCount: row.savedCount,
+    createdAt: row.createdAt.toISOString(),
+    prompts: mappedPrompts,
+    promptCount: mappedPrompts.length,
     isSaved,
   };
 }

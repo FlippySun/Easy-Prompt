@@ -39,9 +39,9 @@ export interface CategoryTrending {
 // ── 缓存 TTL 配置（秒）──────────────────────────────────
 
 const CACHE_TTL: Record<TrendingPeriod, number> = {
-  day: 5 * 60,      // 5 分钟
-  week: 30 * 60,    // 30 分钟
-  month: 60 * 60,   // 1 小时
+  day: 5 * 60, // 5 分钟
+  week: 30 * 60, // 30 分钟
+  month: 60 * 60, // 1 小时
 };
 
 // ── 周期 → 天数映射 ──────────────────────────────────────
@@ -135,10 +135,12 @@ export async function trendingPrompts(
       status: 'published',
       createdAt: { gte: since },
     },
+    // 2026-04-09 修复 — 增加 content 字段，对齐 PromptSummary 接口
     select: {
       id: true,
       title: true,
       description: true,
+      content: true,
       tags: true,
       category: true,
       model: true,
@@ -169,6 +171,7 @@ export async function trendingPrompts(
     id: r.id,
     title: r.title,
     description: r.description,
+    content: r.content,
     tags: r.tags,
     category: r.category,
     model: r.model,
@@ -181,7 +184,10 @@ export async function trendingPrompts(
 
   // 写缓存
   await setCache(cacheKey, result, CACHE_TTL[period]);
-  log.debug({ period, limit: safeLimit, count: result.length, source: 'db' }, 'Trending prompts computed');
+  log.debug(
+    { period, limit: safeLimit, count: result.length, source: 'db' },
+    'Trending prompts computed',
+  );
 
   return result;
 }
@@ -299,10 +305,12 @@ export async function dailyPicks(limit = 12): Promise<PromptSummary[]> {
       status: 'published',
       createdAt: { gte: sevenDaysAgo },
     },
+    // 2026-04-09 修复 — 增加 content 字段，对齐 PromptSummary 接口
     select: {
       id: true,
       title: true,
       description: true,
+      content: true,
       tags: true,
       category: true,
       model: true,
@@ -320,6 +328,7 @@ export async function dailyPicks(limit = 12): Promise<PromptSummary[]> {
     id: r.id,
     title: r.title,
     description: r.description,
+    content: r.content,
     tags: r.tags,
     category: r.category,
     model: r.model,

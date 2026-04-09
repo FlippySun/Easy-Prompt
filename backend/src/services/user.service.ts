@@ -129,6 +129,7 @@ export async function getMyPrompts(
         id: true,
         title: true,
         description: true,
+        content: true,
         tags: true,
         category: true,
         model: true,
@@ -146,10 +147,12 @@ export async function getMyPrompts(
     prisma.prompt.count({ where }),
   ]);
 
+  // 2026-04-09 增加 content 字段，对齐 PromptSummary 接口
   const data: PromptSummary[] = rows.map((r) => ({
     id: r.id,
     title: r.title,
     description: r.description,
+    content: r.content,
     tags: r.tags,
     category: r.category,
     model: r.model,
@@ -186,6 +189,7 @@ export async function getMySavedPrompts(
             id: true,
             title: true,
             description: true,
+            content: true,
             tags: true,
             category: true,
             model: true,
@@ -208,6 +212,7 @@ export async function getMySavedPrompts(
     id: r.prompt.id,
     title: r.prompt.title,
     description: r.prompt.description,
+    content: r.prompt.content,
     tags: r.prompt.tags,
     category: r.prompt.category,
     model: r.prompt.model,
@@ -249,6 +254,7 @@ export async function getMyLikedPrompts(
             id: true,
             title: true,
             description: true,
+            content: true,
             tags: true,
             category: true,
             model: true,
@@ -271,6 +277,7 @@ export async function getMyLikedPrompts(
     id: r.prompt.id,
     title: r.prompt.title,
     description: r.prompt.description,
+    content: r.prompt.content,
     tags: r.prompt.tags,
     category: r.prompt.category,
     model: r.prompt.model,
@@ -291,13 +298,20 @@ export async function getMyLikedPrompts(
 
 // ── P3.10: 我的收藏 Collection（分页）──────────────────
 
+// 2026-04-09 修复 — 补齐前端 CollectionItem 所需全部字段
 export interface SavedCollectionItem {
   id: string;
   title: string;
   description: string | null;
   icon: string | null;
+  gradientFrom: string | null;
+  gradientTo: string | null;
   tags: string[];
+  difficulty: string | null;
+  estimatedTime: string | null;
   savedCount: number;
+  promptCount: number;
+  createdAt: string;
   savedAt: string;
 }
 
@@ -317,14 +331,21 @@ export async function getMySavedCollections(
     prisma.userCollectionSave.findMany({
       where: { userId },
       include: {
+        // 2026-04-09 修复 — 补齐前端 CollectionItem 所需全部字段
         collection: {
           select: {
             id: true,
             title: true,
             description: true,
             icon: true,
+            gradientFrom: true,
+            gradientTo: true,
             tags: true,
+            difficulty: true,
+            estimatedTime: true,
             savedCount: true,
+            createdAt: true,
+            _count: { select: { prompts: true } },
           },
         },
       },
@@ -335,15 +356,25 @@ export async function getMySavedCollections(
     prisma.userCollectionSave.count({ where: { userId } }),
   ]);
 
-  const data: SavedCollectionItem[] = rows.map((r) => ({
-    id: r.collection.id,
-    title: r.collection.title,
-    description: r.collection.description,
-    icon: r.collection.icon,
-    tags: r.collection.tags,
-    savedCount: r.collection.savedCount,
-    savedAt: r.createdAt.toISOString(),
-  }));
+  // 2026-04-09 修复 — 补齐前端 CollectionItem 所需全部字段
+  const data: SavedCollectionItem[] = rows.map((r) => {
+    const c = r.collection as any;
+    return {
+      id: c.id,
+      title: c.title,
+      description: c.description,
+      icon: c.icon,
+      gradientFrom: c.gradientFrom,
+      gradientTo: c.gradientTo,
+      tags: c.tags,
+      difficulty: c.difficulty,
+      estimatedTime: c.estimatedTime,
+      savedCount: c.savedCount,
+      promptCount: c._count?.prompts ?? 0,
+      createdAt: c.createdAt instanceof Date ? c.createdAt.toISOString() : String(c.createdAt),
+      savedAt: r.createdAt.toISOString(),
+    };
+  });
 
   return buildPaginatedResponse(data, total, page, pageSize);
 }

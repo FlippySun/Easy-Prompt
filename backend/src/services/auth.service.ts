@@ -10,7 +10,12 @@
 import { prisma } from '../lib/prisma';
 import { redis } from '../lib/redis';
 import { hashPassword, comparePassword } from '../utils/password';
-import { signAccessToken, signRefreshToken, verifyToken } from '../utils/jwt';
+import {
+  signAccessToken,
+  signRefreshToken,
+  verifyToken,
+  getAccessTokenExpiresInSec,
+} from '../utils/jwt';
 import { AppError } from '../utils/errors';
 import { createChildLogger } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
@@ -29,9 +34,11 @@ export interface RegisterInput {
   displayName?: string;
 }
 
+// 2026-04-09 修复 — 增加 expiresIn 字段，供前端调度 token 自动刷新定时器
 export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
+  expiresIn: number; // access token 有效期（秒）
 }
 
 export interface AuthResult {
@@ -95,6 +102,7 @@ export async function registerUser(input: RegisterInput): Promise<AuthResult> {
     tokens: {
       accessToken: signAccessToken(payload),
       refreshToken: signRefreshToken(payload),
+      expiresIn: getAccessTokenExpiresInSec(),
     },
   };
 }
@@ -144,6 +152,7 @@ export async function loginUser(input: LoginInput): Promise<AuthResult> {
     tokens: {
       accessToken: signAccessToken(payload),
       refreshToken: signRefreshToken(payload),
+      expiresIn: getAccessTokenExpiresInSec(),
     },
   };
 }
@@ -177,6 +186,7 @@ export async function refreshTokens(refreshToken: string): Promise<AuthTokens> {
   return {
     accessToken: signAccessToken(payload),
     refreshToken: signRefreshToken(payload),
+    expiresIn: getAccessTokenExpiresInSec(),
   };
 }
 
@@ -186,6 +196,7 @@ export async function refreshTokens(refreshToken: string): Promise<AuthTokens> {
  * 根据 userId 获取用户公开资料
  * @throws RESOURCE_NOT_FOUND
  */
+// 2026-04-09 修复 — 显式序列化 createdAt 为 ISO string，避免返回 Date 对象
 export async function getUserProfile(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -205,7 +216,16 @@ export async function getUserProfile(userId: string) {
     throw new AppError('RESOURCE_NOT_FOUND', 'User not found');
   }
 
-  return user;
+  return {
+    id: user.id,
+    email: user.email,
+    username: user.username,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
+    bio: user.bio,
+    role: user.role,
+    createdAt: user.createdAt.toISOString(),
+  };
 }
 
 // ── SSO 授权码模式 ──────────────────────────────────────
@@ -240,10 +260,7 @@ export async function generateSsoCode(userId: string, redirectUri: string): Prom
  * @param redirectUri 必须与生成时一致
  * @throws AUTH_CODE_INVALID / AUTH_CODE_EXPIRED
  */
-export async function exchangeSsoCode(
-  code: string,
-  redirectUri: string,
-): Promise<AuthResult> {
+export async function exchangeSsoCode(code: string, redirectUri: string): Promise<AuthResult> {
   const key = `sso:code:${code}`;
   const raw = await redis.get(key);
 
@@ -291,6 +308,7 @@ export async function exchangeSsoCode(
     tokens: {
       accessToken: signAccessToken(payload),
       refreshToken: signRefreshToken(payload),
+      expiresIn: getAccessTokenExpiresInSec(),
     },
   };
 }

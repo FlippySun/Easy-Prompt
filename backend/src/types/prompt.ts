@@ -22,11 +22,12 @@ export interface Prompt {
   updatedAt: Date;
 }
 
-/** 列表页用的精简版 */
+/** 列表页用的精简版（2026-04-09 增加 content 字段，卡片需要展示 prompt 内容） */
 export interface PromptSummary {
   id: string;
   title: string;
   description: string | null;
+  content: string;
   tags: string[];
   category: string;
   model: string | null;

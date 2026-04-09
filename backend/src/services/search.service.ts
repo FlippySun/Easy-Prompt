@@ -25,11 +25,14 @@ import type { PaginatedResponse } from '../types/common';
 const log = createChildLogger('search-service');
 
 // ── 搜索结果项类型 ────────────────────────────────────
+// 2026-04-09 修复 — 补齐 content+model，前端 search 响应类型为 PromptItem[]，mapPromptItem 依赖这两个字段
 export interface SearchResultItem {
   id: string;
   title: string;
   description: string | null;
+  content: string;
   category: string;
+  model: string | null;
   tags: string[];
   author: {
     id: string;
@@ -95,9 +98,7 @@ async function checkSearchVectorExists(): Promise<boolean> {
  * 3. 按 ts_rank 降序排序
  * 4. 可选 category/model/tags 过滤
  */
-async function fullTextSearch(
-  params: SearchParams,
-): Promise<PaginatedResponse<SearchResultItem>> {
+async function fullTextSearch(params: SearchParams): Promise<PaginatedResponse<SearchResultItem>> {
   const { keyword, category, model, page = 1, pageSize = 20 } = params;
   const offset = (page - 1) * pageSize;
 
@@ -137,7 +138,7 @@ async function fullTextSearch(
 
   const dataQuery = `
     SELECT
-      p.id, p.title, p.description, p.category, p.tags,
+      p.id, p.title, p.description, p.content, p.category, p.model, p.tags,
       p.likes_count, p.views_count, p.copies_count, p.created_at,
       ts_rank(p.search_vector, plainto_tsquery('simple', $1)) as relevance,
       u.id as author_id, u.username as author_username,
@@ -154,7 +155,9 @@ async function fullTextSearch(
       id: string;
       title: string;
       description: string | null;
+      content: string;
       category: string;
+      model: string | null;
       tags: string[];
       likes_count: number;
       views_count: number;
@@ -172,7 +175,9 @@ async function fullTextSearch(
     id: r.id,
     title: r.title,
     description: r.description,
+    content: r.content,
     category: r.category,
+    model: r.model,
     tags: r.tags,
     author: {
       id: r.author_id ?? '',
@@ -199,9 +204,7 @@ async function fullTextSearch(
  *
  * 匹配范围：title, description, content, tags
  */
-async function ilikeSearch(
-  params: SearchParams,
-): Promise<PaginatedResponse<SearchResultItem>> {
+async function ilikeSearch(params: SearchParams): Promise<PaginatedResponse<SearchResultItem>> {
   const { keyword, category, model, tags, page = 1, pageSize = 20 } = params;
   const { skip, take } = parsePagination({ page, pageSize });
 
@@ -230,11 +233,14 @@ async function ilikeSearch(
   const [rows, total] = await Promise.all([
     prisma.prompt.findMany({
       where,
+      // 2026-04-09 修复 — 补齐 content+model，前端 mapPromptItem 需要
       select: {
         id: true,
         title: true,
         description: true,
+        content: true,
         category: true,
+        model: true,
         tags: true,
         likesCount: true,
         viewsCount: true,
@@ -253,7 +259,9 @@ async function ilikeSearch(
     id: r.id,
     title: r.title,
     description: r.description,
+    content: r.content,
     category: r.category,
+    model: r.model,
     tags: r.tags,
     author: r.author ?? { id: '', username: 'anonymous', displayName: null, avatarUrl: null },
     likesCount: r.likesCount,
