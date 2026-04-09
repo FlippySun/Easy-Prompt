@@ -1437,6 +1437,226 @@ async function directGenerate(config, userInput, sceneId, onProgress, signal) {
 }
 
 /* ═══════════════════════════════════════════════════
+   §7b. Backend API Client (dual-track mode)
+   2026-04-08 新增 — P2.10 Web SPA 客户端迁移 + P2.14 requestId 透传
+   设计思路：优先调用后端 API，失败自动回退本地直连。
+     通过 localStorage 开关 `ep-backend-enabled` 控制是否启用。
+     认证使用 cross-subdomain cookie（credentials: 'include'）。
+   影响范围：handleGenerate 流程
+   潜在风险：后端不可用时增加一次失败延迟（已用 timeout 限制）
+   ═══════════════════════════════════════════════════ */
+
+const BACKEND_API_BASE = "https://api.zhiz.chat";
+const BACKEND_TIMEOUT_MS = 30000;
+const BACKEND_STORAGE_KEY = "ep-backend-enabled";
+const BACKEND_MODE_KEY = "ep-backend-mode";
+
+/**
+ * 生成 UUID v4（用于 requestId 透传 — P2.14）
+ */
+function generateRequestId() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // fallback for older browsers
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+/**
+ * 2026-04-08 P9.09: 获取后端运行模式（三模式开关）
+ * @returns {"auto"|"backend-only"|"local-only"}
+ * 向后兼容：旧版 ep-backend-enabled=false 映射为 "local-only"
+ */
+function getBackendMode() {
+  try {
+    const mode = localStorage.getItem(BACKEND_MODE_KEY);
+    if (mode) return mode;
+    // 向后兼容旧版布尔值
+    const legacy = localStorage.getItem(BACKEND_STORAGE_KEY);
+    if (legacy === "false") return "local-only";
+    return "auto";
+  } catch {
+    return "auto";
+  }
+}
+
+/**
+ * 2026-04-08 P9.09: 设置后端运行模式
+ * @param {"auto"|"backend-only"|"local-only"} mode
+ */
+function setBackendMode(mode) {
+  const valid = ["auto", "backend-only", "local-only"];
+  if (!valid.includes(mode)) mode = "auto";
+  try {
+    localStorage.setItem(BACKEND_MODE_KEY, mode);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 向后兼容 — 检查后端是否启用（mode !== "local-only"） */
+function isBackendEnabled() {
+  return getBackendMode() !== "local-only";
+}
+
+/** 向后兼容 — 设置后端开关（布尔值映射为 mode） */
+function setBackendEnabled(enabled) {
+  setBackendMode(enabled ? "auto" : "local-only");
+}
+
+/**
+ * 检查用户登录态（cross-subdomain cookie）
+ * 返回 true 如果 access_token cookie 存在
+ */
+function isAuthenticated() {
+  try {
+    return document.cookie
+      .split(";")
+      .some((c) => c.trim().startsWith("access_token="));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 后端错误码 → 用户友好中文提示
+ */
+const BACKEND_ERROR_MAP = {
+  AI_PROVIDER_ERROR: "AI 服务暂时不可用，正在回退到本地模式...",
+  AI_TIMEOUT: "AI 服务响应超时，正在回退到本地模式...",
+  RATE_LIMIT_EXCEEDED: "请求过于频繁，请稍后再试",
+  AUTH_TOKEN_EXPIRED: "登录已过期，请重新登录",
+  VALIDATION_FAILED: "请求参数有误",
+  BLACKLISTED: "您的访问已被限制，请联系管理员",
+};
+
+function mapBackendError(errorCode, defaultMsg) {
+  return BACKEND_ERROR_MAP[errorCode] || defaultMsg || "后端服务异常";
+}
+
+/**
+ * 调用后端 AI 增强 API
+ * @param {string} input - 用户输入
+ * @param {object} config - 本地配置（用于 enhanceMode/model/language）
+ * @param {AbortSignal} signal - 取消信号
+ * @returns {Promise<{result: string, scenes: string[], composite: boolean, source: string}>}
+ */
+async function callBackendEnhance(input, config, signal) {
+  const requestId = generateRequestId();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), BACKEND_TIMEOUT_MS);
+
+  // 合并外部 signal 和内部 timeout signal
+  if (signal) {
+    signal.addEventListener("abort", () => controller.abort());
+  }
+
+  try {
+    const resp = await fetch(`${BACKEND_API_BASE}/api/v1/ai/enhance`, {
+      method: "POST",
+      credentials: "include", // cross-subdomain cookie 认证
+      headers: {
+        "Content-Type": "application/json",
+        "X-Request-Id": requestId,
+      },
+      body: JSON.stringify({
+        input,
+        enhanceMode: config.enhanceMode || "fast",
+        model: config.model || "",
+        language: "zh-CN",
+        clientType: "web",
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    const data = await resp.json();
+
+    if (!data.success) {
+      const errCode = data.error?.code || "UNKNOWN";
+      const errMsg = data.error?.message || "Backend error";
+      // 限流和黑名单错误不应回退到本地
+      if (errCode === "RATE_LIMIT_EXCEEDED" || errCode === "BLACKLISTED") {
+        throw new Error(mapBackendError(errCode, errMsg));
+      }
+      throw new Error(errMsg);
+    }
+
+    return {
+      result: data.data.output,
+      scenes: data.data.scenes || ["optimize"],
+      composite: data.data.composite || false,
+      source: "backend",
+      requestId,
+    };
+  } catch (err) {
+    clearTimeout(timeout);
+    throw err;
+  }
+}
+
+/**
+ * 2026-04-08 P9.09: 三模式双轨增强
+ * @param {object} config - 本地配置
+ * @param {string} input - 用户输入
+ * @param {string|null} sceneId - 指定场景（null = smartRoute）
+ * @param {function} onProgress - 进度回调
+ * @param {AbortSignal} signal - 取消信号
+ * @returns {Promise<{result, scenes, composite, source}>}
+ */
+async function dualTrackEnhance(config, input, sceneId, onProgress, signal) {
+  const mode = getBackendMode();
+
+  // local-only: 直接走本地
+  if (mode === "local-only") {
+    const localResult = sceneId
+      ? await directGenerate(config, input, sceneId, onProgress, signal)
+      : await smartRoute(config, input, onProgress, signal);
+    return { ...localResult, source: "local" };
+  }
+
+  // auto / backend-only: 尝试后端
+  try {
+    if (onProgress) onProgress("routing", "正在连接后端 AI 服务...");
+    const result = await callBackendEnhance(input, config, signal);
+    return result;
+  } catch (backendErr) {
+    // 用户主动取消 → 不回退
+    if (backendErr.name === "AbortError" || backendErr.message === "已取消") {
+      throw backendErr;
+    }
+
+    // 限流/黑名单等明确拒绝 → 不回退，直接抛出
+    if (
+      backendErr.message.includes("请求过于频繁") ||
+      backendErr.message.includes("访问已被限制")
+    ) {
+      throw backendErr;
+    }
+
+    // backend-only: 不回退，直接抛出
+    if (mode === "backend-only") {
+      throw new Error(`后端服务不可用: ${backendErr.message}`);
+    }
+
+    // auto: 回退本地直连
+    console.warn("[Easy Prompt] 后端回退:", backendErr.message);
+    if (onProgress)
+      onProgress("routing", "后端服务不可用，正在切换到本地模式...");
+
+    const localResult = sceneId
+      ? await directGenerate(config, input, sceneId, onProgress, signal)
+      : await smartRoute(config, input, onProgress, signal);
+    return { ...localResult, source: "local-fallback" };
+  }
+}
+
+/* ═══════════════════════════════════════════════════
    §8. UI Controller
    ═══════════════════════════════════════════════════ */
 
@@ -1617,27 +1837,16 @@ async function handleGenerate() {
   const config = await getEffectiveConfig();
 
   try {
-    let result;
-    if (selectedScene) {
-      result = await directGenerate(
-        config,
-        input,
-        selectedScene,
-        (stage, text) => {
-          updateProgress(text);
-        },
-        signal,
-      );
-    } else {
-      result = await smartRoute(
-        config,
-        input,
-        (stage, text) => {
-          updateProgress(text);
-        },
-        signal,
-      );
-    }
+    // 2026-04-08 P2.10: 双轨模式 — 优先后端 API，失败回退本地直连
+    const result = await dualTrackEnhance(
+      config,
+      input,
+      selectedScene,
+      (stage, text) => {
+        updateProgress(text);
+      },
+      signal,
+    );
     hideProgress();
     showOutput(result.result, result.scenes, result.composite);
     // Save to history
@@ -1645,7 +1854,11 @@ async function handleGenerate() {
     const sceneName = result.scenes
       .map((id) => SCENE_NAMES[id] || id)
       .join(" + ");
+    // 记录数据来源（backend / local / local-fallback）
     saveHistoryRecord(input, result.result, mode, result.scenes, sceneName);
+    if (result.source === "local-fallback") {
+      showToast("已通过本地模式完成（后端服务暂不可用）", "warning");
+    }
   } catch (err) {
     hideProgress();
     if (err.message !== "已取消") {
