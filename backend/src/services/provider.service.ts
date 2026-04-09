@@ -16,35 +16,63 @@ const log = createChildLogger('provider');
 
 /**
  * 获取当前激活的 provider（解密 API Key）
- * @throws PROVIDER_NOT_FOUND / PROVIDER_INACTIVE
+ * 2026-04-09 修复 — 增加解密失败防御：按 priority 降序遍历所有 active provider，
+ *   跳过解密失败的条目并记录警告，返回第一个可用的；全部失败则抛明确错误
+ * @throws PROVIDER_INACTIVE / PROVIDER_KEY_DECRYPT_FAILED
  */
 export async function getActiveProvider() {
-  const provider = await prisma.aiProvider.findFirst({
+  const providers = await prisma.aiProvider.findMany({
     where: { isActive: true },
+    orderBy: { priority: 'desc' },
   });
 
-  if (!provider) {
+  if (providers.length === 0) {
     throw new AppError('PROVIDER_INACTIVE', 'No active AI provider configured');
   }
 
-  return {
-    ...provider,
-    apiKey: decrypt(provider.apiKey),
-  };
+  for (const provider of providers) {
+    try {
+      const apiKey = decrypt(provider.apiKey);
+      return { ...provider, apiKey };
+    } catch (err) {
+      log.warn(
+        { providerId: provider.id, slug: provider.slug, error: (err as Error).message },
+        'Failed to decrypt provider API key, skipping',
+      );
+    }
+  }
+
+  // 所有 active provider 均解密失败
+  throw new AppError(
+    'PROVIDER_KEY_DECRYPT_FAILED',
+    `所有激活的 Provider (${providers.length}) 的 API Key 均无法解密，请通过管理员 API 重新设置 API Key`,
+  );
 }
 
 /**
  * 根据 ID 获取 provider（解密 API Key）
+ * 2026-04-09 修复 — 增加解密失败防御，返回明确错误而非 OpenSSL 原始异常
  */
 export async function getProviderById(id: string) {
   const provider = await prisma.aiProvider.findUnique({ where: { id } });
   if (!provider) {
     throw new AppError('PROVIDER_NOT_FOUND');
   }
-  return {
-    ...provider,
-    apiKey: decrypt(provider.apiKey),
-  };
+  try {
+    return {
+      ...provider,
+      apiKey: decrypt(provider.apiKey),
+    };
+  } catch (err) {
+    log.warn(
+      { providerId: id, slug: provider.slug, error: (err as Error).message },
+      'Failed to decrypt provider API key',
+    );
+    throw new AppError(
+      'PROVIDER_KEY_DECRYPT_FAILED',
+      `Provider "${provider.name}" 的 API Key 无法解密，请通过管理员 API 重新设置`,
+    );
+  }
 }
 
 /**

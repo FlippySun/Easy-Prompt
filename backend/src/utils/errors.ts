@@ -58,6 +58,11 @@ export const ERROR_CODES = {
   PROVIDER_INACTIVE: { httpStatus: 400, defaultMessage: 'Provider is inactive' },
   PROVIDER_CONFIG_ERROR: { httpStatus: 400, defaultMessage: 'Provider configuration error' },
   PROVIDER_LIMIT_REACHED: { httpStatus: 429, defaultMessage: 'Provider request limit reached' },
+  // 2026-04-09 新增 — Provider API Key 解密失败（PROVIDER_ENCRYPTION_KEY 不匹配）
+  PROVIDER_KEY_DECRYPT_FAILED: {
+    httpStatus: 500,
+    defaultMessage: 'Provider API key decryption failed',
+  },
 
   // ── RESOURCE（资源操作）──
   RESOURCE_NOT_FOUND: { httpStatus: 404, defaultMessage: 'Resource not found' },

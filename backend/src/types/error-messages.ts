@@ -66,6 +66,7 @@ export const ERROR_MESSAGES: Record<SupportedLocale, Record<ErrorCode, string>> 
     PROVIDER_INACTIVE: '服务提供商已停用',
     PROVIDER_CONFIG_ERROR: '服务提供商配置有误',
     PROVIDER_LIMIT_REACHED: '服务提供商请求额度已用完',
+    PROVIDER_KEY_DECRYPT_FAILED: '服务提供商密钥解密失败，请联系管理员',
 
     // ── RESOURCE（资源操作）——3 个 ──
     RESOURCE_NOT_FOUND: '请求的内容不存在',
@@ -128,6 +129,7 @@ export const ERROR_MESSAGES: Record<SupportedLocale, Record<ErrorCode, string>> 
     PROVIDER_INACTIVE: 'Service provider is inactive',
     PROVIDER_CONFIG_ERROR: 'Service provider configuration error',
     PROVIDER_LIMIT_REACHED: 'Service provider request limit reached',
+    PROVIDER_KEY_DECRYPT_FAILED: 'Provider API key decryption failed, please contact admin',
 
     // ── RESOURCE（资源操作）——3 个 ──
     RESOURCE_NOT_FOUND: 'The requested content was not found',
