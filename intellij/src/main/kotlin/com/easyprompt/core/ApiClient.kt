@@ -863,12 +863,13 @@ object ApiClient {
     }
 
     /* ═══════════════════════════════════════════════════
-       Backend API Client (dual-track mode)
-       2026-04-08 新增 — P2.13 IntelliJ Plugin 客户端迁移 + P2.14 requestId 透传
-       设计思路：优先调用后端 API（JVM HttpURLConnection），失败自动回退本地直连。
-         认证暂留 placeholder（后续 SSO 集成时补充）。
+       Backend API Client (backend-only mode)
+       2026-04-08 P2.13 新增，2026-04-09 架构重构
+       设计思路：所有增强请求统一走后端 API（api.zhiz.chat），
+         后端做中间转接层（记录信息 + 管理 API Key + 内部转发）。
+         客户端不再持有 Provider Key，不再有本地直连回退。
        影响范围：smartRoute / directGenerate 调用入口
-       潜在风险：后端不可用时增加一次失败延迟（已用 30s timeout 限制）
+       潜在风险：无已知风险
        ═══════════════════════════════════════════════════ */
 
     private const val BACKEND_API_BASE = "https://api.zhiz.chat"
@@ -890,10 +891,11 @@ object ApiClient {
 
     /**
      * 后端错误码 → 用户友好中文提示
+     * 2026-04-09 更新：移除“回退到本地模式”提示（本地模式已废弃）
      */
     private val BACKEND_ERROR_MAP = mapOf(
-        "AI_PROVIDER_ERROR" to "AI 服务暂时不可用，正在回退到本地模式...",
-        "AI_TIMEOUT" to "AI 服务响应超时，正在回退到本地模式...",
+        "AI_PROVIDER_ERROR" to "AI 服务暂时不可用，请稍后重试",
+        "AI_TIMEOUT" to "AI 服务响应超时，请稍后重试",
         "RATE_LIMIT_EXCEEDED" to "请求过于频繁，请稍后再试",
         "AUTH_TOKEN_EXPIRED" to "登录已过期，请重新登录",
         "VALIDATION_FAILED" to "请求参数有误",
@@ -982,56 +984,23 @@ object ApiClient {
     }
 
     /**
-     * 2026-04-08 P9.09: 三模式双轨增强
-     * mode: "auto" | "backend-only" | "local-only"
-     * 向后兼容：backendMode 为空时参考旧版 backendEnabled 布尔值
+     * 2026-04-09 架构重构：统一后端增强（backend-only）
+     * 所有增强请求走 backend API，不再有本地直连回退。
      */
     fun dualTrackEnhance(
         userInput: String,
         onProgress: ((String) -> Unit)? = null,
         indicator: ProgressIndicator? = null
     ): SmartRouteResult {
-        val settings = EasyPromptSettings.getInstance()
-        // 2026-04-08 P9.09: 解析运行模式 — backendMode 优先，backendEnabled 向后兼容
-        @Suppress("DEPRECATION")
-        val mode = settings.state.backendMode.ifBlank {
-            if (settings.state.backendEnabled) "auto" else "local-only"
-        }
-
-        // local-only: 直接走本地
-        if (mode == "local-only") {
-            return smartRoute(userInput, onProgress, indicator)
-        }
-
-        // auto / backend-only: 尝试后端
-        try {
-            onProgress?.invoke("🌐 正在连接后端 AI 服务...")
-            val config = getEffectiveConfig()
-            val result = callBackendEnhance(
-                input = userInput,
-                enhanceMode = config.enhanceMode,
-                model = config.model,
-                indicator = indicator
-            )
-            return SmartRouteResult(result.result, result.scenes, result.composite)
-        } catch (e: Exception) {
-            val msg = e.message ?: ""
-            // 用户取消 → 不回退
-            if (msg == "已取消" || indicator?.isCanceled == true) {
-                throw RuntimeException("已取消")
-            }
-            // 限流/黑名单 → 不回退
-            if (msg.contains("请求过于频繁") || msg.contains("访问已被限制")) {
-                throw e
-            }
-            // backend-only: 不回退，直接抛出
-            if (mode == "backend-only") {
-                throw RuntimeException("后端服务不可用: $msg")
-            }
-            // auto: 回退本地
-            onProgress?.invoke("⚠️ 后端服务不可用，正在切换到本地模式...")
-            return smartRoute(userInput, onProgress, indicator)
-        }
+        onProgress?.invoke("🌐 正在连接 AI 服务...")
+        val config = getEffectiveConfig()
+        val result = callBackendEnhance(
+            input = userInput,
+            enhanceMode = config.enhanceMode,
+            model = config.model,
+            indicator = indicator
+        )
+        return SmartRouteResult(result.result, result.scenes, result.composite)
     }
 
     /**

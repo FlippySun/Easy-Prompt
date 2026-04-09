@@ -371,7 +371,7 @@ function getConfig() {
 
 /**
  * 使用 smartRoute 增强文本（公共逻辑）
- * 2026-04-08 P2.12: 改为双轨模式 — 优先后端 API，失败自动回退本地 curl
+ * 2026-04-09 架构重构：统一后端增强（backend-only）
  */
 async function runSmartRoute(config, text, progress) {
   const startTime = Date.now();
@@ -387,28 +387,19 @@ async function runSmartRoute(config, text, progress) {
     }
   };
 
-  // 本地增强函数（原 smartRoute 调用）
-  const localEnhanceFn = async (cfg, input, progressFn) => {
-    return await smartRoute(cfg, input, progressFn);
-  };
-
-  // 2026-04-08 P9.09+P9.10: 后端选项 — 读取三模式开关、自定义 URL、Access Token
-  // mode: "auto" | "backend-only" | "local-only"
-  // accessToken: 手动输入的 Bearer Token（留空则匿名）
+  // 2026-04-09 架构重构：统一走 backend API，不再有本地直连回退
   const backendCfg = vscode.workspace.getConfiguration("easyPrompt");
-  const backendMode = backendCfg.get("backendMode", "auto");
   const backendUrl = backendCfg.get("backendUrl", "");
   const backendToken = backendCfg.get("backendToken", "");
 
   const result = await dualTrackEnhance(
     config,
     text,
-    localEnhanceFn,
+    null, // localEnhanceFn 已废弃，保留参数位
     {
       enhanceMode: config.enhanceMode || "fast",
       model: config.model || "",
       clientType: "vscode",
-      mode: backendMode,
       backendUrl: backendUrl || undefined,
       accessToken: backendToken || undefined,
     },
@@ -419,13 +410,6 @@ async function runSmartRoute(config, text, progress) {
   const label = result.composite
     ? `复合：${result.scenes.map((s) => SCENE_NAMES[s] || s).join(" + ")}`
     : SCENE_NAMES[result.scenes[0]] || result.scenes[0];
-
-  // 提示回退信息
-  if (result.source === "local-fallback") {
-    vscode.window.showWarningMessage(
-      "Easy Prompt: 后端服务不可用，已通过本地模式完成",
-    );
-  }
 
   return { ...result, label, elapsed };
 }

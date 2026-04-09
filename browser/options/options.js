@@ -132,23 +132,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Fetch models
   $("#btn-fetch-models").addEventListener("click", handleFetchModels);
 
-  // 2026-04-08 P9.09: Backend mode selector — load saved 3-mode state
-  const backendMode = await Api.getBackendMode();
+  // 2026-04-09 架构重构：三模式选择器已移除，统一走 backend API
+  // 如果页面还保留了 mode selector DOM，设为固定值并禁用
   const backendModeSelect = $("#input-backend-mode");
   if (backendModeSelect) {
-    backendModeSelect.value = backendMode;
-    backendModeSelect.addEventListener("change", async () => {
-      await Api.setBackendMode(backendModeSelect.value);
-      const labels = {
-        auto: "Auto 模式",
-        "backend-only": "Backend Only 模式",
-        "local-only": "Local Only 模式",
-      };
-      showToast(
-        `已切换为 ${labels[backendModeSelect.value] || backendModeSelect.value}`,
-        "success",
-      );
-    });
+    backendModeSelect.value = "backend-only";
+    backendModeSelect.disabled = true;
   }
 
   // Backend health check button

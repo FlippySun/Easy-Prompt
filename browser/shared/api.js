@@ -469,13 +469,14 @@ async function fetchModels(config) {
 }
 
 /* ═══════════════════════════════════════════════════
-   Backend API Client (dual-track mode)
-   2026-04-08 新增 — P2.11 Browser Extension 客户端迁移 + P2.14 requestId 透传
-   设计思路：优先调用后端 API，失败自动回退本地直连。
-     通过 chrome.storage.local 开关 `ep-backend-enabled` 控制。
+   Backend API Client (backend-only mode)
+   2026-04-08 新增，2026-04-09 架构重构
+   设计思路：所有增强请求统一走后端 API（api.zhiz.chat），
+     后端做中间转接层（记录信息 + 管理 API Key + 内部转发）。
+     客户端不再持有 Provider Key，不再有本地直连回退。
      认证使用 chrome.storage.local 中存储的 access_token。
    影响范围：handleInlineEnhance / popup enhance 流程
-   潜在风险：后端不可用时增加一次失败延迟（已用 timeout 限制）
+   潜在风险：无已知风险
    ═══════════════════════════════════════════════════ */
 
 const BACKEND_API_BASE = "https://api.zhiz.chat";
@@ -495,54 +496,8 @@ function generateRequestId() {
   });
 }
 
-/**
- * 2026-04-08 P9.09: 获取后端运行模式（三模式开关）
- * @returns {Promise<"auto"|"backend-only"|"local-only">}
- * 向后兼容：旧版 ep-backend-enabled=false 映射为 "local-only"
- */
-async function getBackendMode() {
-  try {
-    const data = await chrome.storage.local.get([
-      "ep-backend-mode",
-      "ep-backend-enabled",
-    ]);
-    if (data["ep-backend-mode"]) return data["ep-backend-mode"];
-    // 向后兼容旧版布尔值
-    if (data["ep-backend-enabled"] === false) return "local-only";
-    return "auto";
-  } catch {
-    return "auto";
-  }
-}
-
-/**
- * 2026-04-08 P9.09: 向后兼容 — 检查后端是否启用（mode !== "local-only"）
- */
-async function isBackendEnabled() {
-  const mode = await getBackendMode();
-  return mode !== "local-only";
-}
-
-/**
- * 2026-04-08 P9.09: 设置后端运行模式
- * @param {"auto"|"backend-only"|"local-only"} mode
- */
-async function setBackendMode(mode) {
-  const valid = ["auto", "backend-only", "local-only"];
-  if (!valid.includes(mode)) mode = "auto";
-  try {
-    await chrome.storage.local.set({ "ep-backend-mode": mode });
-  } catch {
-    /* ignore */
-  }
-}
-
-/**
- * 向后兼容 — 设置后端开关（布尔值映射为 mode）
- */
-async function setBackendEnabled(enabled) {
-  await setBackendMode(enabled ? "auto" : "local-only");
-}
+// 2026-04-09 架构重构：三模式开关已移除。
+// 所有增强请求统一走 backend API，不再有本地直连回退。
 
 /**
  * 从 chrome.storage.local 获取 access token
@@ -558,10 +513,11 @@ async function getAccessToken() {
 
 /**
  * 后端错误码 → 用户友好中文提示
+ * 2026-04-09 更新：移除“回退到本地模式”提示（本地模式已废弃）
  */
 const BACKEND_ERROR_MAP = {
-  AI_PROVIDER_ERROR: "AI 服务暂时不可用，正在回退到本地模式...",
-  AI_TIMEOUT: "AI 服务响应超时，正在回退到本地模式...",
+  AI_PROVIDER_ERROR: "AI 服务暂时不可用，请稍后重试",
+  AI_TIMEOUT: "AI 服务响应超时，请稍后重试",
   RATE_LIMIT_EXCEEDED: "请求过于频繁，请稍后再试",
   AUTH_TOKEN_EXPIRED: "登录已过期，请重新登录",
   VALIDATION_FAILED: "请求参数有误",
@@ -620,7 +576,7 @@ async function callBackendEnhance(input, config, signal) {
       if (errCode === "RATE_LIMIT_EXCEEDED" || errCode === "BLACKLISTED") {
         throw new Error(mapBackendError(errCode, errMsg));
       }
-      throw new Error(errMsg);
+      throw new Error(mapBackendError(errCode, errMsg));
     }
 
     return {
@@ -637,10 +593,11 @@ async function callBackendEnhance(input, config, signal) {
 }
 
 /**
- * 2026-04-08 P9.09: 三模式双轨增强
- * @param {object} config - 本地配置
+ * 2026-04-09 架构重构：统一后端增强（backend-only）
+ * 所有增强请求走 backend API，不再有本地直连回退。
+ * @param {object} config - 用户配置（enhanceMode/model 传给 backend）
  * @param {string} input - 用户输入
- * @param {function} localEnhanceFn - 本地增强函数 (config, input, onProgress, signal) => result
+ * @param {function} _localEnhanceFn - [已废弃] 保留参数位以免调用方报错
  * @param {function} [onProgress] - 进度回调
  * @param {AbortSignal} [signal] - 取消信号
  * @returns {Promise<{result, scenes, composite, source}>}
@@ -648,47 +605,12 @@ async function callBackendEnhance(input, config, signal) {
 async function dualTrackEnhance(
   config,
   input,
-  localEnhanceFn,
+  _localEnhanceFn,
   onProgress,
   signal,
 ) {
-  const mode = await getBackendMode();
-
-  // local-only: 直接走本地
-  if (mode === "local-only") {
-    const localResult = await localEnhanceFn(config, input, onProgress, signal);
-    return { ...localResult, source: "local" };
-  }
-
-  // auto / backend-only: 尝试后端
-  try {
-    if (onProgress) onProgress("routing", "正在连接后端 AI 服务...");
-    const result = await callBackendEnhance(input, config, signal);
-    return result;
-  } catch (backendErr) {
-    if (backendErr.name === "AbortError" || backendErr.message === "已取消") {
-      throw backendErr;
-    }
-    if (
-      backendErr.message.includes("请求过于频繁") ||
-      backendErr.message.includes("访问已被限制")
-    ) {
-      throw backendErr;
-    }
-
-    // backend-only: 不回退，直接抛出
-    if (mode === "backend-only") {
-      throw new Error(`后端服务不可用: ${backendErr.message}`);
-    }
-
-    // auto: 回退到本地
-    console.warn("[Easy Prompt] 后端回退:", backendErr.message);
-    if (onProgress)
-      onProgress("routing", "后端服务不可用，正在切换到本地模式...");
-
-    const localResult = await localEnhanceFn(config, input, onProgress, signal);
-    return { ...localResult, source: "local-fallback" };
-  }
+  if (onProgress) onProgress("routing", "正在连接 AI 服务...");
+  return await callBackendEnhance(input, config, signal);
 }
 
 // eslint-disable-next-line no-unused-vars
@@ -704,10 +626,6 @@ const Api = {
   fetchModels,
   friendlyError,
   generateRequestId,
-  isBackendEnabled,
-  setBackendEnabled,
-  getBackendMode,
-  setBackendMode,
   getAccessToken,
   callBackendEnhance,
   dualTrackEnhance,

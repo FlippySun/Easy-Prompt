@@ -436,27 +436,11 @@ async function handleGenerate() {
   setGenerating(true);
 
   try {
-    // 2026-04-08 P9.04: 双轨模式 — 优先后端 API，失败回退本地直连
-    // 设计思路：复用 Api.dualTrackEnhance，与 service-worker inline 路径对齐
-    // 影响范围：popup 增强流程
-    // 潜在风险：后端不可用时增加一次失败延迟（已用 timeout 限制）
-    const localEnhanceFn = async (cfg, input, progress, signal) => {
-      if (selectedScene) {
-        return await Router.directGenerate(
-          cfg,
-          input,
-          selectedScene,
-          progress,
-          signal,
-        );
-      }
-      return await Router.smartRoute(cfg, input, progress, signal);
-    };
-
+    // 2026-04-09 架构重构：统一后端增强（backend-only），不再有本地直连回退
     const result = await Api.dualTrackEnhance(
       config,
       text,
-      localEnhanceFn,
+      null, // localEnhanceFn 已废弃，保留参数位
       onProgress,
       currentAbortController.signal,
     );
@@ -467,9 +451,7 @@ async function handleGenerate() {
     // Show output with source indicator
     showOutput(promptOnlyResult, result.scenes, result.composite, true, source);
 
-    if (source === "local-fallback") {
-      showToast("已通过本地模式完成（后端服务暂不可用）", "warning");
-    }
+    // 2026-04-09: 所有结果均来自 backend
 
     // Save to history
     const sceneNames = Scenes.getSceneNames();
@@ -530,7 +512,7 @@ function hideStatus() {
   $("#status-bar").hidden = true;
 }
 
-// 2026-04-08 P9.04: source 参数新增 — 显示数据来源标记（backend/local/local-fallback）
+// 2026-04-09: 显示数据来源标记（统一 backend）
 function showOutput(text, sceneIds, composite, animate = true, source = "") {
   const scenes = Scenes.getSceneNames();
   const badge = sceneIds
@@ -561,20 +543,12 @@ function showOutput(text, sceneIds, composite, animate = true, source = "") {
   $("#output-scene-badge").textContent = badge;
   $("#output-content").textContent = text;
 
-  // 2026-04-08 P9.04: 显示数据来源标记
+  // 2026-04-09 架构重构：统一后端增强，source 固定为 "backend"
   const sourceBadge = $("#output-source-badge");
   if (sourceBadge) {
     if (source === "backend") {
       sourceBadge.textContent = "☁️ 后端";
       sourceBadge.className = "output-area__source-badge source--backend";
-      sourceBadge.hidden = false;
-    } else if (source === "local-fallback") {
-      sourceBadge.textContent = "⚡ 本地回退";
-      sourceBadge.className = "output-area__source-badge source--fallback";
-      sourceBadge.hidden = false;
-    } else if (source === "local") {
-      sourceBadge.textContent = "⚡ 本地";
-      sourceBadge.className = "output-area__source-badge source--local";
       sourceBadge.hidden = false;
     } else {
       sourceBadge.hidden = true;

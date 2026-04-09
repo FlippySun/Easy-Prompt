@@ -661,12 +661,14 @@ async function callGenerationApi(
 }
 
 /* ═══════════════════════════════════════════════════
-   Backend API Client (dual-track mode)
-   2026-04-08 新增 — P2.12 VS Code Extension 客户端迁移 + P2.14 requestId 透传
-   设计思路：优先调用后端 API（Node.js https），失败自动回退本地 curl 直连。
+   Backend API Client (backend-only mode)
+   2026-04-08 新增，2026-04-09 架构重构
+   设计思路：所有增强请求统一走后端 API（api.zhiz.chat），
+     后端做中间转接层（记录信息 + 管理 API Key + 内部转发）。
+     客户端不再持有 Provider Key，不再有本地直连回退。
      认证使用 vscode.SecretStorage 中存储的 access_token（由调用方传入）。
    影响范围：extension.js runSmartRoute 流程
-   潜在风险：后端不可用时增加一次失败延迟（已用 timeout 限制）
+   潜在风险：无已知风险
    ═══════════════════════════════════════════════════ */
 
 const https = require("https");
@@ -696,10 +698,11 @@ function generateRequestId() {
 
 /**
  * 后端错误码 → 用户友好中文提示
+ * 2026-04-09 更新：移除“回退到本地模式”提示（本地模式已废弃）
  */
 const BACKEND_ERROR_MAP = {
-  AI_PROVIDER_ERROR: "AI 服务暂时不可用，正在回退到本地模式...",
-  AI_TIMEOUT: "AI 服务响应超时，正在回退到本地模式...",
+  AI_PROVIDER_ERROR: "AI 服务暂时不可用，请稍后重试",
+  AI_TIMEOUT: "AI 服务响应超时，请稍后重试",
   RATE_LIMIT_EXCEEDED: "请求过于频繁，请稍后再试",
   AUTH_TOKEN_EXPIRED: "登录已过期，请重新登录",
   VALIDATION_FAILED: "请求参数有误",
@@ -799,62 +802,24 @@ function callBackendEnhance(input, options = {}) {
 }
 
 /**
- * 2026-04-08 P9.09: 三模式双轨增强
- * @param {object} config - 本地 API 配置
+ * 2026-04-09 架构重构：统一后端增强（backend-only）
+ * 所有增强请求走 backend API，不再有本地直连回退。
+ * @param {object} config - [已废弃] 保留参数位以免调用方报错
  * @param {string} input - 用户输入
- * @param {function} localEnhanceFn - 本地增强函数 (config, input, onProgress) => result
- * @param {object} backendOptions - { enhanceMode, model, accessToken, clientType, enabled?, mode?, backendUrl? }
- *   mode: "auto" | "backend-only" | "local-only"（优先级高于 enabled 布尔值）
- *   enabled: 向后兼容布尔值（false → local-only, true/undefined → auto）
+ * @param {function} _localEnhanceFn - [已废弃] 保留参数位以免调用方报错
+ * @param {object} backendOptions - { enhanceMode, model, accessToken, clientType, backendUrl? }
  * @param {function} [onProgress] - 进度回调
  * @returns {Promise<{result, scenes, composite, source}>}
  */
 async function dualTrackEnhance(
   config,
   input,
-  localEnhanceFn,
+  _localEnhanceFn,
   backendOptions,
   onProgress,
 ) {
-  // 2026-04-08 P9.09: 解析运行模式 — mode 优先，enabled 向后兼容
-  let mode = "auto";
-  if (backendOptions?.mode) {
-    mode = backendOptions.mode;
-  } else if (!backendOptions || backendOptions.enabled === false) {
-    mode = "local-only";
-  }
-
-  // local-only: 直接走本地
-  if (mode === "local-only") {
-    const localResult = await localEnhanceFn(config, input, onProgress);
-    return { ...localResult, source: "local" };
-  }
-
-  // auto / backend-only: 尝试后端
-  try {
-    if (onProgress) onProgress("routing", "正在连接后端 AI 服务...");
-    const result = await callBackendEnhance(input, backendOptions);
-    return result;
-  } catch (backendErr) {
-    if (backendErr.message === "已取消") throw backendErr;
-    if (
-      backendErr.message.includes("请求过于频繁") ||
-      backendErr.message.includes("访问已被限制")
-    ) {
-      throw backendErr;
-    }
-
-    // backend-only: 不回退，直接抛出
-    if (mode === "backend-only") {
-      throw new Error(`后端服务不可用: ${backendErr.message}`);
-    }
-
-    // auto: 回退到本地
-    if (onProgress)
-      onProgress("routing", "后端服务不可用，正在切换到本地模式...");
-    const localResult = await localEnhanceFn(config, input, onProgress);
-    return { ...localResult, source: "local-fallback" };
-  }
+  if (onProgress) onProgress("routing", "正在连接 AI 服务...");
+  return await callBackendEnhance(input, backendOptions);
 }
 
 module.exports = {

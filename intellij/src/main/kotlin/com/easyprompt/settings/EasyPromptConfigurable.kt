@@ -49,11 +49,9 @@ class EasyPromptConfigurable : Configurable {
         "deep" to "Deep（输出更完整）"
     )
 
-    /** 2026-04-08 P9.09: 后端运行模式列表 */
+    /** 2026-04-09 架构重构：统一后端增强，模式选择已废弃（固定 backend-only） */
     private val backendModeEntries = arrayOf(
-        "auto" to "Auto（默认，后端优先 + 本地回退）",
-        "backend-only" to "Backend Only（仅后端，不回退）",
-        "local-only" to "Local Only（仅本地直连）"
+        "backend-only" to "Backend Only（统一后端增强）"
     )
 
     override fun getDisplayName(): String = "Easy Prompt"

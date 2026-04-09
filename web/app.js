@@ -180,71 +180,10 @@ const PERSONAS = [
 ];
 
 /* ═══════════════════════════════════════════════════
-   §2. Built-in Default Config (AES-256-CBC Encrypted)
+   §2. [已移除] 内置 Provider Key
+   2026-04-09 架构重构：所有增强请求统一走 backend API（api.zhiz.chat），
+   客户端不再持有 Provider Key，后端做中间转接层（记录信息 + 管理 Key + 转发）。
    ═══════════════════════════════════════════════════ */
-
-// Key fragments (same as core/defaults.js)
-const _k = [
-  "\x45\x50",
-  "\x2d\x53",
-  "\x65\x63",
-  "\x72\x65",
-  "\x74\x2d",
-  "\x4b\x33",
-  "\x79\x21",
-  "\x40\x32",
-  "\x30\x32",
-  "\x36\x23",
-  "\x46\x6c",
-  "\x69\x70",
-  "\x70\x79",
-  "\x53\x75",
-  "\x6e\x58",
-  "\x39",
-];
-const _seq = [0, 10, 4, 2, 14, 8, 6, 12, 1, 11, 5, 3, 15, 9, 7, 13];
-const _order = [0, 8, 1, 9, 2, 10, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15];
-
-function _dk() {
-  return _order.map((i) => _k[_seq[i]]).join("");
-}
-
-// Pre-encrypted vault (AES-256-CBC, base64 iv:ciphertext)
-const _vault = {
-  _a: "k313mtKSe4Wbv2wu1bz++w==:uye3jIJbkwQTb5xJ98c8Sf7jhO/DH+X1UbpFbqNWqM7QDWbbRhra82e9DMt+uYKw",
-  _b: "CTI9rnIIGEq1z+CGhNLuAA==:I6eSlDaD0UNDCc4IGmppIBjJ6nhLfcYFivyy5lXkkNLv8d8YMC+TVxrgZK8rayAZHJOrNJH675vQvzc34e9Bw0tqK+aKhbdkTMEgdeYQHPE=",
-  _c: "xCcJTunqN4nH0FkIJlKOgA==:l7HFzaqNj8dfo0iS4F3osQ==",
-};
-
-let _builtinCache = null;
-
-async function _decAES(ct) {
-  const [ivB64, encB64] = ct.split(":");
-  const iv = Uint8Array.from(atob(ivB64), (c) => c.charCodeAt(0));
-  const enc = Uint8Array.from(atob(encB64), (c) => c.charCodeAt(0));
-  const rawKey = new TextEncoder().encode(_dk());
-  const hash = await crypto.subtle.digest("SHA-256", rawKey);
-  const key = await crypto.subtle.importKey(
-    "raw",
-    hash,
-    { name: "AES-CBC" },
-    false,
-    ["decrypt"],
-  );
-  const dec = await crypto.subtle.decrypt({ name: "AES-CBC", iv }, key, enc);
-  return new TextDecoder().decode(dec);
-}
-
-async function _getBuiltinDefaults() {
-  if (_builtinCache) return _builtinCache;
-  const [baseUrl, apiKey, model] = await Promise.all([
-    _decAES(_vault._a),
-    _decAES(_vault._b),
-    _decAES(_vault._c),
-  ]);
-  _builtinCache = { baseUrl, apiKey, model };
-  return _builtinCache;
-}
 
 /* ═══════════════════════════════════════════════════
    §3. Config Management (localStorage)
@@ -264,28 +203,9 @@ function _splitBaseUrl(url) {
   }
 }
 
-/**
- * Web端跨域代理辅助 — 仅内置 Provider 走 Nginx 反向代理
- * - 目标域名 === 内置 Provider 域名 → 重写为 /ep-api/ 同源路径
- * - 用户自定义 Provider → 直接请求（不走代理，避免 API Key 泄露）
- * - _builtinCache 未就绪 → 安全降级（跳过代理）
- * 维护：Nginx 代理配置位于 VPS extension/prompt.zhiz.chat/ep-api-proxy.conf
- * 安全：该 location 已关闭 access_log（防止 Gemini ?key=xxx 泄露到日志）
- */
-function _proxyUrl(url) {
-  try {
-    const _u = new URL(url);
-    if (_u.origin !== location.origin && _builtinCache) {
-      const builtinOrigin = new URL(_builtinCache.baseUrl).origin;
-      if (_u.origin === builtinOrigin) {
-        return "/ep-api" + _u.pathname + _u.search;
-      }
-    }
-  } catch (_e) {
-    // URL 不可解析时保持原始值
-  }
-  return url;
-}
+// 2026-04-09 架构重构：_proxyUrl 已移除。
+// 内置 Provider 已废弃，不再需要 Nginx ep-api 代理重写。
+// 所有增强请求统一走 backend API（api.zhiz.chat）。
 
 function loadConfig() {
   try {
@@ -305,10 +225,14 @@ function saveConfig(cfg) {
   }
 }
 
+/**
+ * 2026-04-09 架构重构：获取用户本地配置
+ * - 增强请求统一走 backend API，不再需要内置 Provider 回退
+ * - 此函数仅用于：设置面板"测试连接"、获取 enhanceMode/model 传给 backend
+ * - 未配置的字段为空字符串（backend 会使用默认值）
+ */
 async function getEffectiveConfig() {
   const user = loadConfig();
-  const builtin = await _getBuiltinDefaults();
-  const builtinParts = _splitBaseUrl(builtin.baseUrl);
 
   // 读取用户输入并规整
   let apiHost = (user.apiHost || "").trim().replace(/\/+$/, "");
@@ -323,30 +247,22 @@ async function getEffectiveConfig() {
     if (!apiPath && path) apiPath = path;
   }
 
-  // 若 host 为空，回落到内置 host
-  if (!apiHost && builtinParts.host) apiHost = builtinParts.host;
-
-  // 填充 path：优先模式默认，其次内置 path
-  if (!apiPath) {
-    if (apiMode && DEFAULT_API_PATHS[apiMode]) {
-      apiPath = DEFAULT_API_PATHS[apiMode];
-    } else if (builtinParts.path) {
-      apiPath = builtinParts.path;
-    }
+  // 填充 path：优先模式默认
+  if (!apiPath && apiMode && DEFAULT_API_PATHS[apiMode]) {
+    apiPath = DEFAULT_API_PATHS[apiMode];
   }
   if (apiPath && !apiPath.startsWith("/")) apiPath = "/" + apiPath;
 
   const effectiveBase = (apiHost || "").replace(/\/+$/, "") + (apiPath || "");
+  const baseUrl = effectiveBase || legacyBase || "";
 
-  // baseUrl 优先：手工 host/path 组合 > 旧版 baseUrl > 内置 baseUrl
-  const baseUrl = effectiveBase || legacyBase || builtin.baseUrl;
   return {
     baseUrl,
     apiHost,
     apiPath,
-    apiKey: (user.apiKey || "").trim() || builtin.apiKey,
-    model: (user.model || "").trim() || builtin.model,
-    apiMode: apiMode || detectApiMode(baseUrl),
+    apiKey: (user.apiKey || "").trim(),
+    model: (user.model || "").trim(),
+    apiMode: apiMode || (baseUrl ? detectApiMode(baseUrl) : ""),
     enhanceMode:
       (user.enhanceMode || "").trim() === ENHANCE_MODES.DEEP
         ? ENHANCE_MODES.DEEP
@@ -1063,8 +979,8 @@ async function callApiOnce(config, systemPrompt, userMessage, options = {}) {
     });
   }
 
-  // ── Web端跨域代理（仅内置 Provider）──
-  const fetchUrl = _proxyUrl(url);
+  // 2026-04-09: 直接使用 URL（内置 Provider 代理已移除，增强走 backend API）
+  const fetchUrl = url;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout * 1000);
@@ -1291,7 +1207,7 @@ async function fetchModels(config) {
   }
 
   try {
-    const resp = await fetch(_proxyUrl(url), { headers });
+    const resp = await fetch(url, { headers });
     if (!resp.ok) {
       let errorMsg = `HTTP ${resp.status}`;
       try {
@@ -1437,19 +1353,18 @@ async function directGenerate(config, userInput, sceneId, onProgress, signal) {
 }
 
 /* ═══════════════════════════════════════════════════
-   §7b. Backend API Client (dual-track mode)
-   2026-04-08 新增 — P2.10 Web SPA 客户端迁移 + P2.14 requestId 透传
-   设计思路：优先调用后端 API，失败自动回退本地直连。
-     通过 localStorage 开关 `ep-backend-enabled` 控制是否启用。
+   §7b. Backend API Client (backend-only mode)
+   2026-04-08 P2.10 新增，2026-04-09 架构重构
+   设计思路：所有增强请求统一走后端 API（api.zhiz.chat），
+     后端做中间转接层（记录信息 + 管理 API Key + 内部转发）。
+     客户端不再持有 Provider Key，不再有本地直连回退。
      认证使用 cross-subdomain cookie（credentials: 'include'）。
    影响范围：handleGenerate 流程
-   潜在风险：后端不可用时增加一次失败延迟（已用 timeout 限制）
+   潜在风险：无已知风险
    ═══════════════════════════════════════════════════ */
 
 const BACKEND_API_BASE = "https://api.zhiz.chat";
 const BACKEND_TIMEOUT_MS = 30000;
-const BACKEND_STORAGE_KEY = "ep-backend-enabled";
-const BACKEND_MODE_KEY = "ep-backend-mode";
 
 /**
  * 生成 UUID v4（用于 requestId 透传 — P2.14）
@@ -1464,48 +1379,6 @@ function generateRequestId() {
     const v = c === "x" ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
-}
-
-/**
- * 2026-04-08 P9.09: 获取后端运行模式（三模式开关）
- * @returns {"auto"|"backend-only"|"local-only"}
- * 向后兼容：旧版 ep-backend-enabled=false 映射为 "local-only"
- */
-function getBackendMode() {
-  try {
-    const mode = localStorage.getItem(BACKEND_MODE_KEY);
-    if (mode) return mode;
-    // 向后兼容旧版布尔值
-    const legacy = localStorage.getItem(BACKEND_STORAGE_KEY);
-    if (legacy === "false") return "local-only";
-    return "auto";
-  } catch {
-    return "auto";
-  }
-}
-
-/**
- * 2026-04-08 P9.09: 设置后端运行模式
- * @param {"auto"|"backend-only"|"local-only"} mode
- */
-function setBackendMode(mode) {
-  const valid = ["auto", "backend-only", "local-only"];
-  if (!valid.includes(mode)) mode = "auto";
-  try {
-    localStorage.setItem(BACKEND_MODE_KEY, mode);
-  } catch {
-    /* ignore */
-  }
-}
-
-/** 向后兼容 — 检查后端是否启用（mode !== "local-only"） */
-function isBackendEnabled() {
-  return getBackendMode() !== "local-only";
-}
-
-/** 向后兼容 — 设置后端开关（布尔值映射为 mode） */
-function setBackendEnabled(enabled) {
-  setBackendMode(enabled ? "auto" : "local-only");
 }
 
 /**
@@ -1524,10 +1397,11 @@ function isAuthenticated() {
 
 /**
  * 后端错误码 → 用户友好中文提示
+ * 2026-04-09 更新：移除“回退到本地模式”提示（本地模式已废弃）
  */
 const BACKEND_ERROR_MAP = {
-  AI_PROVIDER_ERROR: "AI 服务暂时不可用，正在回退到本地模式...",
-  AI_TIMEOUT: "AI 服务响应超时，正在回退到本地模式...",
+  AI_PROVIDER_ERROR: "AI 服务暂时不可用，请稍后重试",
+  AI_TIMEOUT: "AI 服务响应超时，请稍后重试",
   RATE_LIMIT_EXCEEDED: "请求过于频繁，请稍后再试",
   AUTH_TOKEN_EXPIRED: "登录已过期，请重新登录",
   VALIDATION_FAILED: "请求参数有误",
@@ -1580,11 +1454,11 @@ async function callBackendEnhance(input, config, signal) {
     if (!data.success) {
       const errCode = data.error?.code || "UNKNOWN";
       const errMsg = data.error?.message || "Backend error";
-      // 限流和黑名单错误不应回退到本地
+      // 限流和黑名单使用友好提示
       if (errCode === "RATE_LIMIT_EXCEEDED" || errCode === "BLACKLISTED") {
         throw new Error(mapBackendError(errCode, errMsg));
       }
-      throw new Error(errMsg);
+      throw new Error(mapBackendError(errCode, errMsg));
     }
 
     return {
@@ -1601,59 +1475,18 @@ async function callBackendEnhance(input, config, signal) {
 }
 
 /**
- * 2026-04-08 P9.09: 三模式双轨增强
- * @param {object} config - 本地配置
+ * 2026-04-09 架构重构：统一后端增强（backend-only）
+ * 所有增强请求走 backend API，不再有本地直连回退。
+ * @param {object} config - 用户配置（enhanceMode/model 传给 backend）
  * @param {string} input - 用户输入
- * @param {string|null} sceneId - 指定场景（null = smartRoute）
+ * @param {string|null} sceneId - 指定场景（传给 backend，null = 自动路由）
  * @param {function} onProgress - 进度回调
  * @param {AbortSignal} signal - 取消信号
  * @returns {Promise<{result, scenes, composite, source}>}
  */
 async function dualTrackEnhance(config, input, sceneId, onProgress, signal) {
-  const mode = getBackendMode();
-
-  // local-only: 直接走本地
-  if (mode === "local-only") {
-    const localResult = sceneId
-      ? await directGenerate(config, input, sceneId, onProgress, signal)
-      : await smartRoute(config, input, onProgress, signal);
-    return { ...localResult, source: "local" };
-  }
-
-  // auto / backend-only: 尝试后端
-  try {
-    if (onProgress) onProgress("routing", "正在连接后端 AI 服务...");
-    const result = await callBackendEnhance(input, config, signal);
-    return result;
-  } catch (backendErr) {
-    // 用户主动取消 → 不回退
-    if (backendErr.name === "AbortError" || backendErr.message === "已取消") {
-      throw backendErr;
-    }
-
-    // 限流/黑名单等明确拒绝 → 不回退，直接抛出
-    if (
-      backendErr.message.includes("请求过于频繁") ||
-      backendErr.message.includes("访问已被限制")
-    ) {
-      throw backendErr;
-    }
-
-    // backend-only: 不回退，直接抛出
-    if (mode === "backend-only") {
-      throw new Error(`后端服务不可用: ${backendErr.message}`);
-    }
-
-    // auto: 回退本地直连
-    console.warn("[Easy Prompt] 后端回退:", backendErr.message);
-    if (onProgress)
-      onProgress("routing", "后端服务不可用，正在切换到本地模式...");
-
-    const localResult = sceneId
-      ? await directGenerate(config, input, sceneId, onProgress, signal)
-      : await smartRoute(config, input, onProgress, signal);
-    return { ...localResult, source: "local-fallback" };
-  }
+  if (onProgress) onProgress("routing", "正在连接 AI 服务...");
+  return await callBackendEnhance(input, config, signal);
 }
 
 /* ═══════════════════════════════════════════════════
@@ -1837,7 +1670,7 @@ async function handleGenerate() {
   const config = await getEffectiveConfig();
 
   try {
-    // 2026-04-08 P2.10: 双轨模式 — 优先后端 API，失败回退本地直连
+    // 2026-04-09 架构重构：统一后端增强（backend-only）
     const result = await dualTrackEnhance(
       config,
       input,
@@ -1854,11 +1687,7 @@ async function handleGenerate() {
     const sceneName = result.scenes
       .map((id) => SCENE_NAMES[id] || id)
       .join(" + ");
-    // 记录数据来源（backend / local / local-fallback）
     saveHistoryRecord(input, result.result, mode, result.scenes, sceneName);
-    if (result.source === "local-fallback") {
-      showToast("已通过本地模式完成（后端服务暂不可用）", "warning");
-    }
   } catch (err) {
     hideProgress();
     if (err.message !== "已取消") {
@@ -2363,24 +2192,25 @@ async function handleTestApi() {
   const origHTML = btn.innerHTML;
   btn.innerHTML = "<span>测试中...</span>";
 
-  // Gather config (use form values or fallback to builtin)
-  const builtin = await _getBuiltinDefaults();
+  // 2026-04-09 架构重构：测试连接仅使用用户填写的配置，不再回退到内置 Provider
   const rawHost = ($("#setting-api-host").value || "")
     .trim()
     .replace(/\/+$/, "");
   const rawPath = ($("#setting-api-path").value || "").trim();
   const rawMode = ($("#setting-api-mode").value || "").trim();
+  const rawKey = ($("#setting-api-key").value || "").trim();
+  const rawModel = ($("#setting-model").value || "").trim();
 
-  // 如果用户未填写 Host，仅使用 builtin 的 host 部分（而非完整 baseUrl），避免路径翻倍
-  let apiHost = rawHost;
-  if (!apiHost && builtin.baseUrl) {
-    try {
-      const u = new URL(builtin.baseUrl);
-      apiHost = u.origin;
-    } catch (_) {
-      apiHost = builtin.baseUrl;
-    }
+  if (!rawHost) {
+    resultEl.hidden = false;
+    resultEl.className = "panel__test-result is-error";
+    resultText.textContent = "请先填写 API Host";
+    btn.disabled = false;
+    btn.innerHTML = origHTML;
+    return;
   }
+
+  let apiHost = rawHost;
   let apiPath = rawPath;
   // 若未填写路径且当前模式有默认路径，自动填充
   if (!apiPath && rawMode && DEFAULT_API_PATHS[rawMode]) {
@@ -2389,8 +2219,8 @@ async function handleTestApi() {
   }
   const config = {
     baseUrl: apiHost + apiPath,
-    apiKey: ($("#setting-api-key").value || "").trim() || builtin.apiKey,
-    model: ($("#setting-model").value || "").trim() || builtin.model,
+    apiKey: rawKey,
+    model: rawModel,
     apiMode: rawMode || detectApiMode(apiHost + apiPath),
   };
 

@@ -203,7 +203,7 @@ class SmartEnhanceAction : AnAction() {
 
             override fun run(indicator: com.intellij.openapi.progress.ProgressIndicator) {
                 try {
-                    // 2026-04-08 P2.13: 双轨模式 — 优先后端 API，失败回退本地
+                    // 2026-04-09: 统一后端增强（backend-only）
                     val result = ApiClient.dualTrackEnhance(text, { msg ->
                         indicator.text = msg
                     }, indicator)

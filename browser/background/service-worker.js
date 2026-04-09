@@ -196,14 +196,11 @@ export function setupBackground() {
 
       const config = await getEffectiveConfig();
 
-      // 2026-04-08 P2.11: 双轨模式 — 优先后端 API，失败回退本地直连
-      const localEnhanceFn = async (cfg, input, progress) => {
-        return await Router.smartRoute(cfg, input, progress);
-      };
+      // 2026-04-09 架构重构：统一后端增强（backend-only），不再有本地直连回退
       const result = await Api.dualTrackEnhance(
         config,
         text.trim(),
-        localEnhanceFn,
+        null, // localEnhanceFn 已废弃，保留参数位
         onProgress,
       );
 

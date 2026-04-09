@@ -44,7 +44,7 @@ class EnhanceSelectedAction : AnAction() {
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Easy Prompt", true) {
             override fun run(indicator: ProgressIndicator) {
                 try {
-                    // 2026-04-08 P2.13: 双轨模式 — 优先后端 API，失败回退本地
+                    // 2026-04-09: 统一后端增强（backend-only）
                     val result = ApiClient.dualTrackEnhance(selectedText, { msg ->
                         indicator.text = msg
                     }, indicator)

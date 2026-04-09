@@ -2,6 +2,10 @@
  * Easy Prompt Browser Extension — 内置默认配置
  * AES-256-CBC 加密 + 多层混淆（与 core/defaults.js 和 web/app.js 保持一致）
  * 使用 Web Crypto API（浏览器扩展原生支持）
+ *
+ * @deprecated 2026-04-09 架构重构：所有增强请求统一走 backend API（api.zhiz.chat），
+ * 客户端不再持有 Provider Key。此文件保留以兼容 deploy/inject-provider.js 注入流程，
+ * 但运行时不再被核心增强流程调用。
  */
 
 // === 混淆层 1: 分散存储的密钥片段 ===
