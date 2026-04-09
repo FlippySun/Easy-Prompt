@@ -264,6 +264,29 @@
           "default": "zh-CN",
           "description": "界面语言",
           "order": 8
+        },
+        "easyPrompt.backendMode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "backend-only",
+            "local-only"
+          ],
+          "default": "auto",
+          "markdownDescription": "后端 AI 服务模式。\n\n**auto（默认）**：优先后端 API，失败自动回退本地直连。\n\n**backend-only**：仅使用后端 API，不回退（后端不可用时报错）。\n\n**local-only**：仅使用本地直连 AI API（完全不连后端）。",
+          "order": 9
+        },
+        "easyPrompt.backendUrl": {
+          "type": "string",
+          "default": "https://api.zhiz.chat",
+          "markdownDescription": "后端 API 服务地址。\n\n**默认**：`https://api.zhiz.chat`。仅在自建后端时需要修改。",
+          "order": 10
+        },
+        "easyPrompt.backendToken": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "后端 Access Token（手动输入）。\n\n登录 `zhiz.chat` 后在个人设置中获取。留空则以匿名身份使用（受更严格限流）。",
+          "order": 11
         }
       }
     }
@@ -287,6 +310,7 @@
     "browser:build:all": "npm --prefix browser run build:all",
     "browser:zip:all": "npm --prefix browser run zip:all",
     "browser:test:unit": "npm --prefix browser run test:unit",
-    "test:parity": "node tests/test-parity.js"
+    "test:parity": "node tests/test-parity.js",
+    "test:integration": "node tests/test-backend-integration.js"
   }
 }

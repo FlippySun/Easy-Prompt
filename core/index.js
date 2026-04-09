@@ -19,6 +19,11 @@ const {
   API_MODES,
   DEFAULT_API_PATHS,
   detectApiMode,
+  generateRequestId,
+  callBackendEnhance,
+  dualTrackEnhance,
+  mapBackendError,
+  BACKEND_API_BASE,
 } = require("./api");
 const { smartRoute } = require("./composer");
 const { getBuiltinDefaults } = require("./defaults");
@@ -46,6 +51,13 @@ module.exports = {
   API_MODES,
   DEFAULT_API_PATHS,
   detectApiMode,
+
+  // Backend API (P2.12)
+  generateRequestId,
+  callBackendEnhance,
+  dualTrackEnhance,
+  mapBackendError,
+  BACKEND_API_BASE,
 
   // 编排
   smartRoute,

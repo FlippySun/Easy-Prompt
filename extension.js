@@ -10,6 +10,7 @@ const {
   API_MODES,
   DEFAULT_API_PATHS,
   detectApiMode,
+  dualTrackEnhance,
 } = require("./core");
 const { checkAndShowWelcome, showWelcomePage } = require("./welcomeView");
 
@@ -370,12 +371,13 @@ function getConfig() {
 
 /**
  * 使用 smartRoute 增强文本（公共逻辑）
+ * 2026-04-08 P2.12: 改为双轨模式 — 优先后端 API，失败自动回退本地 curl
  */
 async function runSmartRoute(config, text, progress) {
   const startTime = Date.now();
   progress.report({ message: "🔍 正在识别意图..." });
 
-  const result = await smartRoute(config, text, (stage, detail) => {
+  const onProgress = (stage, detail) => {
     if (stage === "routing") {
       progress.report({ message: "🔍 正在识别意图..." });
     } else if (stage === "generating") {
@@ -383,12 +385,47 @@ async function runSmartRoute(config, text, progress) {
     } else if (stage === "retrying") {
       progress.report({ message: `🔄 ${detail}` });
     }
-  });
+  };
+
+  // 本地增强函数（原 smartRoute 调用）
+  const localEnhanceFn = async (cfg, input, progressFn) => {
+    return await smartRoute(cfg, input, progressFn);
+  };
+
+  // 2026-04-08 P9.09+P9.10: 后端选项 — 读取三模式开关、自定义 URL、Access Token
+  // mode: "auto" | "backend-only" | "local-only"
+  // accessToken: 手动输入的 Bearer Token（留空则匿名）
+  const backendCfg = vscode.workspace.getConfiguration("easyPrompt");
+  const backendMode = backendCfg.get("backendMode", "auto");
+  const backendUrl = backendCfg.get("backendUrl", "");
+  const backendToken = backendCfg.get("backendToken", "");
+
+  const result = await dualTrackEnhance(
+    config,
+    text,
+    localEnhanceFn,
+    {
+      enhanceMode: config.enhanceMode || "fast",
+      model: config.model || "",
+      clientType: "vscode",
+      mode: backendMode,
+      backendUrl: backendUrl || undefined,
+      accessToken: backendToken || undefined,
+    },
+    onProgress,
+  );
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
   const label = result.composite
     ? `复合：${result.scenes.map((s) => SCENE_NAMES[s] || s).join(" + ")}`
     : SCENE_NAMES[result.scenes[0]] || result.scenes[0];
+
+  // 提示回退信息
+  if (result.source === "local-fallback") {
+    vscode.window.showWarningMessage(
+      "Easy Prompt: 后端服务不可用，已通过本地模式完成",
+    );
+  }
 
   return { ...result, label, elapsed };
 }

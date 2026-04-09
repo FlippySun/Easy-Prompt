@@ -660,6 +660,203 @@ async function callGenerationApi(
   );
 }
 
+/* ═══════════════════════════════════════════════════
+   Backend API Client (dual-track mode)
+   2026-04-08 新增 — P2.12 VS Code Extension 客户端迁移 + P2.14 requestId 透传
+   设计思路：优先调用后端 API（Node.js https），失败自动回退本地 curl 直连。
+     认证使用 vscode.SecretStorage 中存储的 access_token（由调用方传入）。
+   影响范围：extension.js runSmartRoute 流程
+   潜在风险：后端不可用时增加一次失败延迟（已用 timeout 限制）
+   ═══════════════════════════════════════════════════ */
+
+const https = require("https");
+const http = require("http");
+const { randomUUID } = require("crypto");
+
+const BACKEND_API_BASE = "https://api.zhiz.chat";
+const BACKEND_TIMEOUT_MS = 30000;
+
+/**
+ * 生成 UUID v4（用于 requestId 透传 — P2.14）
+ */
+function generateRequestId() {
+  try {
+    return randomUUID();
+  } catch {
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
+      /[xy]/g,
+      function (c) {
+        const r = (Math.random() * 16) | 0;
+        const v = c === "x" ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      },
+    );
+  }
+}
+
+/**
+ * 后端错误码 → 用户友好中文提示
+ */
+const BACKEND_ERROR_MAP = {
+  AI_PROVIDER_ERROR: "AI 服务暂时不可用，正在回退到本地模式...",
+  AI_TIMEOUT: "AI 服务响应超时，正在回退到本地模式...",
+  RATE_LIMIT_EXCEEDED: "请求过于频繁，请稍后再试",
+  AUTH_TOKEN_EXPIRED: "登录已过期，请重新登录",
+  VALIDATION_FAILED: "请求参数有误",
+  BLACKLISTED: "您的访问已被限制，请联系管理员",
+};
+
+function mapBackendError(errorCode, defaultMsg) {
+  return BACKEND_ERROR_MAP[errorCode] || defaultMsg || "后端服务异常";
+}
+
+/**
+ * 调用后端 AI 增强 API（Node.js https 实现）
+ * @param {string} input - 用户输入
+ * @param {object} options - { enhanceMode, model, accessToken, clientType }
+ * @returns {Promise<{result: string, scenes: string[], composite: boolean, source: string, requestId: string}>}
+ */
+function callBackendEnhance(input, options = {}) {
+  return new Promise((resolve, reject) => {
+    const requestId = generateRequestId();
+    const postData = JSON.stringify({
+      input,
+      enhanceMode: options.enhanceMode || "fast",
+      model: options.model || "",
+      language: "zh-CN",
+      clientType: options.clientType || "vscode",
+    });
+
+    // 2026-04-08 P9.05: 支持自定义后端 URL（通过 options.backendUrl 传入）
+    const baseUrl = (options.backendUrl || BACKEND_API_BASE).replace(
+      /\/+$/,
+      "",
+    );
+    const url = new URL(`${baseUrl}/api/v1/ai/enhance`);
+    const isHttps = url.protocol === "https:";
+    const reqModule = isHttps ? https : http;
+
+    const headers = {
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(postData),
+      "X-Request-Id": requestId,
+    };
+    if (options.accessToken) {
+      headers["Authorization"] = `Bearer ${options.accessToken}`;
+    }
+
+    const req = reqModule.request(
+      {
+        hostname: url.hostname,
+        port: url.port || (isHttps ? 443 : 80),
+        path: url.pathname,
+        method: "POST",
+        headers,
+        timeout: BACKEND_TIMEOUT_MS,
+      },
+      (res) => {
+        let body = "";
+        res.on("data", (chunk) => {
+          body += chunk;
+        });
+        res.on("end", () => {
+          try {
+            const data = JSON.parse(body);
+            if (!data.success) {
+              const errCode = data.error?.code || "UNKNOWN";
+              const errMsg = data.error?.message || "Backend error";
+              if (
+                errCode === "RATE_LIMIT_EXCEEDED" ||
+                errCode === "BLACKLISTED"
+              ) {
+                return reject(new Error(mapBackendError(errCode, errMsg)));
+              }
+              return reject(new Error(errMsg));
+            }
+            resolve({
+              result: data.data.output,
+              scenes: data.data.scenes || ["optimize"],
+              composite: data.data.composite || false,
+              source: "backend",
+              requestId,
+            });
+          } catch (e) {
+            reject(new Error(`Backend response parse error: ${e.message}`));
+          }
+        });
+      },
+    );
+
+    req.on("error", (e) => reject(e));
+    req.on("timeout", () => {
+      req.destroy();
+      reject(new Error("Backend request timeout"));
+    });
+
+    req.write(postData);
+    req.end();
+  });
+}
+
+/**
+ * 2026-04-08 P9.09: 三模式双轨增强
+ * @param {object} config - 本地 API 配置
+ * @param {string} input - 用户输入
+ * @param {function} localEnhanceFn - 本地增强函数 (config, input, onProgress) => result
+ * @param {object} backendOptions - { enhanceMode, model, accessToken, clientType, enabled?, mode?, backendUrl? }
+ *   mode: "auto" | "backend-only" | "local-only"（优先级高于 enabled 布尔值）
+ *   enabled: 向后兼容布尔值（false → local-only, true/undefined → auto）
+ * @param {function} [onProgress] - 进度回调
+ * @returns {Promise<{result, scenes, composite, source}>}
+ */
+async function dualTrackEnhance(
+  config,
+  input,
+  localEnhanceFn,
+  backendOptions,
+  onProgress,
+) {
+  // 2026-04-08 P9.09: 解析运行模式 — mode 优先，enabled 向后兼容
+  let mode = "auto";
+  if (backendOptions?.mode) {
+    mode = backendOptions.mode;
+  } else if (!backendOptions || backendOptions.enabled === false) {
+    mode = "local-only";
+  }
+
+  // local-only: 直接走本地
+  if (mode === "local-only") {
+    const localResult = await localEnhanceFn(config, input, onProgress);
+    return { ...localResult, source: "local" };
+  }
+
+  // auto / backend-only: 尝试后端
+  try {
+    if (onProgress) onProgress("routing", "正在连接后端 AI 服务...");
+    const result = await callBackendEnhance(input, backendOptions);
+    return result;
+  } catch (backendErr) {
+    if (backendErr.message === "已取消") throw backendErr;
+    if (
+      backendErr.message.includes("请求过于频繁") ||
+      backendErr.message.includes("访问已被限制")
+    ) {
+      throw backendErr;
+    }
+
+    // backend-only: 不回退，直接抛出
+    if (mode === "backend-only") {
+      throw new Error(`后端服务不可用: ${backendErr.message}`);
+    }
+
+    // auto: 回退到本地
+    if (onProgress)
+      onProgress("routing", "后端服务不可用，正在切换到本地模式...");
+    const localResult = await localEnhanceFn(config, input, onProgress);
+    return { ...localResult, source: "local-fallback" };
+  }
+}
+
 module.exports = {
   callApi,
   callRouterApi,
@@ -669,6 +866,11 @@ module.exports = {
   API_MODES,
   DEFAULT_API_PATHS,
   detectApiMode,
+  generateRequestId,
+  callBackendEnhance,
+  dualTrackEnhance,
+  mapBackendError,
+  BACKEND_API_BASE,
 };
 
 /**
