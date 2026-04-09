@@ -118,21 +118,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => clearRefreshTimer, [clearRefreshTimer]);
 
   // ── login ──
+  // 2026-04-09 修复 — expiresIn 位于 result.tokens.expiresIn（而非 result.expiresIn）
   const login = useCallback(
     async (data: LoginRequest) => {
       const result = await authApi.login(data);
       setUser(result.user);
-      scheduleRefresh(result.expiresIn);
+      scheduleRefresh(result.tokens.expiresIn);
     },
     [scheduleRefresh],
   );
 
   // ── register ──
+  // 2026-04-09 修复 — 同 login
   const register = useCallback(
     async (data: RegisterRequest) => {
       const result = await authApi.register(data);
       setUser(result.user);
-      scheduleRefresh(result.expiresIn);
+      scheduleRefresh(result.tokens.expiresIn);
     },
     [scheduleRefresh],
   );

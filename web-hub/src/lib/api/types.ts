@@ -66,12 +66,13 @@ export interface RegisterRequest {
   displayName?: string;
 }
 
+// 2026-04-09 修复 — avatar → avatarUrl，对齐后端 Prisma 字段名
 export interface AuthUser {
   id: string;
   email: string;
   username: string;
   displayName: string | null;
-  avatar: string | null;
+  avatarUrl: string | null;
   role: 'user' | 'admin' | 'super_admin';
   createdAt: string;
 }
@@ -88,6 +89,7 @@ export interface PromptListParams {
   authorId?: string;
 }
 
+// 2026-04-09 修复 — 字段名对齐后端实际返回（likesCount/viewsCount/copiesCount）
 export interface PromptItem {
   id: string;
   title: string;
@@ -96,21 +98,19 @@ export interface PromptItem {
   category: string;
   model: string | null;
   tags: string[];
-  authorId: string;
-  author: {
+  authorId?: string;
+  author?: {
     id: string;
     username: string;
     displayName: string | null;
-    avatar: string | null;
+    avatarUrl: string | null;
   };
-  likeCount: number;
-  copyCount: number;
-  viewCount: number;
-  saveCount: number;
-  isFeatured: boolean;
-  status: string;
+  likesCount: number;
+  copiesCount: number;
+  viewsCount: number;
+  status?: string;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
 }
 
 export interface PromptDetail extends PromptItem {
@@ -118,9 +118,25 @@ export interface PromptDetail extends PromptItem {
   isSaved?: boolean;
 }
 
-export interface ToggleResult {
-  action: 'added' | 'removed';
-  count: number;
+// 2026-04-09 修复 — 对齐后端实际返回结构
+// toggleLike → { liked, likesCount }
+// toggleSave → { saved, savesCount }
+// recordCopy → { copiesCount }
+// toggleCollectionSave → { saved, savedCount }
+export interface LikeResult {
+  liked: boolean;
+  likesCount: number;
+}
+export interface SaveResult {
+  saved: boolean;
+  savesCount: number;
+}
+export interface CopyResult {
+  copiesCount: number;
+}
+export interface CollectionSaveResult {
+  saved: boolean;
+  savedCount: number;
 }
 
 // ── Collection ─────────────────────────────────────────
@@ -172,6 +188,7 @@ export interface CategoryTrending {
 
 // ── Achievement ────────────────────────────────────────
 
+// 2026-04-09 修复 — category 改为可选（后端 UserAchievementItem 不含 category）
 export interface AchievementItem {
   id: string;
   title: string;
@@ -179,30 +196,30 @@ export interface AchievementItem {
   icon: string;
   color: string;
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
-  category: string;
+  category?: string;
   unlockedAt?: string | null;
 }
 
 // ── User ───────────────────────────────────────────────
 
+// 2026-04-09 修复 — avatar → avatarUrl, createdAt → joinedAt，对齐后端 UserPublicProfile
 export interface UserPublicProfile {
   id: string;
   username: string;
   displayName: string | null;
-  avatar: string | null;
+  avatarUrl: string | null;
   bio: string | null;
-  createdAt: string;
+  promptCount: number;
+  joinedAt: string;
 }
 
+// 2026-04-09 修复 — 后端返回扁平字段（非嵌套 stats），对齐 EnhancedPublicProfile
 export interface UserEnhancedProfile extends UserPublicProfile {
-  stats: {
-    promptCount: number;
-    likeCount: number;
-    copyCount: number;
-    viewCount: number;
-    collectionCount: number;
-    achievementCount: number;
-  };
+  collectionCount: number;
+  achievementCount: number;
+  totalLikes: number;
+  totalViews: number;
+  totalCopies: number;
 }
 
 export interface ActivityHeatmapItem {
@@ -210,16 +227,17 @@ export interface ActivityHeatmapItem {
   count: number;
 }
 
+// 2026-04-09 修复 — avatar → avatarUrl，对齐后端 UpdateProfileInput
 export interface UpdateProfileRequest {
   displayName?: string;
-  avatar?: string;
+  avatarUrl?: string;
   bio?: string;
 }
 
 // ── Meta ───────────────────────────────────────────────
 
+// 2026-04-09 修复 — 移除不存在的 id，对齐后端 Category Prisma 模型（slug 为 PK）
 export interface CategoryMeta {
-  id: string;
   slug: string;
   label: string;
   labelEn: string | null;
@@ -230,14 +248,16 @@ export interface CategoryMeta {
   darkBgColor: string | null;
   darkColor: string | null;
   sortOrder: number;
+  isActive: boolean;
 }
 
+// 2026-04-09 修复 — 移除不存在的 id，对齐后端 ModelConfig Prisma 模型（slug 为 PK）
 export interface ModelMeta {
-  id: string;
   slug: string;
   label: string;
   color: string | null;
   sortOrder: number;
+  isActive: boolean;
 }
 
 // ── Search ─────────────────────────────────────────────

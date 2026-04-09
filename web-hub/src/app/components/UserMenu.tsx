@@ -61,8 +61,8 @@ export function UserMenu({ user, darkMode, onLogout }: UserMenuProps) {
             : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
         }`}
       >
-        {user.avatar ? (
-          <img src={user.avatar} alt={displayName} className="h-7 w-7 rounded-full object-cover" />
+        {user.avatarUrl ? (
+          <img src={user.avatarUrl} alt={displayName} className="h-7 w-7 rounded-full object-cover" />
         ) : (
           <div className="flex h-7 w-7 items-center justify-center rounded-full bg-linear-to-br from-violet-500 to-indigo-600 text-xs font-bold text-white">
             {initial}

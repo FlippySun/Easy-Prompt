@@ -26,7 +26,10 @@ import type {
   PromptListParams,
   PromptItem,
   PromptDetail,
-  ToggleResult,
+  LikeResult,
+  SaveResult,
+  CopyResult,
+  CollectionSaveResult,
   CollectionListParams,
   CollectionItem,
   CollectionDetail,
@@ -48,16 +51,25 @@ import type {
 
 export const authApi = {
   /** 登录 → 返回 tokens + user，自动存储 token */
+  // 2026-04-09 修复 — 后端返回 { user, tokens: { accessToken, refreshToken } }，
+  //   之前误用 res.data.accessToken（flat），导致 token 未存储、登录态丢失
   async login(data: LoginRequest) {
-    const res = await postPublic<ApiSuccessResponse<AuthTokens & { user: AuthUser }>>('/api/v1/auth/login', data);
-    setTokens(res.data.accessToken, res.data.refreshToken);
+    const res = await postPublic<ApiSuccessResponse<{ user: AuthUser; tokens: AuthTokens }>>(
+      '/api/v1/auth/login',
+      data,
+    );
+    setTokens(res.data.tokens.accessToken, res.data.tokens.refreshToken);
     return res.data;
   },
 
   /** 注册 → 返回 tokens + user，自动存储 token */
+  // 2026-04-09 修复 — 与 login 同理，后端返回嵌套 tokens 对象
   async register(data: RegisterRequest) {
-    const res = await postPublic<ApiSuccessResponse<AuthTokens & { user: AuthUser }>>('/api/v1/auth/register', data);
-    setTokens(res.data.accessToken, res.data.refreshToken);
+    const res = await postPublic<ApiSuccessResponse<{ user: AuthUser; tokens: AuthTokens }>>(
+      '/api/v1/auth/register',
+      data,
+    );
+    setTokens(res.data.tokens.accessToken, res.data.tokens.refreshToken);
     return res.data;
   },
 
@@ -121,21 +133,22 @@ export const promptApi = {
     return get<ApiSuccessResponse<unknown>>('/api/v1/prompts/galaxy', { since, chunk });
   },
 
+  // 2026-04-09 修复 — 使用后端实际返回类型替代旧 ToggleResult
   /** 切换点赞 */
   async toggleLike(id: string) {
-    const res = await post<ApiSuccessResponse<ToggleResult>>(`/api/v1/prompts/${id}/like`);
+    const res = await post<ApiSuccessResponse<LikeResult>>(`/api/v1/prompts/${id}/like`);
     return res.data;
   },
 
   /** 切换收藏 */
   async toggleSave(id: string) {
-    const res = await post<ApiSuccessResponse<ToggleResult>>(`/api/v1/prompts/${id}/save`);
+    const res = await post<ApiSuccessResponse<SaveResult>>(`/api/v1/prompts/${id}/save`);
     return res.data;
   },
 
   /** 记录复制 */
   async recordCopy(id: string) {
-    const res = await post<ApiSuccessResponse<ToggleResult>>(`/api/v1/prompts/${id}/copy`);
+    const res = await post<ApiSuccessResponse<CopyResult>>(`/api/v1/prompts/${id}/copy`);
     return res.data;
   },
 
@@ -178,9 +191,10 @@ export const collectionApi = {
     return res.data;
   },
 
+  // 2026-04-09 修复 — 使用后端实际返回类型 CollectionSaveResult
   /** 切换收藏 */
   async toggleSave(id: string) {
-    const res = await post<ApiSuccessResponse<ToggleResult>>(`/api/v1/collections/${id}/save`);
+    const res = await post<ApiSuccessResponse<CollectionSaveResult>>(`/api/v1/collections/${id}/save`);
     return res.data;
   },
 };
@@ -380,11 +394,12 @@ export interface DashboardStats {
   recentAiRequests: number;
 }
 
+// 2026-04-09 修复 — displayName → name，对齐后端 AiProvider.name 字段
 /** Provider 管理项类型 */
 export interface ProviderItem {
   id: string;
   slug: string;
-  displayName: string;
+  name: string;
   apiMode: string;
   baseUrl: string;
   defaultModel: string;
@@ -397,14 +412,18 @@ export interface ProviderItem {
   updatedAt: string;
 }
 
+// 2026-04-09 修复 — dimension → type，对齐后端 blacklist_rules 实际字段
 /** Blacklist 管理项类型 */
 export interface BlacklistItem {
   id: string;
-  dimension: string;
+  type: string;
   value: string;
   reason: string | null;
+  severity: string | null;
   expiresAt: string | null;
-  createdBy: string | null;
+  isActive: boolean;
+  hitCount: number;
+  blockedBy: string | null;
   createdAt: string;
 }
 
@@ -422,17 +441,24 @@ export interface AnalyticsSummary {
   totalCost: number;
 }
 
+// 2026-04-09 修复 — 对齐后端 DailyStat Prisma 模型实际字段
 /** 每日统计项（对应 GET /admin/analytics/daily） */
 export interface DailyStatItem {
-  id: string;
   date: string;
-  totalRequests: number;
-  successCount: number;
-  errorCount: number;
-  avgLatencyMs: number;
-  totalTokens: number;
-  uniqueUsers: number;
-  uniqueIps: number;
+  totalViews: number;
+  totalCopies: number;
+  totalLikes: number;
+  newPrompts: number;
+  newUsers: number;
+  aiRequests: number;
+  aiTokens: number;
+  aiCost: number;
+  aiErrors: number;
+  aiReqVscode: number;
+  aiReqBrowser: number;
+  aiReqWeb: number;
+  aiReqIntelij: number;
+  aiReqWebhub: number;
 }
 
 /** 按客户端分组统计（对应 GET /admin/analytics/by-client） */

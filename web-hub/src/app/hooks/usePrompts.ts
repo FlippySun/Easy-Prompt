@@ -34,11 +34,12 @@ export function mapPromptItem(item: PromptItem): Prompt {
     content: item.content,
     tags: item.tags,
     category: item.category,
-    likes: item.likeCount,
-    views: item.viewCount,
-    copies: item.copyCount,
+    // 2026-04-09 修复 — 字段名对齐后端实际返回（likesCount/viewsCount/copiesCount）
+    likes: item.likesCount ?? 0,
+    views: item.viewsCount ?? 0,
+    copies: item.copiesCount ?? 0,
     author: item.author?.displayName || item.author?.username || 'Anonymous',
-    authorAvatar: item.author?.avatar ?? undefined,
+    authorAvatar: item.author?.avatarUrl ?? undefined,
     date: item.createdAt.slice(0, 10),
     model: item.model ?? undefined,
   };

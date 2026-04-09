@@ -24,9 +24,9 @@ let _cachedModels: ModelMeta[] | null = null;
 
 // ── 静态数据 → API 类型适配 ──────────────────────────────
 
+// 2026-04-09 修复 — 移除不存在的 id，补充 isActive，对齐后端 Category Prisma 模型
 function fallbackCategories(): CategoryMeta[] {
   return Object.entries(CATEGORY_CONFIG).map(([key, c], i) => ({
-    id: key,
     slug: key,
     label: c.label,
     labelEn: null,
@@ -37,16 +37,18 @@ function fallbackCategories(): CategoryMeta[] {
     darkBgColor: c.darkBg ?? null,
     darkColor: c.darkColor ?? null,
     sortOrder: i,
+    isActive: true,
   }));
 }
 
+// 2026-04-09 修复 — 移除不存在的 id，补充 isActive，对齐后端 ModelConfig Prisma 模型
 function fallbackModels(): ModelMeta[] {
   return Object.entries(MODEL_CONFIG).map(([key, m], i) => ({
-    id: key,
     slug: key,
     label: m.label,
     color: m.color ?? null,
     sortOrder: i,
+    isActive: true,
   }));
 }
 

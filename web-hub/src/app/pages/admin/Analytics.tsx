@@ -80,11 +80,14 @@ function SummaryCards({ summary }: { summary: AnalyticsSummary | null }) {
 
 // ── 每日趋势图组件 ────────────────────────────────────────
 // 设计思路：AreaChart 双区域展示每日成功/失败请求量
+// 2026-04-09 修复 — 对齐后端 DailyStat 字段：aiRequests/aiErrors 替代 successCount/errorCount
 function DailyTrendChart({ data }: { data: DailyStatItem[] }) {
-  // 格式化日期用于 X 轴显示
+  // 格式化日期 + 派生 successCount（后端仅返回 aiRequests 和 aiErrors）
   const chartData = data.map((d) => ({
     ...d,
     dateLabel: new Date(d.date).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }),
+    successCount: Math.max(0, d.aiRequests - d.aiErrors),
+    errorCount: d.aiErrors,
   }));
 
   if (chartData.length === 0) {

@@ -7,7 +7,7 @@
  *   表格列表展示所有 Provider，支持新增/编辑/删除
  *   通过 adminApi 调用后端 CRUD 接口
  *   新增/编辑使用 Modal 弹窗，包含所有 Provider 字段
- *   表单校验：slug、displayName、baseUrl 为必填；priority/timeout 为数值
+ *   表单校验：slug、name、baseUrl 为必填；priority/timeout 为数值
  * 影响范围：/admin/providers 路由
  * 潜在风险：删除活跃 Provider 可能影响 AI 服务
  */
@@ -17,9 +17,10 @@ import { adminApi } from '../../../lib/api';
 import type { ProviderItem } from '../../../lib/api';
 
 // ── Provider 表单数据类型 ──────────────────────────────
+// 2026-04-09 修复 — displayName → name，对齐后端 AiProvider.name 字段
 interface ProviderFormData {
   slug: string;
-  displayName: string;
+  name: string;
   apiMode: string;
   baseUrl: string;
   apiKey: string;
@@ -34,7 +35,7 @@ interface ProviderFormData {
 // 2026-04-10 — 默认表单值（新增时使用）
 const DEFAULT_FORM: ProviderFormData = {
   slug: '',
-  displayName: '',
+  name: '',
   apiMode: 'openai',
   baseUrl: '',
   apiKey: '',
@@ -75,7 +76,7 @@ function ProviderModal({
     if (editingProvider) {
       setForm({
         slug: editingProvider.slug,
-        displayName: editingProvider.displayName,
+        name: editingProvider.name,
         apiMode: editingProvider.apiMode,
         baseUrl: editingProvider.baseUrl,
         apiKey: '', // API Key 不回填（安全考虑，后端不返回明文）
@@ -98,14 +99,14 @@ function ProviderModal({
 
     // 基础校验
     if (!form.slug.trim()) return setError('Slug 不能为空');
-    if (!form.displayName.trim()) return setError('显示名不能为空');
+    if (!form.name.trim()) return setError('显示名不能为空');
     if (!form.baseUrl.trim()) return setError('Base URL 不能为空');
 
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
         slug: form.slug.trim(),
-        displayName: form.displayName.trim(),
+        name: form.name.trim(),
         apiMode: form.apiMode,
         baseUrl: form.baseUrl.trim(),
         defaultModel: form.defaultModel.trim(),
@@ -175,8 +176,8 @@ function ProviderModal({
               <label className="mb-1 block text-xs font-medium text-gray-400">显示名 *</label>
               <input
                 type="text"
-                value={form.displayName}
-                onChange={(e) => setForm((f) => ({ ...f, displayName: e.target.value }))}
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 placeholder="e.g. OpenAI 主力"
                 className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:border-indigo-500 focus:outline-none"
               />
@@ -415,7 +416,7 @@ export function Providers() {
               providers.map((p) => (
                 <tr key={p.id} className="transition-colors hover:bg-gray-900/30">
                   <td className="px-4 py-3 font-mono text-xs text-indigo-300">{p.slug}</td>
-                  <td className="px-4 py-3 text-gray-200">{p.displayName}</td>
+                  <td className="px-4 py-3 text-gray-200">{p.name}</td>
                   <td className="px-4 py-3">
                     <span className="rounded bg-gray-800 px-2 py-0.5 text-xs text-gray-300">{p.apiMode}</span>
                   </td>

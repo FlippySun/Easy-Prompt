@@ -76,8 +76,9 @@ function BlacklistCreateModal({ open, onClose, onSaved }: { open: boolean; onClo
 
     setSaving(true);
     try {
+      // 2026-04-09 修复 — dimension → type，对齐后端 blacklist_rules 字段名
       const payload: Record<string, unknown> = {
-        dimension: form.dimension,
+        type: form.dimension,
         value: form.value.trim(),
         reason: form.reason.trim() || undefined,
       };
@@ -295,7 +296,7 @@ export function Blacklist() {
                 <tr key={item.id} className="transition-colors hover:bg-gray-900/30">
                   <td className="px-4 py-3">
                     <span className="rounded bg-gray-800 px-2 py-0.5 text-xs text-gray-300">
-                      {DIMENSION_LABELS[item.dimension] || item.dimension}
+                      {DIMENSION_LABELS[item.type] || item.type}
                     </span>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-gray-200">{item.value}</td>
