@@ -1,0 +1,518 @@
+// ═══════════════════════════════════════════════════════
+// Easy Prompt Backend — Prisma Schema
+// 2026-04-07 新增 — P1.03 Prisma Schema 定义
+// 设计思路：完整映射 ARCHITECTURE.md §4.2 SQL 表结构
+//   使用 Prisma 管理迁移，保持与 PostgreSQL DDL 一致
+// 影响范围：全部数据库交互（通过 @prisma/client）
+// 潜在风险：无已知风险
+// ═══════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══ 用户 ═══
+model User {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String   @unique @db.VarChar(255)
+  username     String   @unique @db.VarChar(50)
+  displayName  String?  @map("display_name") @db.VarChar(100)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  avatarUrl    String?  @map("avatar_url") @db.VarChar(500)
+  bio          String?  @db.Text
+  role         String   @default("user") @db.VarChar(20) // user / admin / super_admin
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // ── 关系 ──
+  prompts              Prompt[]
+  likes                UserLike[]
+  saves                UserSave[]
+  collectionSaves      UserCollectionSave[]
+  copies               UserCopy[]
+  views                UserView[]
+  achievements         UserAchievement[]
+  visitedCategories    UserVisitedCategory[]
+  aiRequestLogs        AiRequestLog[]
+  blacklistRulesBlocked BlacklistRule[] @relation("BlockedByAdmin")
+  // 2026-04-09 新增 — P6.01 跨设备历史同步
+  enhanceHistories     EnhanceHistory[]
+  // 2026-04-09 新增 — P6.03 OAuth 集成
+  oauthAccounts        OAuthAccount[]
+
+  @@map("users")
+}
+
+// ═══ Prompt ═══
+model Prompt {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title       String   @db.VarChar(200)
+  description String?  @db.Text
+  content     String   @db.Text
+  tags        String[] @default([])
+  category    String   @db.VarChar(50)
+  model       String?  @db.VarChar(50)
+  authorId    String?  @map("author_id") @db.Uuid
+  status      String   @default("published") @db.VarChar(20) // draft / pending / published / rejected
+  likesCount  Int      @default(0) @map("likes_count")
+  viewsCount  Int      @default(0) @map("views_count")
+  copiesCount Int      @default(0) @map("copies_count")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // ── 关系 ──
+  author      User?              @relation(fields: [authorId], references: [id])
+  likes       UserLike[]
+  saves       UserSave[]
+  copies      UserCopy[]
+  views       UserView[]
+  collections CollectionPrompt[]
+
+  @@index([category])
+  @@index([status])
+  @@index([authorId])
+  @@index([likesCount(sort: Desc)])
+  @@map("prompts")
+}
+
+// ═══ 合集 ═══
+model Collection {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title        String   @db.VarChar(200)
+  description  String?  @db.Text
+  icon         String?  @db.VarChar(10)
+  gradientFrom String?  @map("gradient_from") @db.VarChar(20)
+  gradientTo   String?  @map("gradient_to") @db.VarChar(20)
+  tags         String[] @default([])
+  difficulty   String?  @db.VarChar(20) // 入门 / 进阶 / 专业
+  estimatedTime String? @map("estimated_time") @db.VarChar(50)
+  createdBy    String?  @map("created_by") @db.Uuid
+  savedCount   Int      @default(0) @map("saved_count")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  // ── 关系 ──
+  prompts      CollectionPrompt[]
+  userSaves    UserCollectionSave[]
+
+  @@map("collections")
+}
+
+model CollectionPrompt {
+  collectionId String @map("collection_id") @db.Uuid
+  promptId     String @map("prompt_id") @db.Uuid
+  position     Int    @default(0)
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  prompt     Prompt     @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, promptId])
+  @@map("collection_prompts")
+}
+
+// ═══ 用户交互 ═══
+model UserLike {
+  userId    String   @map("user_id") @db.Uuid
+  promptId  String   @map("prompt_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prompt Prompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@id([userId, promptId])
+  @@map("user_likes")
+}
+
+model UserSave {
+  userId    String   @map("user_id") @db.Uuid
+  promptId  String   @map("prompt_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prompt Prompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@id([userId, promptId])
+  @@map("user_saves")
+}
+
+model UserCollectionSave {
+  userId       String   @map("user_id") @db.Uuid
+  collectionId String   @map("collection_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, collectionId])
+  @@map("user_collection_saves")
+}
+
+model UserCopy {
+  userId       String   @map("user_id") @db.Uuid
+  promptId     String   @map("prompt_id") @db.Uuid
+  count        Int      @default(1)
+  lastCopiedAt DateTime @default(now()) @map("last_copied_at") @db.Timestamptz()
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prompt Prompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@id([userId, promptId])
+  @@map("user_copies")
+}
+
+model UserView {
+  userId       String   @map("user_id") @db.Uuid
+  promptId     String   @map("prompt_id") @db.Uuid
+  count        Int      @default(1)
+  lastViewedAt DateTime @default(now()) @map("last_viewed_at") @db.Timestamptz()
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prompt Prompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@id([userId, promptId])
+  @@map("user_views")
+}
+
+// ═══ 成就 ═══
+model Achievement {
+  id             String  @id @db.VarChar(50) // 与前端 ID 对齐，如 'first_like'
+  title          String  @db.VarChar(100)
+  description    String? @db.Text
+  icon           String? @db.VarChar(10)
+  color          String? @db.VarChar(20)
+  category       String? @db.VarChar(50)
+  rarity         String? @db.VarChar(20) // common / rare / epic / legendary
+  conditionType  String? @map("condition_type") @db.VarChar(50)
+  conditionValue Int?    @map("condition_value")
+
+  users UserAchievement[]
+
+  @@map("achievements")
+}
+
+model UserAchievement {
+  userId        String   @map("user_id") @db.Uuid
+  achievementId String   @map("achievement_id") @db.VarChar(50)
+  unlockedAt    DateTime @default(now()) @map("unlocked_at") @db.Timestamptz()
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id])
+
+  @@id([userId, achievementId])
+  @@map("user_achievements")
+}
+
+// ═══ 用户分类访问记录 ═══
+model UserVisitedCategory {
+  userId       String   @map("user_id") @db.Uuid
+  category     String   @db.VarChar(50)
+  firstVisited DateTime @default(now()) @map("first_visited") @db.Timestamptz()
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, category])
+  @@map("user_visited_categories")
+}
+
+// ═══ 场景（Prompt 增强场景库）═══
+// 2026-04-08 新增 — P1.34 场景数据模型
+// 设计思路：将 core/scenes.js 的 97 场景数据持久化到 DB，
+//   支持后台管理和客户端动态获取，替代前端硬编码
+model Scene {
+  id          String  @id @db.VarChar(50) // kebab-case 场景 ID，如 'split-task', 'api-design'
+  name        String  @db.VarChar(100)    // 场景显示名
+  // 2026-04-09 新增 — P6.04 i18n 英文场景名
+  nameEn      String? @map("name_en") @db.VarChar(100)
+  category    String  @db.VarChar(50)     // 所属分类 slug
+  keywords    String  @db.Text            // 关键词（逗号分隔，用于路由匹配）
+  prompt      String  @db.Text            // 场景 prompt 模板
+  description String? @db.Text            // 场景描述
+  sortOrder   Int     @default(0) @map("sort_order")
+  isActive    Boolean @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@index([category])
+  @@index([isActive])
+  @@map("scenes")
+}
+
+// ═══ 元数据：分类配置 ═══
+model Category {
+  slug       String  @id @db.VarChar(50) // 'coding', 'writing' 等
+  label      String  @db.VarChar(100)
+  labelEn    String? @map("label_en") @db.VarChar(100)
+  emoji      String? @db.VarChar(10)
+  icon       String? @db.VarChar(30)
+  color      String? @db.VarChar(20)
+  bgColor    String? @map("bg_color") @db.VarChar(20)
+  darkBgColor String? @map("dark_bg_color") @db.VarChar(30)
+  darkColor  String? @map("dark_color") @db.VarChar(20)
+  sortOrder  Int     @default(0) @map("sort_order")
+  isActive   Boolean @default(true) @map("is_active")
+
+  @@map("categories")
+}
+
+// ═══ 元数据：模型配置 ═══
+model ModelConfig {
+  slug      String  @id @db.VarChar(50) // 'gpt4', 'claude' 等
+  label     String  @db.VarChar(100)
+  color     String? @db.VarChar(20)
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+
+  @@map("models")
+}
+
+// ═══ AI Provider 配置 ═══
+model AiProvider {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String   @unique @db.VarChar(100)
+  slug         String   @unique @db.VarChar(50)
+  apiMode      String   @map("api_mode") @db.VarChar(20) // openai / openai-responses / claude / gemini
+  baseUrl      String   @map("base_url") @db.VarChar(500)
+  apiKey       String   @map("api_key") @db.VarChar(500) // 加密存储
+  defaultModel String   @map("default_model") @db.VarChar(100)
+  models       String[] @default([])
+  isActive     Boolean  @default(false) @map("is_active")
+  priority     Int      @default(0)
+  maxRpm       Int      @default(60) @map("max_rpm")
+  maxTokens    Int      @default(4096) @map("max_tokens")
+  timeoutMs    Int      @default(30000) @map("timeout_ms")
+  extraHeaders Json     @default("{}") @map("extra_headers") @db.JsonB
+  notes        String?  @db.Text
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  aiRequestLogs AiRequestLog[]
+
+  @@map("ai_providers")
+}
+
+// ═══ AI 请求日志 ═══
+model AiRequestLog {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  // ── 请求来源标识 ──
+  requestId       String   @default(dbgenerated("gen_random_uuid()")) @map("request_id") @db.Uuid
+  userId          String?  @map("user_id") @db.Uuid
+  clientType      String   @map("client_type") @db.VarChar(20)
+  clientVersion   String?  @map("client_version") @db.VarChar(20)
+  clientPlatform  String?  @map("client_platform") @db.VarChar(20)
+  language        String?  @db.VarChar(10)
+
+  // ── 设备指纹与网络信息 ──
+  ipAddress       String?  @map("ip_address") @db.Inet
+  userAgent       String?  @map("user_agent") @db.Text
+  fingerprint     String?  @db.VarChar(64)
+  country         String?  @db.VarChar(10)
+  region          String?  @db.VarChar(100)
+
+  // ── 业务数据 ──
+  enhanceMode     String?  @map("enhance_mode") @db.VarChar(20)
+  originalInput   String   @map("original_input") @db.Text
+  routerResult    Json?    @map("router_result") @db.JsonB
+  systemPrompt    String?  @map("system_prompt") @db.Text
+  aiOutput        String?  @map("ai_output") @db.Text
+  sceneIds        String[] @default([]) @map("scene_ids")
+  isComposite     Boolean  @default(false) @map("is_composite")
+
+  // ── Provider 与模型 ──
+  providerId      String?  @map("provider_id") @db.Uuid
+  providerSlug    String?  @map("provider_slug") @db.VarChar(50)
+  modelUsed       String?  @map("model_used") @db.VarChar(100)
+  apiMode         String?  @map("api_mode") @db.VarChar(20)
+
+  // ── 性能与计费 ──
+  durationMs      Int?     @map("duration_ms")
+  routerDurationMs Int?    @map("router_duration_ms")
+  genDurationMs   Int?     @map("gen_duration_ms")
+  promptTokens    Int?     @map("prompt_tokens")
+  completionTokens Int?    @map("completion_tokens")
+  totalTokens     Int?     @map("total_tokens")
+  estimatedCost   Decimal? @map("estimated_cost") @db.Decimal(10, 6)
+
+  // ── 状态 ──
+  status          String   @default("success") @db.VarChar(20)
+  errorMessage    String?  @map("error_message") @db.Text
+  retryCount      Int      @default(0) @map("retry_count")
+
+  // ── 时间戳 ──
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  // ── 关系 ──
+  user     User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  provider AiProvider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([providerId, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([ipAddress])
+  @@index([fingerprint])
+  @@index([clientType, createdAt(sort: Desc)])
+  @@index([requestId])
+  @@map("ai_request_logs")
+}
+
+// ═══ 每日统计快照 ═══
+model DailyStat {
+  date         DateTime @id @db.Date
+
+  // PromptHub 统计
+  totalViews   Int      @default(0) @map("total_views")
+  totalCopies  Int      @default(0) @map("total_copies")
+  totalLikes   Int      @default(0) @map("total_likes")
+  newPrompts   Int      @default(0) @map("new_prompts")
+  newUsers     Int      @default(0) @map("new_users")
+
+  // AI 代理统计
+  aiRequests   Int      @default(0) @map("ai_requests")
+  aiTokens     Int      @default(0) @map("ai_tokens")
+  aiCost       Decimal  @default(0) @map("ai_cost") @db.Decimal(10, 4)
+  aiErrors     Int      @default(0) @map("ai_errors")
+
+  // 按端分拆
+  aiReqVscode   Int     @default(0) @map("ai_req_vscode")
+  aiReqBrowser  Int     @default(0) @map("ai_req_browser")
+  aiReqWeb      Int     @default(0) @map("ai_req_web")
+  aiReqIntelij  Int     @default(0) @map("ai_req_intellij")
+  aiReqWebhub   Int     @default(0) @map("ai_req_webhub")
+
+  @@map("daily_stats")
+}
+
+// ═══ 黑名单封禁规则 ═══
+model BlacklistRule {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  // ── 封禁维度 ──
+  type           String    @db.VarChar(20) // user / ip / fingerprint / ip_range
+  value          String    @db.VarChar(255)
+
+  // ── 封禁来源 ──
+  source         String    @default("admin") @db.VarChar(20) // admin / auto
+  violationLevel Int       @default(0) @map("violation_level")
+
+  // ── 封禁信息 ──
+  reason         String    @db.Text
+  blockedBy      String?   @map("blocked_by") @db.Uuid
+  severity       String    @default("block") @db.VarChar(20) // block / warn / throttle
+
+  // ── 时间控制 ──
+  expiresAt      DateTime? @map("expires_at") @db.Timestamptz()
+  isActive       Boolean   @default(true) @map("is_active")
+
+  // ── 统计 ──
+  hitCount       Int       @default(0) @map("hit_count")
+  lastHitAt      DateTime? @map("last_hit_at") @db.Timestamptz()
+
+  // ── 时间戳 ──
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // ── 关系 ──
+  blockedByUser  User?          @relation("BlockedByAdmin", fields: [blockedBy], references: [id])
+  rateViolations RateViolation[]
+
+  @@unique([type, value])
+  @@index([type, value])
+  @@index([expiresAt])
+  @@index([source])
+  @@map("blacklist_rules")
+}
+
+// ═══ 跨设备增强历史 ═══
+// 2026-04-09 新增 — P6.01 跨设备历史同步
+// 设计思路：存储用户的 AI 增强历史，支持多端同步
+//   clientId 为客户端生成的 UUID，用于 upsert 去重
+//   每用户上限 500 条，超限由 cron 归档
+model EnhanceHistory {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  clientId    String   @map("client_id") @db.VarChar(64) // 客户端生成的唯一 ID（去重用）
+
+  inputText   String   @map("input_text") @db.Text
+  outputText  String   @map("output_text") @db.Text
+  scene       String?  @db.VarChar(50)    // 场景 ID
+  model       String?  @db.VarChar(100)   // 使用的模型
+  clientType  String?  @map("client_type") @db.VarChar(20) // vscode / browser / web / intellij / web-hub
+  enhanceMode String?  @map("enhance_mode") @db.VarChar(20) // fast / deep
+  language    String?  @db.VarChar(10)
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // ── 关系 ──
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clientId]) // 同一用户 + 同一客户端 ID → upsert 去重
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("enhance_histories")
+}
+
+// ═══ OAuth 第三方账号关联 ═══
+// 2026-04-09 新增 — P6.03 OAuth 集成（GitHub / Google）
+// 设计思路：独立表存储 OAuth 关联，不污染 User 主表
+//   一个用户可关联多个 provider，一个 provider 账号只能关联一个用户
+model OAuthAccount {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  provider     String   @db.VarChar(20)    // github / google
+  providerId   String   @map("provider_id") @db.VarChar(255) // 第三方用户 ID
+  email        String?  @db.VarChar(255)   // 第三方邮箱
+  displayName  String?  @map("display_name") @db.VarChar(100)
+  avatarUrl    String?  @map("avatar_url") @db.VarChar(500)
+  accessToken  String?  @map("access_token") @db.VarChar(500) // 加密存储（可选保留用于 API 调用）
+  rawProfile   Json?    @map("raw_profile") @db.JsonB // 原始 profile（调试用）
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // ── 关系 ──
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId]) // 同一 provider + 同一 providerId → 唯一
+  @@index([userId])
+  @@map("oauth_accounts")
+}
+
+// ═══ 渐进式限流违规记录 ═══
+model RateViolation {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  // ── 违规实体 ──
+  entityType      String    @map("entity_type") @db.VarChar(20) // ip / fingerprint / user
+  entityValue     String    @map("entity_value") @db.VarChar(255)
+
+  // ── 违规累计 ──
+  violationCount  Int       @default(1) @map("violation_count")
+  currentLevel    Int       @default(1) @map("current_level") // 1-7 阶梯
+
+  // ── 最近一次违规详情 ──
+  lastWindowHits  Int       @default(0) @map("last_window_hits")
+  lastThreshold   Int       @default(0) @map("last_threshold")
+  lastViolationAt DateTime  @default(now()) @map("last_violation_at") @db.Timestamptz()
+
+  // ── 关联封禁规则 ──
+  activeRuleId    String?   @map("active_rule_id") @db.Uuid
+
+  // ── 冷却与衰减 ──
+  lastUnbanAt     DateTime? @map("last_unban_at") @db.Timestamptz()
+
+  // ── 时间戳 ──
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // ── 关系 ──
+  activeRule BlacklistRule? @relation(fields: [activeRuleId], references: [id], onDelete: SetNull)
+
+  @@unique([entityType, entityValue])
+  @@index([entityType, entityValue])
+  @@index([currentLevel])
+  @@map("rate_violations")
+}

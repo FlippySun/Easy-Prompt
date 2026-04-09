@@ -1,0 +1,17 @@
+[
+  { "slug": "gpt-4o", "label": "GPT-4o", "color": "#10A37F", "sortOrder": 1, "isActive": true },
+  { "slug": "gpt-4o-mini", "label": "GPT-4o Mini", "color": "#10A37F", "sortOrder": 2, "isActive": true },
+  { "slug": "gpt-5", "label": "GPT-5", "color": "#10A37F", "sortOrder": 3, "isActive": true },
+  { "slug": "gpt-5.4", "label": "GPT-5.4", "color": "#10A37F", "sortOrder": 4, "isActive": true },
+  { "slug": "claude-sonnet-4.5", "label": "Claude Sonnet 4.5", "color": "#D97706", "sortOrder": 10, "isActive": true },
+  { "slug": "claude-opus-4.6", "label": "Claude Opus 4.6", "color": "#D97706", "sortOrder": 11, "isActive": true },
+  { "slug": "claude-haiku-4.5", "label": "Claude Haiku 4.5", "color": "#D97706", "sortOrder": 12, "isActive": true },
+  { "slug": "gemini-3-pro", "label": "Gemini 3 Pro", "color": "#4285F4", "sortOrder": 20, "isActive": true },
+  { "slug": "gemini-3-flash", "label": "Gemini 3 Flash", "color": "#4285F4", "sortOrder": 21, "isActive": true },
+  { "slug": "gemini-2.5-pro", "label": "Gemini 2.5 Pro", "color": "#4285F4", "sortOrder": 22, "isActive": true },
+  { "slug": "deepseek-v3.2", "label": "DeepSeek V3.2", "color": "#0EA5E9", "sortOrder": 30, "isActive": true },
+  { "slug": "deepseek-r1", "label": "DeepSeek R1", "color": "#0EA5E9", "sortOrder": 31, "isActive": true },
+  { "slug": "grok-4", "label": "Grok 4", "color": "#000000", "sortOrder": 40, "isActive": true },
+  { "slug": "qwen3", "label": "Qwen 3", "color": "#6D28D9", "sortOrder": 50, "isActive": true },
+  { "slug": "kimi-k2.5", "label": "Kimi K2.5", "color": "#059669", "sortOrder": 60, "isActive": true }
+]
