@@ -13,7 +13,10 @@ import { CrossProductGuide } from './CrossProductGuide';
 import { AuroraOrbs } from './AuroraOrbs';
 import { Toaster } from 'sonner';
 import { useState, useEffect, useCallback } from 'react';
-import { MOCK_PROMPTS, type Prompt } from '../data/prompts';
+import { type Prompt } from '../data/prompts';
+import { usePrompts } from '../hooks/usePrompts';
+import { useMeta } from '../hooks/useMeta';
+import { PromptDataContext } from '../hooks/usePromptData';
 import { unlockAchievementAction, recordViewAction } from '../hooks/usePromptStore';
 import { DrawerContext } from '../hooks/useDrawerContext';
 
@@ -101,6 +104,12 @@ export function Layout() {
     }
   }, []);
 
+  // 2026-04-09 — P5 迁移：全局加载 Prompt 数据，通过 Context 共享给所有子组件
+  const { prompts: globalPrompts } = usePrompts({ pageSize: 200 });
+
+  // 2026-04-10 — P5 修复：预热分类/模型元数据缓存（API 优先 + static fallback）
+  useMeta();
+
   const handleOpenPrompt = useCallback(
     (prompt: Prompt) => {
       openDrawer(prompt);
@@ -108,11 +117,13 @@ export function Layout() {
     [openDrawer],
   );
 
+  // 2026-04-09 — P5 迁移：随机探索改用 Context 中的全局数据
   const handleRandomExplore = useCallback(() => {
-    const random = MOCK_PROMPTS[Math.floor(Math.random() * MOCK_PROMPTS.length)];
+    if (globalPrompts.length === 0) return;
+    const random = globalPrompts[Math.floor(Math.random() * globalPrompts.length)];
     openDrawer(random);
     unlockAchievementAction('random_explore');
-  }, [openDrawer]);
+  }, [openDrawer, globalPrompts]);
 
   const onOpenCmdPalette = useCallback(() => {
     setCmdOpen(true);
@@ -144,33 +155,35 @@ export function Layout() {
         onOpenCmdPalette={onOpenCmdPalette}
       />
 
-      <DrawerContext.Provider value={{ openDrawer }}>
-        <div className="relative z-10 mx-auto flex w-full max-w-[1400px] flex-1 overflow-hidden">
-          <Sidebar darkMode={darkMode} />
-          <main id="main-scroll-container" className="custom-scrollbar min-w-0 flex-1 flex flex-col overflow-y-auto">
-            <CrossProductGuide darkMode={darkMode} />
-            <div className="flex-1 px-4 py-6 sm:px-6">
-              <AnimatedOutlet ctx={ctx} />
-            </div>
-            <Footer darkMode={darkMode} />
-          </main>
-        </div>
+      <PromptDataContext.Provider value={globalPrompts}>
+        <DrawerContext.Provider value={{ openDrawer }}>
+          <div className="relative z-10 mx-auto flex w-full max-w-[1400px] flex-1 overflow-hidden">
+            <Sidebar darkMode={darkMode} />
+            <main id="main-scroll-container" className="custom-scrollbar min-w-0 flex-1 flex flex-col overflow-y-auto">
+              <CrossProductGuide darkMode={darkMode} />
+              <div className="flex-1 px-4 py-6 sm:px-6">
+                <AnimatedOutlet ctx={ctx} />
+              </div>
+              <Footer darkMode={darkMode} />
+            </main>
+          </div>
 
-        <FloatingActions darkMode={darkMode} />
+          <FloatingActions darkMode={darkMode} />
 
-        {/* Command Palette */}
-        <CommandPalette
-          open={cmdOpen}
-          onClose={() => setCmdOpen(false)}
-          darkMode={darkMode}
-          onToggleDark={() => {
-            setDarkMode(!darkMode);
-            unlockAchievementAction('dark_mode');
-          }}
-          onOpenPrompt={handleOpenPrompt}
-          onRandomExplore={handleRandomExplore}
-        />
-      </DrawerContext.Provider>
+          {/* Command Palette */}
+          <CommandPalette
+            open={cmdOpen}
+            onClose={() => setCmdOpen(false)}
+            darkMode={darkMode}
+            onToggleDark={() => {
+              setDarkMode(!darkMode);
+              unlockAchievementAction('dark_mode');
+            }}
+            onOpenPrompt={handleOpenPrompt}
+            onRandomExplore={handleRandomExplore}
+          />
+        </DrawerContext.Provider>
+      </PromptDataContext.Provider>
 
       {/* Singleton PromptDetailDrawer — one instance for entire app */}
       {drawerPrompt && (

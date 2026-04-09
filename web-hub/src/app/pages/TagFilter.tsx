@@ -3,33 +3,33 @@ import { useEffect, useMemo, useState } from 'react';
 import Masonry, { ResponsiveMasonry } from 'react-responsive-masonry';
 import { Hash, ArrowLeft, Flame, Clock, Copy, TrendingUp, Tag } from 'lucide-react';
 import { motion } from 'motion/react';
-import { MOCK_PROMPTS } from '../data/prompts';
+// 2026-04-09 — P5 迁移：不再直接导入 MOCK_PROMPTS
+import { useAllPrompts } from '../hooks/usePromptData';
 import { PromptCard } from '../components/PromptCard';
 import { useLayoutContext } from '../components/Layout';
 import { usePromptStore } from '../hooks/usePromptStore';
-
-// All tags with usage count
-function buildTagStats() {
-  const stats: Record<string, { count: number; promptIds: string[] }> = {};
-  MOCK_PROMPTS.forEach((p) => {
-    p.tags.forEach((tag) => {
-      if (!stats[tag]) stats[tag] = { count: 0, promptIds: [] };
-      stats[tag].count++;
-      stats[tag].promptIds.push(p.id);
-    });
-  });
-  return stats;
-}
-
-const TAG_STATS = buildTagStats();
-const ALL_TAGS = Object.entries(TAG_STATS)
-  .sort((a, b) => b[1].count - a[1].count)
-  .map(([name, { count }]) => ({ name, count }));
+import { useInteractions } from '../hooks/useInteractions';
 
 export function TagFilter() {
+  // 2026-04-09 — P5 迁移：标签统计改用 Context 全局数据动态计算
+  const allPrompts = useAllPrompts();
+
+  const ALL_TAGS = useMemo(() => {
+    const stats: Record<string, number> = {};
+    allPrompts.forEach((p) => {
+      p.tags.forEach((tag) => {
+        stats[tag] = (stats[tag] || 0) + 1;
+      });
+    });
+    return Object.entries(stats)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => ({ name, count }));
+  }, [allPrompts]);
   const { tagName } = useParams<{ tagName: string }>();
   const { darkMode } = useLayoutContext();
   const store = usePromptStore();
+  // 2026-04-10 — P5 修复：改用 useInteractions() 进行交互操作（乐观更新 + API 同步）
+  const interactions = useInteractions();
   const { unlockAchievement } = store;
   const dm = darkMode;
   const [sortBy, setSortBy] = useState<'popular' | 'newest' | 'most_copied'>('popular');
@@ -42,12 +42,12 @@ export function TagFilter() {
   }, [decodedTag, unlockAchievement]);
 
   const filteredPrompts = useMemo(() => {
-    const prompts = MOCK_PROMPTS.filter((p) => p.tags.some((t) => t === decodedTag));
+    const prompts = allPrompts.filter((p) => p.tags.some((t) => t === decodedTag));
     if (sortBy === 'popular') prompts.sort((a, b) => b.likes - a.likes);
     else if (sortBy === 'newest') prompts.sort((a, b) => b.date.localeCompare(a.date));
     else if (sortBy === 'most_copied') prompts.sort((a, b) => b.copies - a.copies);
     return prompts;
-  }, [decodedTag, sortBy]);
+  }, [allPrompts, decodedTag, sortBy]);
 
   // Related tags: tags that appear in the same prompts
   const relatedTags = useMemo(() => {
@@ -161,13 +161,13 @@ export function TagFilter() {
                   prompt={prompt}
                   index={index}
                   darkMode={dm}
-                  isLiked={store.isLiked(prompt.id)}
-                  isSaved={store.isSaved(prompt.id)}
+                  isLiked={interactions.isLiked(prompt.id)}
+                  isSaved={interactions.isSaved(prompt.id)}
                   isInCompare={store.isInCompare(prompt.id)}
                   compareIsFull={store.compare.length >= 2 && !store.isInCompare(prompt.id)}
-                  onToggleLike={store.toggleLike}
-                  onToggleSave={store.toggleSave}
-                  onRecordCopy={store.recordCopy}
+                  onToggleLike={(id) => interactions.toggleLike(id)}
+                  onToggleSave={(id) => interactions.toggleSave(id)}
+                  onRecordCopy={(id) => interactions.recordCopy(id)}
                   onToggleCompare={store.toggleCompare}
                   showCompare
                 />

@@ -1,7 +1,9 @@
 import { useParams, Link } from 'react-router';
 import { useMemo, useState, useCallback, useEffect, useRef, memo } from 'react';
 import Masonry, { ResponsiveMasonry } from 'react-responsive-masonry';
-import { MOCK_PROMPTS, CATEGORIES } from '../data/prompts';
+// 2026-04-09 修改 — P5 迁移：不再直接导入 MOCK_PROMPTS，改用 API hooks
+import { CATEGORY_BASE, type Prompt } from '../data/prompts';
+import { usePrompts, useFeaturedPrompts } from '../hooks/usePrompts';
 import { PromptCard } from '../components/PromptCard';
 import { useLayoutContext } from '../components/Layout';
 import { CountUp } from '../components/CountUp';
@@ -28,6 +30,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { usePromptStore } from '../hooks/usePromptStore';
+import { useInteractions } from '../hooks/useInteractions';
 import { useOpenDrawer } from '../hooks/useDrawerContext';
 import { useTypewriter } from '../hooks/useTypewriter';
 import { CATEGORY_CONFIG as CARD_CATEGORY_CONFIG, MODEL_LABELS as BASE_MODEL_LABELS } from '../data/constants';
@@ -45,10 +48,7 @@ const MODEL_LABELS: Record<string, string> = {
   ...BASE_MODEL_LABELS,
 };
 
-function getTodaysFeatured(): (typeof MOCK_PROMPTS)[0] {
-  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
-  return MOCK_PROMPTS[dayOfYear % MOCK_PROMPTS.length];
-}
+// 2026-04-09 — P5 迁移：getTodaysFeatured 改为从 hook 获取，见 useFeaturedPrompts
 
 const TYPEWRITER_PHRASES = [
   '代码审查专家',
@@ -87,11 +87,22 @@ export function Home() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const store = usePromptStore();
+  // 2026-04-10 — P5 修复：改用 useInteractions() 进行交互操作（乐观更新 + API 同步）
+  const interactions = useInteractions();
   const { recordCategory } = store;
   const openDrawer = useOpenDrawer();
-  const todaysFeatured = useMemo(() => getTodaysFeatured(), []);
-  const totalLikes = useMemo(() => MOCK_PROMPTS.reduce((s, p) => s + p.likes, 0), []);
-  const totalCopies = useMemo(() => MOCK_PROMPTS.reduce((s, p) => s + p.copies, 0), []);
+
+  // 2026-04-09 — P5 迁移：数据源从 MOCK_PROMPTS 切换为 API hooks
+  const { prompts: hookPrompts } = usePrompts({
+    category: categoryId,
+    model: selectedModel,
+    search,
+    pageSize: 200,
+  });
+  const { prompts: featuredList } = useFeaturedPrompts(1);
+  const todaysFeatured = featuredList[0] as Prompt | undefined;
+  const totalLikes = useMemo(() => hookPrompts.reduce((s, p) => s + p.likes, 0), [hookPrompts]);
+  const totalCopies = useMemo(() => hookPrompts.reduce((s, p) => s + p.copies, 0), [hookPrompts]);
 
   // Incremental rendering — show PAGE_SIZE cards initially, load more on scroll
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -106,27 +117,17 @@ export function Home() {
     if (categoryId && categoryId !== 'all') recordCategory(categoryId);
   }, [categoryId, recordCategory]);
 
-  const currentCategory = useMemo(() => CATEGORIES.find((c) => c.id === (categoryId || 'all')), [categoryId]);
+  // 2026-04-09 — P5 迁移：CATEGORIES 改为静态 CATEGORY_BASE（不依赖 mock 计数）
+  const currentCategory = useMemo(() => CATEGORY_BASE.find((c) => c.id === (categoryId || 'all')), [categoryId]);
 
+  // hook 已完成 category/model/search 过滤，此处只做排序
   const filteredPrompts = useMemo(() => {
-    let prompts = [...MOCK_PROMPTS];
-    if (categoryId && categoryId !== 'all') prompts = prompts.filter((p) => p.category === categoryId);
-    if (selectedModel !== 'all') prompts = prompts.filter((p) => p.model === selectedModel);
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      prompts = prompts.filter(
-        (p) =>
-          p.title.toLowerCase().includes(q) ||
-          p.description.toLowerCase().includes(q) ||
-          p.content.toLowerCase().includes(q) ||
-          p.tags.some((t) => t.toLowerCase().includes(q)),
-      );
-    }
+    const prompts = [...hookPrompts];
     if (sortBy === 'popular') prompts.sort((a, b) => b.likes - a.likes);
     else if (sortBy === 'newest') prompts.sort((a, b) => b.date.localeCompare(a.date));
     else prompts.sort((a, b) => b.copies - a.copies);
     return prompts;
-  }, [categoryId, search, sortBy, selectedModel]);
+  }, [hookPrompts, sortBy]);
 
   // IntersectionObserver for progressive card loading
   useEffect(() => {
@@ -218,7 +219,9 @@ export function Home() {
     }
   };
 
-  const catConfig = CARD_CATEGORY_CONFIG[todaysFeatured.category] || CARD_CATEGORY_CONFIG.coding;
+  const catConfig = todaysFeatured
+    ? CARD_CATEGORY_CONFIG[todaysFeatured.category] || CARD_CATEGORY_CONFIG.coding
+    : CARD_CATEGORY_CONFIG.coding;
 
   return (
     <div className="space-y-6">
@@ -309,7 +312,7 @@ export function Home() {
             {/* CountUp stats */}
             <div className="flex flex-wrap items-center gap-6">
               {[
-                { icon: Sparkles, label: '精选 Prompt', to: MOCK_PROMPTS.length, suffix: '+' },
+                { icon: Sparkles, label: '精选 Prompt', to: hookPrompts.length, suffix: '+' },
                 { icon: Flame, label: '总点赞数', to: Math.round(totalLikes / 1000), suffix: 'k+' },
                 { icon: Copy, label: '总复制次数', to: Math.round(totalCopies / 1000), suffix: 'k+' },
               ].map(({ icon: Icon, label, to, suffix }) => (
@@ -336,7 +339,7 @@ export function Home() {
       {!categoryId && !search && <MarqueeTags darkMode={dm} />}
 
       {/* ── Today's featured ────────────────────────────────────────────── */}
-      {!categoryId && !search && (
+      {!categoryId && !search && todaysFeatured && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -366,7 +369,7 @@ export function Home() {
             </p>
           </div>
           <button
-            onClick={() => openDrawer(todaysFeatured)}
+            onClick={() => openDrawer(todaysFeatured!)}
             className="shrink-0 flex items-center gap-1.5 rounded-xl bg-linear-to-r from-violet-500 to-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm"
           >
             查看 <Sparkles size={11} />
@@ -377,9 +380,12 @@ export function Home() {
       {/* ── Category pills ──────────────────────────────────────────────── */}
       {!categoryId && (
         <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-          {CATEGORIES.map((cat) => {
+          {CATEGORY_BASE.map((cat) => {
             const config = CATEGORY_CONFIG[cat.id] || CATEGORY_CONFIG.all;
             const isActive = !categoryId && cat.id === 'all';
+            // 2026-04-09 — P5 迁移：计数从 hook 数据动态计算
+            const catCount =
+              cat.id === 'all' ? hookPrompts.length : hookPrompts.filter((p) => p.category === cat.id).length;
             return (
               <Link
                 key={cat.id}
@@ -399,7 +405,7 @@ export function Home() {
                 <span
                   className={`rounded-md px-1.5 py-0.5 text-[10px] ${dm ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'}`}
                 >
-                  {cat.count}
+                  {catCount}
                 </span>
               </Link>
             );
@@ -639,13 +645,13 @@ export function Home() {
                         prompt={prompt}
                         index={index}
                         darkMode={darkMode}
-                        isLiked={store.isLiked(prompt.id)}
-                        isSaved={store.isSaved(prompt.id)}
+                        isLiked={interactions.isLiked(prompt.id)}
+                        isSaved={interactions.isSaved(prompt.id)}
                         isInCompare={store.isInCompare(prompt.id)}
                         compareIsFull={store.compare.length >= 2 && !store.isInCompare(prompt.id)}
-                        onToggleLike={store.toggleLike}
-                        onToggleSave={store.toggleSave}
-                        onRecordCopy={store.recordCopy}
+                        onToggleLike={(id) => interactions.toggleLike(id)}
+                        onToggleSave={(id) => interactions.toggleSave(id)}
+                        onRecordCopy={(id) => interactions.recordCopy(id)}
                         onToggleCompare={store.toggleCompare}
                         batchMode={batchMode}
                         selected={selectedIds.has(prompt.id)}

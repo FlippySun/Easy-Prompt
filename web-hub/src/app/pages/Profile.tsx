@@ -15,16 +15,18 @@ import {
   Target,
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from 'recharts';
-import { MOCK_PROMPTS } from '../data/prompts';
+// 2026-04-09 — P5 迁移：不再直接导入 MOCK_PROMPTS
+import { useAllPrompts } from '../hooks/usePromptData';
 import { useLayoutContext } from '../components/Layout';
 import { usePromptStore } from '../hooks/usePromptStore';
+import { useAuth } from '../hooks/useAuth';
+import { useMyPrompts } from '../hooks/useProfile';
 import { useOpenDrawer } from '../hooks/useDrawerContext';
 import { PromptDetailDrawer } from '../components/PromptDetailDrawer';
 import { CATEGORY_CONFIG, formatCount } from '../data/constants';
-import { ACHIEVEMENTS, RARITY_CONFIG, type Achievement } from '../data/achievements';
+import { RARITY_CONFIG, type Achievement } from '../data/achievements';
+import { useAchievements } from '../hooks/useAchievements';
 import { motion, AnimatePresence } from 'motion/react';
-
-const SUBMITTED_PROMPTS = MOCK_PROMPTS.slice(0, 3);
 
 // 从集中的 CATEGORY_CONFIG 派生图表配置
 const CATEGORY_CHART_CONFIG: Record<string, { name: string; color: string }> = Object.fromEntries(
@@ -89,38 +91,49 @@ function AchievementCard({
 export function Profile() {
   const { darkMode } = useLayoutContext();
   const store = usePromptStore();
+  const { user, isAuthenticated } = useAuth();
+  const { prompts: myPrompts } = useMyPrompts();
   const openDrawer = useOpenDrawer();
   const dm = darkMode;
+
+  // 2026-04-09 — P5 迁移：改用 Context 全局数据
+  const allPrompts = useAllPrompts();
+
+  // 2026-04-10 — P5 修复：改用 useAchievements() 获取成就列表（API 优先，mock 降级）
+  const { achievements: allAchievements } = useAchievements();
+
+  // P5.10: 优先使用 API 数据，降级到 Context 全局数据前 3 条
+  const submittedPrompts = myPrompts.length > 0 ? myPrompts.slice(0, 3) : allPrompts.slice(0, 3);
   const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
   const [achievementFilter, setAchievementFilter] = useState<Achievement['category'] | 'all'>('all');
 
   const recentlyViewed = useMemo(
     () =>
       store.viewed
-        .map((id) => MOCK_PROMPTS.find((p) => p.id === id))
+        .map((id) => allPrompts.find((p) => p.id === id))
         .filter(Boolean)
-        .slice(0, 6) as typeof MOCK_PROMPTS,
-    [store.viewed],
+        .slice(0, 6),
+    [store.viewed, allPrompts],
   );
 
   const totalCopied = useMemo(() => Object.values(store.copied).reduce((s, n) => s + n, 0), [store.copied]);
 
   const unlockedCount = store.achievements.size;
-  const totalAchievements = ACHIEVEMENTS.length;
+  const totalAchievements = allAchievements.length;
 
   // Category preference analytics
   const categoryStats = useMemo(() => {
     const stats: Record<string, number> = {};
     [...store.liked].forEach((id) => {
-      const p = MOCK_PROMPTS.find((p) => p.id === id);
+      const p = allPrompts.find((pr) => pr.id === id);
       if (p) stats[p.category] = (stats[p.category] || 0) + 2;
     });
     [...store.saved].forEach((id) => {
-      const p = MOCK_PROMPTS.find((p) => p.id === id);
+      const p = allPrompts.find((pr) => pr.id === id);
       if (p) stats[p.category] = (stats[p.category] || 0) + 3;
     });
     Object.entries(store.copied).forEach(([id, count]) => {
-      const p = MOCK_PROMPTS.find((p) => p.id === id);
+      const p = allPrompts.find((pr) => pr.id === id);
       if (p) stats[p.category] = (stats[p.category] || 0) + count;
     });
     return Object.entries(stats)
@@ -131,7 +144,7 @@ export function Profile() {
         color: CATEGORY_CHART_CONFIG[cat]?.color || '#6366f1',
       }))
       .sort((a, b) => b.score - a.score);
-  }, [store.liked, store.saved, store.copied]);
+  }, [store.liked, store.saved, store.copied, allPrompts]);
 
   // Most copied prompts
   const topCopied = useMemo(
@@ -139,20 +152,21 @@ export function Profile() {
       Object.entries(store.copied)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 5)
-        .map(([id, count]) => ({ prompt: MOCK_PROMPTS.find((p) => p.id === id), count }))
+        .map(([id, count]) => ({ prompt: allPrompts.find((p) => p.id === id), count }))
         .filter((x) => x.prompt),
-    [store.copied],
+    [store.copied, allPrompts],
   );
 
   // Next achievements to unlock
   const nextAchievements = useMemo(
-    () => ACHIEVEMENTS.filter((a) => !store.achievements.has(a.id)).slice(0, 3),
-    [store.achievements],
+    () => allAchievements.filter((a) => !store.achievements.has(a.id)).slice(0, 3),
+    [store.achievements, allAchievements],
   );
 
   const filteredAchievements = useMemo(
-    () => (achievementFilter === 'all' ? ACHIEVEMENTS : ACHIEVEMENTS.filter((a) => a.category === achievementFilter)),
-    [achievementFilter],
+    () =>
+      achievementFilter === 'all' ? allAchievements : allAchievements.filter((a) => a.category === achievementFilter),
+    [achievementFilter, allAchievements],
   );
 
   const cardBase = `rounded-2xl border p-5 ${dm ? 'border-gray-800 bg-gray-900' : 'border-gray-200/80 bg-white'}`;
@@ -188,10 +202,17 @@ export function Profile() {
               </div>
               <div className="mb-1 flex flex-col gap-0.5">
                 <div className="flex items-center gap-2">
-                  <h1 className={`text-xl font-bold ${dm ? 'text-gray-100' : 'text-gray-900'}`}>PromptHub 用户</h1>
+                  <h1 className={`text-xl font-bold ${dm ? 'text-gray-100' : 'text-gray-900'}`}>
+                    {isAuthenticated && user ? user.displayName || user.username : 'PromptHub 用户'}
+                  </h1>
                   {unlockedCount >= 10 && <span className="text-base">👑</span>}
                 </div>
-                <p className={`text-sm ${dm ? 'text-gray-400' : 'text-gray-500'}`}>@promptuser · 加入于 2024年1月</p>
+                <p className={`text-sm ${dm ? 'text-gray-400' : 'text-gray-500'}`}>
+                  @{isAuthenticated && user ? user.username : 'promptuser'}
+                  {isAuthenticated && user?.createdAt
+                    ? ` · 加入于 ${new Date(user.createdAt).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' })}`
+                    : ' · 加入于 2024年1月'}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-2 self-start sm:self-auto">
@@ -326,7 +347,7 @@ export function Profile() {
                 </div>
                 {/* Latest unlocked */}
                 <div className="grid grid-cols-4 gap-1.5">
-                  {ACHIEVEMENTS.slice(0, 8).map((a) => (
+                  {allAchievements.slice(0, 8).map((a) => (
                     <div
                       key={a.id}
                       className={`flex h-10 w-10 items-center justify-center rounded-xl text-xl ${
@@ -369,7 +390,7 @@ export function Profile() {
                   <h3 className={`text-sm font-semibold ${dm ? 'text-gray-200' : 'text-gray-800'}`}>我提交的 Prompt</h3>
                 </div>
                 <div className="flex flex-col gap-1">
-                  {SUBMITTED_PROMPTS.map((prompt) => {
+                  {submittedPrompts.map((prompt) => {
                     const catConfig = CATEGORY_CONFIG[prompt.category] || CATEGORY_CONFIG.coding;
                     return (
                       <button
@@ -416,6 +437,7 @@ export function Profile() {
                 {recentlyViewed.length > 0 ? (
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {recentlyViewed.map((prompt, i) => {
+                      if (!prompt) return null;
                       const catConfig = CATEGORY_CONFIG[prompt.category] || CATEGORY_CONFIG.coding;
                       return (
                         <PromptDetailDrawer key={prompt.id} prompt={prompt} darkMode={dm}>
@@ -518,8 +540,10 @@ export function Profile() {
               {/* Rarity breakdown */}
               <div className="flex items-center gap-3">
                 {(['common', 'rare', 'epic', 'legendary'] as const).map((rarity) => {
-                  const count = ACHIEVEMENTS.filter((a) => a.rarity === rarity && store.achievements.has(a.id)).length;
-                  const total = ACHIEVEMENTS.filter((a) => a.rarity === rarity).length;
+                  const count = allAchievements.filter(
+                    (a) => a.rarity === rarity && store.achievements.has(a.id),
+                  ).length;
+                  const total = allAchievements.filter((a) => a.rarity === rarity).length;
                   const config = RARITY_CONFIG[rarity];
                   return (
                     <div key={rarity} className="text-center">
@@ -703,19 +727,19 @@ export function Profile() {
                   {[
                     {
                       label: '探索覆盖率',
-                      value: `${Math.round((store.viewed.length / MOCK_PROMPTS.length) * 100)}%`,
-                      desc: `已查看 ${store.viewed.length}/${MOCK_PROMPTS.length} 个`,
+                      value: `${allPrompts.length > 0 ? Math.round((store.viewed.length / allPrompts.length) * 100) : 0}%`,
+                      desc: `已查看 ${store.viewed.length}/${allPrompts.length} 个`,
                       color: '#6366f1',
                     },
                     {
                       label: '收藏率',
-                      value: `${Math.round((store.saved.size / MOCK_PROMPTS.length) * 100)}%`,
+                      value: `${allPrompts.length > 0 ? Math.round((store.saved.size / allPrompts.length) * 100) : 0}%`,
                       desc: `收藏 ${store.saved.size} 个`,
                       color: '#f59e0b',
                     },
                     {
                       label: '点赞率',
-                      value: `${Math.round((store.liked.size / MOCK_PROMPTS.length) * 100)}%`,
+                      value: `${allPrompts.length > 0 ? Math.round((store.liked.size / allPrompts.length) * 100) : 0}%`,
                       desc: `点赞 ${store.liked.size} 个`,
                       color: '#ef4444',
                     },

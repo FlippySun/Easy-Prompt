@@ -2,8 +2,11 @@ import { useState } from 'react';
 import { Package, Bookmark, BookmarkCheck, ChevronRight, Users, Copy, Search, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
-import { COLLECTIONS, DIFFICULTY_CONFIG, type Collection } from '../data/collections';
-import { MOCK_PROMPTS, type Prompt } from '../data/prompts';
+// 2026-04-09 — P5 迁移：不再直接导入 COLLECTIONS/MOCK_PROMPTS
+import { DIFFICULTY_CONFIG, type Collection } from '../data/collections';
+import { type Prompt } from '../data/prompts';
+import { useCollections } from '../hooks/useCollections';
+import { useAllPrompts } from '../hooks/usePromptData';
 import { useLayoutContext } from '../components/Layout';
 import { CATEGORY_CONFIG, formatCount } from '../data/constants';
 import { usePromptStore } from '../hooks/usePromptStore';
@@ -141,7 +144,9 @@ interface CollectionDetailProps {
 function CollectionDetail({ collection, darkMode: dm, onBack, isSaved, onToggleSave }: CollectionDetailProps) {
   const store = usePromptStore();
   const openDrawer = useOpenDrawer();
-  const prompts = collection.promptIds.map((id) => MOCK_PROMPTS.find((p) => p.id === id)).filter(Boolean) as Prompt[];
+  // 2026-04-09 — P5 迁移：改用 Context 全局数据查找 promptIds 对应的 Prompt
+  const allPrompts = useAllPrompts();
+  const prompts = collection.promptIds.map((id) => allPrompts.find((p) => p.id === id)).filter(Boolean) as Prompt[];
   const diffConfig = DIFFICULTY_CONFIG[collection.difficulty];
 
   const handleCopyAll = async () => {
@@ -334,15 +339,10 @@ export function Collections() {
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
   const [search, setSearch] = useState('');
 
-  const filtered = COLLECTIONS.filter((c) => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return (
-      c.title.toLowerCase().includes(q) ||
-      c.description.toLowerCase().includes(q) ||
-      c.tags.some((t) => t.toLowerCase().includes(q))
-    );
-  });
+  // 2026-04-09 — P5 迁移：改用 useCollections hook 获取合集数据
+  const { collections: hookCollections } = useCollections({ search });
+
+  const filtered = hookCollections;
 
   return (
     <div className="flex flex-col gap-6 pb-8">
@@ -404,9 +404,13 @@ export function Collections() {
               className={`flex flex-wrap items-center gap-4 rounded-xl border px-4 py-3 ${dm ? 'border-gray-800 bg-gray-900' : 'border-gray-100 bg-white'}`}
             >
               {[
-                { label: '精选合集', value: COLLECTIONS.length, emoji: '📦' },
-                { label: '包含 Prompt', value: COLLECTIONS.reduce((s, c) => s + c.promptIds.length, 0), emoji: '✨' },
-                { label: '累计收藏', value: COLLECTIONS.reduce((s, c) => s + c.savedCount, 0), emoji: '⭐' },
+                { label: '精选合集', value: hookCollections.length, emoji: '📦' },
+                {
+                  label: '包含 Prompt',
+                  value: hookCollections.reduce((s, c) => s + c.promptIds.length, 0),
+                  emoji: '✨',
+                },
+                { label: '累计收藏', value: hookCollections.reduce((s, c) => s + c.savedCount, 0), emoji: '⭐' },
                 { label: '我收藏的', value: saved.size, emoji: '🔖' },
               ].map(({ label, value, emoji }) => (
                 <div key={label} className="flex items-center gap-2">

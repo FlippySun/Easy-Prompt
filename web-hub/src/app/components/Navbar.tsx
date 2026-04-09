@@ -1,7 +1,8 @@
-import { Search, Plus, Sun, Moon, Sparkles, X, User, Command, Wand2, ExternalLink } from 'lucide-react';
+import { Search, Plus, Sun, Moon, Sparkles, X, Command, Wand2, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router';
 import { AnimatePresence, motion } from 'motion/react';
 import { CreatePromptDrawer } from './CreatePromptDrawer';
+import { AuthButton } from './AuthButton';
 import { unlockAchievementAction } from '../hooks/usePromptStore';
 import { useState, useEffect } from 'react';
 
@@ -151,18 +152,8 @@ export function Navbar({ darkMode, onToggleDark, searchValue, onSearchChange, on
             {darkMode ? <Sun size={17} /> : <Moon size={17} />}
           </button>
 
-          {/* Profile Button */}
-          <Link
-            to="/profile"
-            className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${
-              darkMode
-                ? 'bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
-            }`}
-            title="个人主页"
-          >
-            <User size={17} />
-          </Link>
+          {/* Auth Button — 未登录显示登录按钮，已登录显示 UserMenu */}
+          <AuthButton darkMode={darkMode} />
 
           {/* Submit Button */}
           <CreatePromptDrawer darkMode={darkMode}>

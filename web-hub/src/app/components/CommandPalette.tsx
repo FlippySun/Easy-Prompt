@@ -26,7 +26,9 @@ import {
   Sparkles,
   Command,
 } from 'lucide-react';
-import { MOCK_PROMPTS, CATEGORY_COUNTS, type Prompt } from '../data/prompts';
+// 2026-04-09 — P5 迁移：不再直接导入 MOCK_PROMPTS/CATEGORY_COUNTS
+import { type Prompt } from '../data/prompts';
+import { useAllPrompts } from '../hooks/usePromptData';
 import { usePromptStore } from '../hooks/usePromptStore';
 
 // --- Types ---
@@ -92,7 +94,7 @@ const CMD_CATEGORIES = [
   { id: 'education', name: '学习教育', icon: GraduationCap, color: '#f97316', emoji: '🎓' },
   { id: 'business', name: '商业分析', icon: BarChart2, color: '#06b6d4', emoji: '📊' },
   { id: 'life', name: '生活助手', icon: Heart, color: '#ef4444', emoji: '❤️' },
-].map((c) => ({ ...c, count: CATEGORY_COUNTS[c.id] || 0 }));
+];
 
 const PAGES = [
   { title: '全部 Prompt', icon: LayoutGrid, path: '/', desc: '浏览所有精选 Prompt' },
@@ -130,6 +132,15 @@ export function CommandPalette({
   const listRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
+  // 2026-04-09 — P5 迁移：改用 Context 全局数据
+  const allPrompts = useAllPrompts();
+
+  // 动态计算分类计数（替代静态 CATEGORY_COUNTS）
+  const cmdCategoriesWithCount = useMemo(
+    () => CMD_CATEGORIES.map((c) => ({ ...c, count: allPrompts.filter((p) => p.category === c.id).length })),
+    [allPrompts],
+  );
+
   // Build groups based on query
   const groups = useMemo<Group[]>(() => {
     const q = query.toLowerCase().trim();
@@ -138,7 +149,7 @@ export function CommandPalette({
       // Default groups when empty
       const recent = store.viewed
         .slice(0, 4)
-        .map((id) => MOCK_PROMPTS.find((p) => p.id === id))
+        .map((id) => allPrompts.find((p) => p.id === id))
         .filter(Boolean) as Prompt[];
 
       const result: Group[] = [];
@@ -204,7 +215,7 @@ export function CommandPalette({
       result.push({
         id: 'categories',
         title: '分类探索',
-        items: CMD_CATEGORIES.map(
+        items: cmdCategoriesWithCount.map(
           (c) =>
             ({
               kind: 'category',
@@ -222,22 +233,24 @@ export function CommandPalette({
     }
 
     // Search mode
-    const matchedPrompts = MOCK_PROMPTS.filter(
-      (p) =>
-        p.title.toLowerCase().includes(q) ||
-        p.description.toLowerCase().includes(q) ||
-        p.tags.some((t) => t.toLowerCase().includes(q)) ||
-        p.category.toLowerCase().includes(q),
-    ).slice(0, 6);
+    const matchedPrompts = allPrompts
+      .filter(
+        (p) =>
+          p.title.toLowerCase().includes(q) ||
+          p.description.toLowerCase().includes(q) ||
+          p.tags.some((t) => t.toLowerCase().includes(q)) ||
+          p.category.toLowerCase().includes(q),
+      )
+      .slice(0, 6);
 
     const matchedPages = PAGES.filter((p) => p.title.toLowerCase().includes(q) || p.desc.toLowerCase().includes(q));
 
-    const matchedCategories = CMD_CATEGORIES.filter(
+    const matchedCategories = cmdCategoriesWithCount.filter(
       (c) => c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q),
     );
 
     // Unique matching tags
-    const allTags = [...new Set(MOCK_PROMPTS.flatMap((p) => p.tags))];
+    const allTags = [...new Set(allPrompts.flatMap((p) => p.tags))];
     const matchedTags = allTags.filter((t) => t.toLowerCase().includes(q)).slice(0, 5);
 
     const result: Group[] = [];
@@ -284,6 +297,8 @@ export function CommandPalette({
     onRandomExplore,
     onToggleDark,
     unlockAchievement,
+    allPrompts,
+    cmdCategoriesWithCount,
   ]);
 
   // Flatten for keyboard nav

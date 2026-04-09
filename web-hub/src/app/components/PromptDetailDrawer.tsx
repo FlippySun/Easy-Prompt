@@ -18,9 +18,12 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
-import { MOCK_PROMPTS, type Prompt } from '../data/prompts';
+// 2026-04-09 — P5 迁移：不再直接导入 MOCK_PROMPTS，改用 PromptDataContext
+import { type Prompt } from '../data/prompts';
+import { useRelatedPrompts } from '../hooks/usePromptData';
 import { CATEGORY_CONFIG, MODEL_LABELS, formatCount } from '../data/constants';
 import { usePromptStore } from '../hooks/usePromptStore';
+import { useInteractions } from '../hooks/useInteractions';
 
 /** Extract [variable] placeholders from prompt content */
 function extractVariables(content: string): string[] {
@@ -62,27 +65,27 @@ export function PromptDetailDrawer({
   const closingTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   const store = usePromptStore();
+  // 2026-04-10 — P5 修复：改用 useInteractions() 进行交互操作（乐观更新 + API 同步）
+  const interactions = useInteractions();
   const catConfig = CATEGORY_CONFIG[prompt.category] || CATEGORY_CONFIG.coding;
   const variables = useMemo(() => extractVariables(prompt.content), [prompt.content]);
   const hasVars = variables.length > 0;
 
   const preview = useMemo(() => applyVariables(prompt.content, varValues), [prompt.content, varValues]);
 
-  const relatedPrompts = useMemo(
-    () => MOCK_PROMPTS.filter((p) => p.id !== prompt.id && p.category === prompt.category).slice(0, 3),
-    [prompt],
-  );
+  // 2026-04-09 — P5 迁移：相关推荐改用 Context 数据
+  const relatedPrompts = useRelatedPrompts(prompt.id, prompt.category, 3);
 
   const handleOpen = () => {
     setOpen(true);
-    store.recordView(prompt.id);
+    interactions.recordView(prompt.id);
   };
 
   const handleCopy = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-      store.recordCopy(prompt.id);
+      interactions.recordCopy(prompt.id);
       toast.success('已复制到剪贴板！', { description: '可直接粘贴到 AI 工具中使用' });
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -501,7 +504,7 @@ export function PromptDetailDrawer({
             <div className="flex items-center gap-2">
               <button
                 onClick={() => {
-                  store.toggleLike(prompt.id);
+                  interactions.toggleLike(prompt.id);
                   toast.success(isLiked ? '已取消点赞' : '已点赞 ❤️');
                 }}
                 className={`flex items-center gap-1.5 rounded-xl border px-3.5 py-2.5 text-sm font-medium transition-all ${
@@ -519,7 +522,7 @@ export function PromptDetailDrawer({
               </button>
               <button
                 onClick={() => {
-                  store.toggleSave(prompt.id);
+                  interactions.toggleSave(prompt.id);
                   toast.success(isSaved ? '已移出收藏' : '已收藏 ⭐');
                 }}
                 className={`flex items-center gap-1.5 rounded-xl border px-3.5 py-2.5 text-sm font-medium transition-all ${

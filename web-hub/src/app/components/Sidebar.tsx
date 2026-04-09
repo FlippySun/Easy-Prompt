@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { NavLink } from 'react-router';
 import {
   LayoutGrid,
@@ -18,7 +19,8 @@ import {
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { CATEGORY_CONFIG } from '../data/constants';
-import { CATEGORY_COUNTS } from '../data/prompts';
+// 2026-04-09 — P5 迁移：不再直接导入 CATEGORY_COUNTS，改用 Context 动态计算
+import { useAllPrompts } from '../hooks/usePromptData';
 
 interface SidebarProps {
   darkMode: boolean;
@@ -37,17 +39,6 @@ const CATEGORY_ICON_MAP: Record<string, React.ElementType> = {
   life: Heart,
 };
 
-// 从集中 CATEGORY_CONFIG 派生，使用预计算的计数
-const categories = [
-  { id: 'all', name: '全部 Prompt', color: '#6366f1', count: CATEGORY_COUNTS.all },
-  ...Object.entries(CATEGORY_CONFIG).map(([id, cfg]) => ({
-    id,
-    name: cfg.label,
-    color: cfg.color,
-    count: CATEGORY_COUNTS[id] || 0,
-  })),
-];
-
 const hotTags = ['ChatGPT', '小红书', 'Python', 'Midjourney', 'SEO', '写作', '代码审查', '职场'];
 
 const navLinkClass =
@@ -65,6 +56,24 @@ const navLinkClass =
     );
 
 export function Sidebar({ darkMode: dm }: SidebarProps) {
+  // 2026-04-09 — P5 迁移：动态计算分类计数（替代静态 CATEGORY_COUNTS）
+  const allPrompts = useAllPrompts();
+  const categories = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const p of allPrompts) {
+      counts[p.category] = (counts[p.category] || 0) + 1;
+    }
+    return [
+      { id: 'all', name: '全部 Prompt', color: '#6366f1', count: allPrompts.length },
+      ...Object.entries(CATEGORY_CONFIG).map(([id, cfg]) => ({
+        id,
+        name: cfg.label,
+        color: cfg.color,
+        count: counts[id] || 0,
+      })),
+    ];
+  }, [allPrompts]);
+
   return (
     <aside
       className={cn(

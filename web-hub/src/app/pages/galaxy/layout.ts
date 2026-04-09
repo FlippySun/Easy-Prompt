@@ -9,8 +9,9 @@
  * - 星体大小由热度（likes + views）决定
  */
 
+// 2026-04-09 — P5 迁移：不再直接导入 MOCK_PROMPTS
 import { CATEGORY_CONFIG } from '../../data/constants';
-import { MOCK_PROMPTS } from '../../data/prompts';
+import type { Prompt } from '../../data/prompts';
 import type { PromptStarData, CategoryCluster } from './types';
 import { COSMOS_CONFIG } from './types';
 
@@ -43,13 +44,18 @@ function computeStarSize(likes: number, views: number): number {
   return STAR_MIN_SIZE + (STAR_MAX_SIZE - STAR_MIN_SIZE) * Math.min(popularity / 5, 1);
 }
 
-/** 生成螺旋星系布局 */
-export function buildGalaxyLayout(): CategoryCluster[] {
+/**
+ * 生成螺旋星系布局
+ * 2026-04-09 修改 — P5 迁移：改为接受 prompts 参数，不再直接依赖 MOCK_PROMPTS
+ * 参数：prompts — 全量 Prompt 列表（来自 Context 或 API）
+ * 返回：CategoryCluster[] — 各分类星团布局数据
+ */
+export function buildGalaxyLayout(prompts: Prompt[]): CategoryCluster[] {
   const rng = mulberry32(42);
   const categories = Object.keys(CATEGORY_CONFIG);
-  const promptsByCategory: Record<string, typeof MOCK_PROMPTS> = {};
+  const promptsByCategory: Record<string, Prompt[]> = {};
 
-  for (const p of MOCK_PROMPTS) {
+  for (const p of prompts) {
     if (!promptsByCategory[p.category]) promptsByCategory[p.category] = [];
     promptsByCategory[p.category].push(p);
   }

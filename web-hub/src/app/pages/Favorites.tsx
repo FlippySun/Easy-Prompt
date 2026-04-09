@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { Bookmark, Heart, Search, Trash2 } from 'lucide-react';
-import { MOCK_PROMPTS } from '../data/prompts';
+// 2026-04-09 — P5 迁移：不再直接导入 MOCK_PROMPTS
+import { useAllPrompts } from '../hooks/usePromptData';
 import { useLayoutContext } from '../components/Layout';
 import { usePromptStore } from '../hooks/usePromptStore';
 import { useOpenDrawer } from '../hooks/useDrawerContext';
@@ -23,18 +24,22 @@ export function Favorites() {
   const [tab, setTab] = useState<'saved' | 'liked'>('saved');
   const [search, setSearch] = useState('');
 
+  // 2026-04-09 — P5 迁移：改用 Context 全局数据过滤收藏/点赞
+  const allPrompts = useAllPrompts();
   const ids = tab === 'saved' ? store.saved : store.liked;
   const prompts = useMemo(() => {
-    return MOCK_PROMPTS.filter((p) => ids.has(p.id)).filter((p) => {
-      if (!search.trim()) return true;
-      const q = search.toLowerCase();
-      return (
-        p.title.toLowerCase().includes(q) ||
-        p.description.toLowerCase().includes(q) ||
-        p.tags.some((t) => t.toLowerCase().includes(q))
-      );
-    });
-  }, [ids, search]);
+    return allPrompts
+      .filter((p) => ids.has(p.id))
+      .filter((p) => {
+        if (!search.trim()) return true;
+        const q = search.toLowerCase();
+        return (
+          p.title.toLowerCase().includes(q) ||
+          p.description.toLowerCase().includes(q) ||
+          p.tags.some((t) => t.toLowerCase().includes(q))
+        );
+      });
+  }, [allPrompts, ids, search]);
 
   const handleClearAll = () => {
     if (tab === 'saved') {

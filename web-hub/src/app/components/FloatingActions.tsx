@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react';
 import { Shuffle, ArrowLeftRight, X, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { MOCK_PROMPTS } from '../data/prompts';
+// 2026-04-09 — P5 迁移：不再直接导入 MOCK_PROMPTS，改用 PromptDataContext
+import { useAllPrompts } from '../hooks/usePromptData';
 import { CompareModal } from './CompareModal';
 import { usePromptStore } from '../hooks/usePromptStore';
 import { useOpenDrawer } from '../hooks/useDrawerContext';
@@ -16,14 +17,17 @@ export function FloatingActions({ darkMode }: FloatingActionsProps) {
   const dm = darkMode;
   const store = usePromptStore();
   const openDrawer = useOpenDrawer();
+  const allPrompts = useAllPrompts();
   const [expanded, setExpanded] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
 
+  // 2026-04-09 — P5 迁移：随机 Prompt 改用 Context 全局数据
   const handleRandom = useCallback(() => {
-    const random = MOCK_PROMPTS[Math.floor(Math.random() * MOCK_PROMPTS.length)];
+    if (allPrompts.length === 0) return;
+    const random = allPrompts[Math.floor(Math.random() * allPrompts.length)];
     openDrawer(random);
     setExpanded(false);
-  }, [openDrawer]);
+  }, [openDrawer, allPrompts]);
 
   const handleCompare = () => {
     if (store.compare.length < 2) {
@@ -149,7 +153,7 @@ export function FloatingActions({ darkMode }: FloatingActionsProps) {
               对比栏 {store.compare.length}/2
             </p>
             {store.compare.map((id, i) => {
-              const p = MOCK_PROMPTS.find((p) => p.id === id);
+              const p = allPrompts.find((pr) => pr.id === id);
               if (!p) return null;
               return (
                 <div

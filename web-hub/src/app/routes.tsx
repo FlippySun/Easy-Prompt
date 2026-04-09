@@ -11,6 +11,16 @@ const Collections = lazy(() => import('./pages/Collections').then((m) => ({ defa
 const TagFilter = lazy(() => import('./pages/TagFilter').then((m) => ({ default: m.TagFilter })));
 const Galaxy = lazy(() => import('./pages/Galaxy').then((m) => ({ default: m.Galaxy })));
 const CollectionDetail = lazy(() => import('./pages/CollectionDetail'));
+const LoginPage = lazy(() => import('./pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
+const CallbackPage = lazy(() => import('./pages/auth/CallbackPage').then((m) => ({ default: m.CallbackPage })));
+const RegisterPage = lazy(() => import('./pages/auth/RegisterPage').then((m) => ({ default: m.RegisterPage })));
+
+// 2026-04-09 新增 — P6.05~P6.08 Admin 页面（lazy load）
+const AdminLayout = lazy(() => import('./pages/admin/AdminLayout').then((m) => ({ default: m.AdminLayout })));
+const AdminDashboard = lazy(() => import('./pages/admin/Dashboard').then((m) => ({ default: m.Dashboard })));
+const AdminProviders = lazy(() => import('./pages/admin/Providers').then((m) => ({ default: m.Providers })));
+const AdminBlacklist = lazy(() => import('./pages/admin/Blacklist').then((m) => ({ default: m.Blacklist })));
+const AdminAnalytics = lazy(() => import('./pages/admin/Analytics').then((m) => ({ default: m.Analytics })));
 
 function LoadingFallback() {
   return (
@@ -35,11 +45,78 @@ function SuspenseWrapper({ children }: { children: React.ReactNode }) {
 }
 
 export const router = createBrowserRouter([
+  // 2026-04-09 新增 — P6.05~P6.08 Admin 路由组
+  {
+    path: '/admin',
+    element: (
+      <SuspenseWrapper>
+        <AdminLayout />
+      </SuspenseWrapper>
+    ),
+    children: [
+      {
+        index: true,
+        element: (
+          <SuspenseWrapper>
+            <AdminDashboard />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: 'providers',
+        element: (
+          <SuspenseWrapper>
+            <AdminProviders />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: 'blacklist',
+        element: (
+          <SuspenseWrapper>
+            <AdminBlacklist />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: 'analytics',
+        element: (
+          <SuspenseWrapper>
+            <AdminAnalytics />
+          </SuspenseWrapper>
+        ),
+      },
+    ],
+  },
   {
     path: '/galaxy',
     element: (
       <SuspenseWrapper>
         <Galaxy />
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: '/auth/login',
+    element: (
+      <SuspenseWrapper>
+        <LoginPage />
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: '/auth/callback',
+    element: (
+      <SuspenseWrapper>
+        <CallbackPage />
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: '/auth/register',
+    element: (
+      <SuspenseWrapper>
+        <RegisterPage />
       </SuspenseWrapper>
     ),
   },

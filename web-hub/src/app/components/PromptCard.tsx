@@ -14,11 +14,13 @@ import {
   ChevronRight,
   RotateCcw,
 } from 'lucide-react';
-import { useState, useRef, useCallback, memo, useMemo, useEffect } from 'react';
+import { useState, useRef, useCallback, memo, useEffect } from 'react';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { cn } from '../../lib/utils';
-import { MOCK_PROMPTS, type Prompt } from '../data/prompts';
+// 2026-04-09 — P5 迁移：不再直接导入 MOCK_PROMPTS，改用 PromptDataContext
+import { type Prompt } from '../data/prompts';
+import { useRelatedPrompts } from '../hooks/usePromptData';
 import { CATEGORY_CONFIG, MODEL_CONFIG, formatCount } from '../data/constants';
 import { useOpenDrawer } from '../hooks/useDrawerContext';
 import { triggerLikeBurst } from './ParticleBurst';
@@ -76,10 +78,8 @@ export const PromptCard = memo(function PromptCard({
   const modelConfig = prompt.model ? MODEL_CONFIG[prompt.model] : null;
   const dm = darkMode;
 
-  const relatedPrompts = useMemo(
-    () => MOCK_PROMPTS.filter((p) => p.id !== prompt.id && p.category === prompt.category).slice(0, 3),
-    [prompt.id, prompt.category],
-  );
+  // 2026-04-09 — P5 迁移：相关推荐改用 Context 数据
+  const relatedPrompts = useRelatedPrompts(prompt.id, prompt.category, 3);
 
   // Auto flip back if unsaved externally (e.g., from detail drawer)
   // Only react to isSaved changes — NOT isFlipped changes.

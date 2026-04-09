@@ -14,8 +14,8 @@ export interface Prompt {
   model?: string;
 }
 
-// Category base definitions — counts computed dynamically after MOCK_PROMPTS
-const CATEGORY_BASE = [
+// 2026-04-09 修改 — P5 迁移：导出 CATEGORY_BASE 供页面直接使用（不依赖 MOCK_PROMPTS 计数）
+export const CATEGORY_BASE = [
   { id: 'all', name: '全部', nameEn: 'All', icon: 'LayoutGrid', color: '#6366f1' },
   { id: 'writing', name: '写作创作', nameEn: 'Writing', icon: 'PenTool', color: '#8b5cf6' },
   { id: 'coding', name: '编程开发', nameEn: 'Coding', icon: 'Code2', color: '#3b82f6' },

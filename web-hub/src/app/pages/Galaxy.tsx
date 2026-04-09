@@ -17,6 +17,8 @@ import { useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import type { Prompt } from '../data/prompts';
 import { CATEGORY_CONFIG } from '../data/constants';
+// 2026-04-09 — P5 迁移：改用 Context 全局数据
+import { useAllPrompts } from '../hooks/usePromptData';
 import { PromptDetailDrawer } from '../components/PromptDetailDrawer';
 import { CosmosScene } from './galaxy/CosmosScene';
 import { GalaxyHUD } from './galaxy/GalaxyHUD';
@@ -32,8 +34,9 @@ import type { CategoryCluster, PromptStarData, WarpPhase, HoverInfo, CameraInfo 
 export function Galaxy() {
   const navigate = useNavigate();
 
-  // 数据
-  const clusters = useMemo(() => buildGalaxyLayout(), []);
+  // 2026-04-09 — P5 迁移：改用 Context 全局数据生成星图布局
+  const allPrompts = useAllPrompts();
+  const clusters = useMemo(() => buildGalaxyLayout(allPrompts), [allPrompts]);
   const allStars = useMemo(() => getAllStars(clusters), [clusters]);
 
   // 入场动画状态

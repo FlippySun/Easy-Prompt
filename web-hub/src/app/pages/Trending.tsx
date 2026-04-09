@@ -15,10 +15,12 @@ import {
   Legend,
 } from 'recharts';
 import { TrendingUp, Flame, Eye, Copy, Heart, ArrowUp, Trophy, Zap } from 'lucide-react';
-import { MOCK_PROMPTS } from '../data/prompts';
+// 2026-04-09 — P5 迁移：不再直接导入 MOCK_PROMPTS
+import { useAllPrompts } from '../hooks/usePromptData';
 import { CATEGORY_CONFIG, formatCount } from '../data/constants';
 import { useLayoutContext } from '../components/Layout';
 import { PromptDetailDrawer } from '../components/PromptDetailDrawer';
+import { useTrendingPrompts } from '../hooks/useTrending';
 import { motion } from 'motion/react';
 
 // Derive color/label from centralized CATEGORY_CONFIG
@@ -60,11 +62,22 @@ export function Trending() {
   const { darkMode } = useLayoutContext();
   const dm = darkMode;
 
-  const topByLikes = useMemo(() => [...MOCK_PROMPTS].sort((a, b) => b.likes - a.likes).slice(0, 10), []);
-  const topByCopies = useMemo(() => [...MOCK_PROMPTS].sort((a, b) => b.copies - a.copies).slice(0, 5), []);
+  // 2026-04-09 — P5 迁移：优先从 API 获取热门数据，降级到 Context 全局数据
+  const allPrompts = useAllPrompts();
+  const { prompts: apiTrending } = useTrendingPrompts('week', 10);
+  const trendingSource = apiTrending.length > 0 ? apiTrending : allPrompts;
+
+  const topByLikes = useMemo(
+    () => [...trendingSource].sort((a, b) => b.likes - a.likes).slice(0, 10),
+    [trendingSource],
+  );
+  const topByCopies = useMemo(
+    () => [...trendingSource].sort((a, b) => b.copies - a.copies).slice(0, 5),
+    [trendingSource],
+  );
 
   const categoryData = useMemo(() => {
-    const counts = MOCK_PROMPTS.reduce(
+    const counts = trendingSource.reduce(
       (acc, p) => {
         acc[p.category] = (acc[p.category] || 0) + 1;
         return acc;
@@ -76,7 +89,7 @@ export function Trending() {
       value,
       color: CATEGORY_COLORS[id] || '#6366f1',
     }));
-  }, []);
+  }, [trendingSource]);
 
   const barChartData = topByLikes.slice(0, 8).map((p) => ({
     name: p.title.length > 10 ? p.title.slice(0, 10) + '…' : p.title,
@@ -89,11 +102,11 @@ export function Trending() {
 
   const totalStats = useMemo(
     () => ({
-      views: MOCK_PROMPTS.reduce((s, p) => s + p.views, 0),
-      copies: MOCK_PROMPTS.reduce((s, p) => s + p.copies, 0),
-      likes: MOCK_PROMPTS.reduce((s, p) => s + p.likes, 0),
+      views: trendingSource.reduce((s, p) => s + p.views, 0),
+      copies: trendingSource.reduce((s, p) => s + p.copies, 0),
+      likes: trendingSource.reduce((s, p) => s + p.likes, 0),
     }),
-    [],
+    [trendingSource],
   );
 
   const axisColor = dm ? '#6b7280' : '#9ca3af';
@@ -124,7 +137,7 @@ export function Trending() {
           {
             icon: TrendingUp,
             label: '精选 Prompt',
-            value: MOCK_PROMPTS.length,
+            value: trendingSource.length,
             color: '#6366f1',
             suffix: '个',
           },

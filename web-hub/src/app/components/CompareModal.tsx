@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { X, Copy, Check, Heart, ArrowLeftRight, Tag, Bot, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
-import { MOCK_PROMPTS, type Prompt } from '../data/prompts';
+// 2026-04-09 — P5 迁移：不再直接导入 MOCK_PROMPTS，改用 PromptDataContext
+import { type Prompt } from '../data/prompts';
+import { useAllPrompts } from '../hooks/usePromptData';
 import { CATEGORY_CONFIG, MODEL_LABELS, formatCount } from '../data/constants';
 import { usePromptStore } from '../hooks/usePromptStore';
 
@@ -168,7 +170,9 @@ interface CompareModalProps {
 
 export function CompareModal({ compareIds, darkMode, onClose }: CompareModalProps) {
   const dm = darkMode;
-  const prompts = compareIds.map((id) => MOCK_PROMPTS.find((p) => p.id === id)).filter(Boolean) as Prompt[];
+  // 2026-04-09 — P5 迁移：按 ID 查找改用 Context 全局数据
+  const allPrompts = useAllPrompts();
+  const prompts = compareIds.map((id) => allPrompts.find((p) => p.id === id)).filter(Boolean) as Prompt[];
 
   if (prompts.length < 2) return null;
 

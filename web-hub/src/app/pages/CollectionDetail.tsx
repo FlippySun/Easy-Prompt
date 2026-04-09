@@ -2,21 +2,33 @@ import { useParams, Link } from 'react-router';
 import { Package, Bookmark, BookmarkCheck, Users, Copy, ArrowLeft } from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
-import { COLLECTIONS, DIFFICULTY_CONFIG } from '../data/collections';
-import { MOCK_PROMPTS, type Prompt } from '../data/prompts';
+// 2026-04-10 — P5 修复：改用 useCollectionDetail(id) + useInteractions()
+import { DIFFICULTY_CONFIG } from '../data/collections';
+import { useCollectionDetail } from '../hooks/useCollections';
 import { useLayoutContext } from '../components/Layout';
 import { CATEGORY_CONFIG, formatCount } from '../data/constants';
-import { usePromptStore } from '../hooks/usePromptStore';
+import { useInteractions } from '../hooks/useInteractions';
 import { useOpenDrawer } from '../hooks/useDrawerContext';
 
 export default function CollectionDetailPage() {
   const { collectionId } = useParams<{ collectionId: string }>();
   const { darkMode } = useLayoutContext();
   const dm = darkMode;
-  const store = usePromptStore();
+  // 2026-04-10 — P5 修复：改用 useInteractions() 进行交互操作（乐观更新 + API 同步）
+  const interactions = useInteractions();
   const openDrawer = useOpenDrawer();
 
-  const collection = COLLECTIONS.find((c) => c.id === collectionId);
+  // 2026-04-10 — P5 修复：改用 useCollectionDetail(id) 获取合集详情（API 优先 + mock 降级）
+  const { collection: detailData, loading } = useCollectionDetail(collectionId);
+  const collection = detailData;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+      </div>
+    );
+  }
 
   if (!collection) {
     return (
@@ -35,9 +47,10 @@ export default function CollectionDetailPage() {
     );
   }
 
-  const prompts = collection.promptIds.map((id) => MOCK_PROMPTS.find((p) => p.id === id)).filter(Boolean) as Prompt[];
+  // 2026-04-10 — useCollectionDetail 返回的 detailData 已包含 prompts 字段
+  const prompts = detailData?.prompts ?? [];
   const diffConfig = DIFFICULTY_CONFIG[collection.difficulty];
-  const isSaved = store.isCollectionSaved(collection.id);
+  const isSaved = interactions.isCollectionSaved(collection.id);
 
   const handleCopyAll = async () => {
     const text = prompts.map((p) => `## ${p.title}\n\n${p.content}`).join('\n\n---\n\n');
@@ -50,8 +63,8 @@ export default function CollectionDetailPage() {
   };
 
   const handleToggleSave = () => {
-    const wasSaved = store.isCollectionSaved(collection.id);
-    store.toggleCollectionSave(collection.id);
+    const wasSaved = interactions.isCollectionSaved(collection.id);
+    interactions.toggleCollectionSave(collection.id);
     toast.success(wasSaved ? '已移出收藏夹' : '已收藏合集 ⭐');
   };
 
@@ -151,7 +164,7 @@ export default function CollectionDetailPage() {
         </h2>
         {prompts.map((prompt, i) => {
           const catConfig = CATEGORY_CONFIG[prompt.category] || CATEGORY_CONFIG.coding;
-          const promptSaved = store.isSaved(prompt.id);
+          const promptSaved = interactions.isSaved(prompt.id);
           return (
             <motion.div
               key={prompt.id}
@@ -191,8 +204,8 @@ export default function CollectionDetailPage() {
                 <div className="flex shrink-0 items-center gap-1.5">
                   <button
                     onClick={() => {
-                      const wasSaved = store.isSaved(prompt.id);
-                      store.toggleSave(prompt.id);
+                      const wasSaved = interactions.isSaved(prompt.id);
+                      interactions.toggleSave(prompt.id);
                       toast.success(wasSaved ? '已移出收藏' : '已收藏');
                     }}
                     className={`rounded-lg p-1.5 transition-colors ${
