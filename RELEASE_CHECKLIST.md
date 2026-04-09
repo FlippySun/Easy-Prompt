@@ -186,6 +186,47 @@
 4. **Safari Extensions（本次 5.3.7 不包含）**
    - 本轮发版不打包 Safari，不提交 App Store Connect
 
+## 🌐 后端对接检查（Phase 9 — 2026-04-08）
+
+### 基础设施
+
+- [ ] `api.zhiz.chat` HTTPS 可访问
+- [ ] `GET /health` 返回 200 + `{"status":"ok"}`
+- [ ] Nginx 反向代理正常（`api.zhiz.chat` → `127.0.0.1:3000`）
+- [ ] PM2 进程运行正常（`pm2 status easy-prompt-backend`）
+
+### 双轨模式（各端）
+
+- [ ] **Web SPA** — `web/app.js` dualTrackEnhance 正常（auto 模式）
+- [ ] **Browser Extension** — Options 页三模式切换 + Token 保存/加载
+- [ ] **VS Code** — Settings 中 backendMode/backendToken 配置生效
+- [ ] **IntelliJ** — backendMode/backendToken 设置持久化
+
+### 三模式开关
+
+- [ ] `auto` — 后端优先，失败回退本地（source: local-fallback）
+- [ ] `backend-only` — 仅后端，失败报错不回退
+- [ ] `local-only` — 仅本地直连，不调用后端
+
+### 认证
+
+- [ ] 匿名请求可正常增强（受限流）
+- [ ] 带 Token 请求通过 Bearer 认证
+- [ ] Token 输入/保存/清除 UI 正常（Browser Options / VS Code Settings）
+
+### 集成测试
+
+- [ ] `npm run test:integration` 通过
+- [ ] `npm run test:integration -- --token <TOKEN>` 带认证测试通过
+
+### 错误处理
+
+- [ ] 网络超时 → 友好中文提示 + 本地回退（auto 模式）
+- [ ] 限流 429 → "请求过于频繁" 提示，不回退
+- [ ] 后端 500 → 本地回退（auto）或报错（backend-only）
+
+---
+
 ## ⚠️ 阻塞发布的问题
 
 ### 高优先级
