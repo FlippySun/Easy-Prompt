@@ -32,9 +32,7 @@ deploy/
 # Local AI/MCP tool configs (not for repo)
 .mcp.json
 .mcp.json.*
-.vscode/mcp.json
-.vscode/mcp.json.*
-.vscode/settings.json
+.vscode/
 .roo/
 .claude/
 .playwright-mcp/
