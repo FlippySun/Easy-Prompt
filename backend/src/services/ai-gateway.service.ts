@@ -24,6 +24,27 @@ import type { EnhanceRequest, EnhanceResponse, StreamChunk } from '../types/ai';
 
 const log = createChildLogger('ai-gateway');
 
+// 2026-04-10 修复
+// 变更类型：修复
+// 功能描述：为后端两步增强链路引入统一超时预算，避免旧 Provider 配置仍为 30000ms 时在生成阶段过早触发 AI_TIMEOUT。
+// 设计思路：Router 阶段继续保持 30s 上限以便快速失败；Generation 阶段至少保留 90s，和 VS Code / IntelliJ 客户端的等待窗口对齐。
+// 参数与返回值：getGatewayGenerationTimeoutMs(timeoutMs) 返回实际生成阶段超时；getGatewayRouterTimeoutMs(timeoutMs) 返回实际路由阶段超时。
+// 影响范围：/api/v1/ai/enhance、/api/v1/ai/enhance/stream、VS Code 与 IntelliJ 共用的 backend enhance 请求。
+// 潜在风险：单次慢请求最长会占用后端 AI 调用 90s；但这是两步增强的已知成本，且仅对旧 30s 配置做兜底。
+const AI_GATEWAY_ROUTER_TIMEOUT_MS = 30_000;
+const AI_GATEWAY_MIN_GENERATION_TIMEOUT_MS = 90_000;
+
+function getGatewayGenerationTimeoutMs(timeoutMs?: number | null): number {
+  return Math.max(
+    timeoutMs ?? AI_GATEWAY_MIN_GENERATION_TIMEOUT_MS,
+    AI_GATEWAY_MIN_GENERATION_TIMEOUT_MS,
+  );
+}
+
+function getGatewayRouterTimeoutMs(timeoutMs?: number | null): number {
+  return Math.min(getGatewayGenerationTimeoutMs(timeoutMs), AI_GATEWAY_ROUTER_TIMEOUT_MS);
+}
+
 export interface GatewayContext {
   /** 请求追踪 ID */
   requestId?: string;
@@ -67,6 +88,8 @@ export async function enhance(
     provider = await getActiveProvider();
     const model = input.model || provider.defaultModel;
     const extraHeaders = (provider.extraHeaders as Record<string, string>) ?? {};
+    const generationTimeoutMs = getGatewayGenerationTimeoutMs(provider.timeoutMs);
+    const routerTimeoutMs = getGatewayRouterTimeoutMs(provider.timeoutMs);
 
     // ── Step 1: 意图识别（Router） ──
     // 使用低 temperature + 短 maxTokens + 短超时，快速获取场景分类
@@ -81,7 +104,7 @@ export async function enhance(
       systemPrompt: routerSystemPrompt,
       userMessage: input.input,
       maxTokens: 500,
-      timeoutMs: Math.min(provider.timeoutMs, 30000),
+      timeoutMs: routerTimeoutMs,
       extraHeaders,
     });
 
@@ -128,7 +151,7 @@ export async function enhance(
       systemPrompt: decoratedPrompt,
       userMessage: input.input,
       maxTokens: genMaxTokens,
-      timeoutMs: provider.timeoutMs,
+      timeoutMs: generationTimeoutMs,
       extraHeaders,
     });
 
@@ -228,22 +251,17 @@ interface LogParams {
   errorMessage?: string;
 }
 
-// ═══════════════════════════════════════════════════════════
-// P6.02 SSE 流式增强
-// 2026-04-09 新增 — P6.02
-// 设计思路：
-//   与同步 enhance() 相同流程（provider 选择 → 适配器调用 → 日志记录）
-//   区别在于通过 onEvent 回调推送 StreamChunk 事件
-//   适配器内部解析 SSE，逐 chunk 回调到此方法，再转发给路由层
-// 参数：input — 增强请求；context — 请求上下文；onEvent — SSE 事件回调
-// 返回：Promise<void>（结果通过回调传递）
-// 影响范围：ai.routes 的 /enhance/stream 端点
-// 潜在风险：长连接超时需 Nginx 配合（proxy_read_timeout）
-// ═══════════════════════════════════════════════════════════
-
 /**
- * 执行流式 AI 增强请求
- * 通过 onEvent 回调逐步推送 StreamChunk 事件
+ * P6.02 SSE 流式增强
+ * 2026-04-09 新增 — P6.02
+ * 设计思路：
+ *   与同步 enhance() 相同流程（provider 选择 → 适配器调用 → 日志记录）
+ *   区别在于通过 onEvent 回调推送 StreamChunk 事件
+ *   适配器内部解析 SSE，逐 chunk 回调到此方法，再转发给路由层
+ * 参数：input — 增强请求；context — 请求上下文；onEvent — SSE 事件回调
+ * 返回：Promise<void>（结果通过回调传递）
+ * 影响范围：ai.routes 的 /enhance/stream 端点
+ * 潜在风险：长连接超时需 Nginx 配合（proxy_read_timeout）
  */
 export async function enhanceStream(
   input: EnhanceRequest,
@@ -257,6 +275,8 @@ export async function enhanceStream(
     provider = await getActiveProvider();
     const model = input.model || provider.defaultModel;
     const extraHeaders = (provider.extraHeaders as Record<string, string>) ?? {};
+    const generationTimeoutMs = getGatewayGenerationTimeoutMs(provider.timeoutMs);
+    const routerTimeoutMs = getGatewayRouterTimeoutMs(provider.timeoutMs);
 
     // ── Step 1: 意图识别（Router）— 同步调用，不流式 ──
     const routerSystemPrompt = buildRouterPrompt();
@@ -268,7 +288,7 @@ export async function enhanceStream(
       systemPrompt: routerSystemPrompt,
       userMessage: input.input,
       maxTokens: 500,
-      timeoutMs: Math.min(provider.timeoutMs, 30000),
+      timeoutMs: routerTimeoutMs,
       extraHeaders,
     });
     const routerParsed = parseRouterResult(routerResult.content);
@@ -296,7 +316,7 @@ export async function enhanceStream(
         systemPrompt: decoratedPrompt,
         userMessage: input.input,
         maxTokens: genMaxTokens,
-        timeoutMs: provider.timeoutMs,
+        timeoutMs: generationTimeoutMs,
         extraHeaders,
       },
       {

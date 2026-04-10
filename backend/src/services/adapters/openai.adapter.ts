@@ -31,6 +31,8 @@ export interface AdapterCallOptions {
  */
 export async function callAiProvider(options: AdapterCallOptions): Promise<AdapterResponse> {
   const startTime = Date.now();
+  // 2026-04-10 防御 — 去除 baseUrl 尾部斜杠，避免拼接出 //chat/completions
+  options = { ...options, baseUrl: options.baseUrl.replace(/\/+$/, '') };
 
   try {
     switch (options.apiMode) {
@@ -326,6 +328,8 @@ export async function callAiProviderStream(
   options: AdapterCallOptions,
   callbacks: StreamCallbacks,
 ): Promise<void> {
+  // 2026-04-10 防御 — 去除 baseUrl 尾部斜杠
+  options = { ...options, baseUrl: options.baseUrl.replace(/\/+$/, '') };
   // 不支持流式的模式降级为同步调用
   if (options.apiMode === 'gemini' || options.apiMode === 'openai-responses') {
     log.info(

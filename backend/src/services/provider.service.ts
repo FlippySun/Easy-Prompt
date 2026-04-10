@@ -13,6 +13,7 @@ import { AppError } from '../utils/errors';
 import { createChildLogger } from '../utils/logger';
 
 const log = createChildLogger('provider');
+const DEFAULT_PROVIDER_TIMEOUT_MS = 90_000;
 
 /**
  * 获取当前激活的 provider（解密 API Key）
@@ -132,7 +133,14 @@ export async function createProvider(input: CreateProviderInput) {
       priority: input.priority ?? 0,
       maxRpm: input.maxRpm ?? 60,
       maxTokens: input.maxTokens ?? 4096,
-      timeoutMs: input.timeoutMs ?? 30000,
+      // 2026-04-10 修复
+      // 变更类型：修复
+      // 功能描述：将新建 Provider 的默认超时从 30s 提升到 90s，避免两步增强的 generation 阶段被旧默认值提前截断。
+      // 设计思路：与 ai-gateway.service.ts 的最小 generation timeout 基线保持一致；用户若显式传入 timeoutMs 仍以用户值为准。
+      // 参数与返回值：createProvider(input) 在 input.timeoutMs 缺省时写入 DEFAULT_PROVIDER_TIMEOUT_MS。
+      // 影响范围：管理员创建 Provider、新增 Provider 的默认配置行为。
+      // 潜在风险：新 Provider 的慢请求等待时间更长，但更符合两步增强的真实耗时模型；无已知风险。
+      timeoutMs: input.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS,
       extraHeaders: (input.extraHeaders ?? {}) as Record<string, string>,
       notes: input.notes ?? null,
     },
