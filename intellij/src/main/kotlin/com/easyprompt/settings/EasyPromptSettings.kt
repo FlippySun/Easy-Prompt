@@ -39,7 +39,8 @@ class EasyPromptSettings : PersistentStateComponent<EasyPromptSettings.State> {
         var language: String = "zh-CN",
         /** 2026-04-08 P9.09: 三模式开关 — auto | backend-only | local-only */
         var backendMode: String = "auto",
-        /** 2026-04-08 P9.10: Access Token（手动输入，留空匿名） */
+        /** @deprecated 2026-04-10 B7a: 已由 SSO 替代，保留用于迁移兼容。见 SsoAuthClient.migrateLegacyToken() */
+        @Deprecated("Use SSO via SsoAuthClient instead. Kept for migration only.")
         var backendToken: String = "",
         /** @deprecated 旧版布尔开关，保留用于迁移兼容 */
         @Deprecated("Use backendMode instead")
@@ -47,7 +48,17 @@ class EasyPromptSettings : PersistentStateComponent<EasyPromptSettings.State> {
         /** 场景命中统计：JSON 格式 {"sceneId": count, ...} */
         var sceneStats: String = "{}",
         /** 增强历史记录：JSON 数组格式 */
-        var historyRecords: String = "[]"
+        var historyRecords: String = "[]",
+        // 2026-04-10 新增 — SSO 全端审计 P1-1
+        // 变更类型：修复
+        // 设计思路：SSO 用户信息持久化到 XML，IDE 重启后恢复用户名显示，
+        //   避免 restoreOnStartup() 回退到占位符 "已登录"
+        // 影响范围：SsoAuthClient.restoreOnStartup()、状态栏显示
+        // 潜在风险：无已知风险
+        /** SSO 用户名（持久化，IDE 重启后恢复显示） */
+        var ssoUsername: String = "",
+        /** SSO 显示名（持久化） */
+        var ssoDisplayName: String = ""
     )
 
     private var myState = State()

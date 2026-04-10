@@ -67,6 +67,7 @@ class EasyPromptConfigurable : Configurable {
         lastSavedModel = settings.state.model
         lastSavedEnhanceMode = settings.state.enhanceMode.ifBlank { "fast" }
         lastSavedBackendMode = settings.state.backendMode.ifBlank { "auto" }
+        @Suppress("DEPRECATION")
         lastSavedBackendToken = settings.state.backendToken
 
         panel = JPanel().apply {
@@ -225,6 +226,7 @@ class EasyPromptConfigurable : Configurable {
                 val token = String(backendTokenField?.password ?: charArrayOf()).trim()
                 lastSavedBackendToken = token
                 val settings = EasyPromptSettings.getInstance()
+                @Suppress("DEPRECATION")
                 settings.state.backendToken = token
             }
         })
@@ -536,6 +538,7 @@ class EasyPromptConfigurable : Configurable {
         lastSavedModel = settings.state.model
         lastSavedEnhanceMode = settings.state.enhanceMode.ifBlank { "fast" }
         lastSavedBackendMode = settings.state.backendMode.ifBlank { "auto" }
+        @Suppress("DEPRECATION")
         lastSavedBackendToken = settings.state.backendToken
 
         val modeIdx = modeEntries.indexOfFirst { it.first == lastSavedMode }

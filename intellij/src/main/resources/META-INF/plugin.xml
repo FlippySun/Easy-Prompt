@@ -103,6 +103,33 @@
                     class="com.easyprompt.actions.StatusBarMenuAction"
                     text="打开快捷菜单"
                     description="显示 Easy Prompt 快捷操作菜单"/>
+
+            <!-- 2026-04-10 B7: SSO 登录/退出 Actions -->
+            <action id="EasyPrompt.Login"
+                    class="com.easyprompt.actions.LoginAction"
+                    text="登录 zhiz.chat"
+                    description="通过 SSO 登录 zhiz.chat 账号"/>
+
+            <action id="EasyPrompt.Logout"
+                    class="com.easyprompt.actions.LogoutAction"
+                    text="退出登录"
+                    description="退出 zhiz.chat SSO 登录"/>
         </group>
+
+        <!--
+          2026-04-10
+          变更类型：新增
+          功能描述：在 IntelliJ IDEA 启动 Welcome Screen 提供 zhiz.chat 登录快捷入口。
+          设计思路：使用无项目依赖的 WelcomeScreenLoginAction 复用 SsoAuthClient.startLogin()，
+          避免 ShowWelcomeAction 在无 project 上下文时失效。
+          影响范围：IDE 启动 Welcome Screen 的 Quick Start 区域、SSO 登录入口发现路径。
+          潜在风险：若 JetBrains Welcome Screen 分组 ID 在未来 SDK 版本调整，需要同步此注册；无已知风险。
+        -->
+        <action id="EasyPrompt.WelcomeScreenLogin"
+                class="com.easyprompt.actions.WelcomeScreenLoginAction"
+                text="登录 zhiz.chat"
+                description="在 IDEA 启动欢迎页中直接发起 zhiz.chat SSO 登录">
+            <add-to-group group-id="WelcomeScreen.QuickStart.Platform" anchor="last"/>
+        </action>
     </actions>
 </idea-plugin>

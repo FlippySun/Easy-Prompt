@@ -9,6 +9,16 @@ import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.startup.ProjectActivity
 import com.easyprompt.core.Scenes
+import com.easyprompt.core.SsoAuthClient
+
+// ========================== 变更记录 ==========================
+// [日期]     2026-04-10
+// [类型]     修改
+// [描述]     B7a+B8: 启动时迁移旧版手动 Token 并恢复 SSO Token 刷新
+// [思路]     在 execute() 开头调用 migrateLegacyToken + restoreOnStartup
+// [影响范围] 启动流程
+// [潜在风险] 无已知风险
+// ==============================================================
 
 class WelcomeStartupActivity : ProjectActivity {
 
@@ -16,6 +26,11 @@ class WelcomeStartupActivity : ProjectActivity {
         val app = ApplicationManager.getApplication()
         // 跳过无头环境和单元测试（含 JetBrains Marketplace 自动化验证）
         if (app.isHeadlessEnvironment || app.isUnitTestMode) return
+
+        // 2026-04-10 B7a: 迁移旧版手动 backendToken
+        SsoAuthClient.migrateLegacyToken()
+        // 2026-04-10 B8: 恢复 SSO Token 刷新定时器
+        SsoAuthClient.restoreOnStartup()
 
         val props = PropertiesComponent.getInstance()
         val welcomed = props.getBoolean(WELCOME_KEY, false)

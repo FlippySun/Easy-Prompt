@@ -873,7 +873,14 @@ object ApiClient {
        ═══════════════════════════════════════════════════ */
 
     private const val BACKEND_API_BASE = "https://api.zhiz.chat"
-    private const val BACKEND_TIMEOUT_MS = 30000
+    // 2026-04-10 修复
+    // 变更类型：修复
+    // 功能描述：将 IntelliJ 端后端增强请求超时从 30s 提升到 90s，避免两步增强尚未完成时客户端先报超时
+    // 设计思路：backend /api/v1/ai/enhance 已拆为 routing + generation 两阶段；为避免与浏览器插件/Web 端产生不一致的超时行为，需要统一客户端等待窗口
+    // 参数与返回值：BACKEND_TIMEOUT_MS 仅控制 callBackendEnhance 的 HttpURLConnection connect/read timeout，不改变请求参数或返回值
+    // 影响范围：IntelliJ 插件 smartRoute / directGenerate / 后端增强链路
+    // 潜在风险：无已知风险
+    private const val BACKEND_TIMEOUT_MS = 90000
 
     /** 后端增强结果 */
     data class BackendEnhanceResult(
@@ -913,6 +920,15 @@ object ApiClient {
      * @param indicator 进度指示器（用于取消检测）
      * @return BackendEnhanceResult
      */
+    // ========================== 变更记录 ==========================
+    // [日期]     2026-04-10
+    // [类型]     修改
+    // [描述]     B7a+B8: 从手动 backendToken 切换为 SSO token + 401 自动刷新重试
+    // [思路]     读取 SsoAuthClient.getAccessToken()，401 时尝试 refreshToken 并重试一次
+    // [影响范围] callBackendEnhance → 所有后端 API 调用
+    // [潜在风险] 无已知风险
+    // ==============================================================
+
     fun callBackendEnhance(
         input: String,
         enhanceMode: String = "fast",
@@ -920,67 +936,110 @@ object ApiClient {
         indicator: ProgressIndicator? = null
     ): BackendEnhanceResult {
         val requestId = generateRequestId()
-        val postBody = JsonObject().apply {
-            addProperty("input", input)
-            addProperty("enhanceMode", enhanceMode)
-            addProperty("model", model)
-            addProperty("language", "zh-CN")
-            addProperty("clientType", "intellij")
-        }
 
-        val url = URI("$BACKEND_API_BASE/api/v1/ai/enhance").toURL()
-        val conn = url.openConnection() as HttpURLConnection
-        try {
-            conn.requestMethod = "POST"
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.setRequestProperty("X-Request-Id", requestId)
-            // 2026-04-08 P9.10: Bearer Token 认证（手动输入）
-            val token = EasyPromptSettings.getInstance().state.backendToken
-            if (token.isNotBlank()) {
-                conn.setRequestProperty("Authorization", "Bearer $token")
-            }
-            conn.connectTimeout = BACKEND_TIMEOUT_MS
-            conn.readTimeout = BACKEND_TIMEOUT_MS
-            conn.doOutput = true
-
-            if (indicator?.isCanceled == true) throw RuntimeException("已取消")
-
-            conn.outputStream.write(postBody.toString().toByteArray())
-
-            if (indicator?.isCanceled == true) throw RuntimeException("已取消")
-
-            val responseCode = conn.responseCode
-            val responseBody = if (responseCode in 200..299) {
-                conn.inputStream.bufferedReader().readText()
-            } else {
-                val errBody = try {
-                    conn.errorStream?.bufferedReader()?.readText() ?: "Unknown error"
-                } catch (_: Exception) { "Unknown error" }
-                throw RuntimeException("Backend HTTP $responseCode: $errBody")
+        // 内部请求函数（支持 token 覆写用于 401 重试）
+        fun doRequest(tokenOverride: String? = null): Pair<Int, String> {
+            val postBody = JsonObject().apply {
+                addProperty("input", input)
+                addProperty("enhanceMode", enhanceMode)
+                addProperty("model", model)
+                addProperty("language", "zh-CN")
+                addProperty("clientType", "intellij")
             }
 
-            val data = gson.fromJson(responseBody, JsonObject::class.java)
-            val success = data.get("success")?.asBoolean ?: false
-
-            if (!success) {
-                val errObj = data.getAsJsonObject("error")
-                val errCode = errObj?.get("code")?.asString ?: "UNKNOWN"
-                val errMsg = errObj?.get("message")?.asString ?: "Backend error"
-                if (errCode == "RATE_LIMIT_EXCEEDED" || errCode == "BLACKLISTED") {
-                    throw RuntimeException(mapBackendError(errCode, errMsg))
+            val url = URI("$BACKEND_API_BASE/api/v1/ai/enhance").toURL()
+            val conn = url.openConnection() as HttpURLConnection
+            try {
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.setRequestProperty("X-Request-Id", requestId)
+                // 2026-04-10 B7a: SSO Bearer Token（从 PasswordSafe 读取）
+                val token = tokenOverride ?: SsoAuthClient.getAccessToken()
+                if (!token.isNullOrBlank()) {
+                    conn.setRequestProperty("Authorization", "Bearer $token")
                 }
-                throw RuntimeException(errMsg)
+                conn.connectTimeout = BACKEND_TIMEOUT_MS
+                conn.readTimeout = BACKEND_TIMEOUT_MS
+                conn.doOutput = true
+
+                if (indicator?.isCanceled == true) throw RuntimeException("已取消")
+                conn.outputStream.write(postBody.toString().toByteArray())
+                if (indicator?.isCanceled == true) throw RuntimeException("已取消")
+
+                val responseCode = conn.responseCode
+                val responseBody = if (responseCode in 200..299) {
+                    conn.inputStream.bufferedReader().readText()
+                } else {
+                    val errBody = try {
+                        conn.errorStream?.bufferedReader()?.readText() ?: "Unknown error"
+                    } catch (_: Exception) { "Unknown error" }
+                    errBody
+                }
+                return Pair(responseCode, responseBody)
+            } finally {
+                conn.disconnect()
             }
-
-            val dataObj = data.getAsJsonObject("data")
-            val output = dataObj?.get("output")?.asString ?: throw RuntimeException("Backend response missing output")
-            val scenes = dataObj.getAsJsonArray("scenes")?.map { it.asString } ?: listOf("optimize")
-            val composite = dataObj.get("composite")?.asBoolean ?: false
-
-            return BackendEnhanceResult(output, scenes, composite, "backend", requestId)
-        } finally {
-            conn.disconnect()
         }
+
+        // 第一次请求
+        var (responseCode, responseBody) = doRequest()
+
+        // 2026-04-10 B8: 401 自动刷新重试（仅一次）
+        if (responseCode == 401) {
+            val newToken = SsoAuthClient.refreshToken()
+            if (newToken != null) {
+                val retry = doRequest(newToken)
+                responseCode = retry.first
+                responseBody = retry.second
+            } else {
+                // 2026-04-10 修复 — SSO 全端审计 P1-2
+                // refresh 失败 → 提示用户重新登录，而非显示原始 HTTP 401 错误
+                throw RuntimeException("登录已过期，请通过「Easy Prompt: 登录」重新登录")
+            }
+        }
+
+        // 2026-04-10 新增 — SSO 全端审计 P1-3
+        // 429 退避重试（最多 2 次，间隔 2s/4s）
+        // 设计思路：后端 AI 端 429 是暂态错误，短暂等待后通常可成功
+        // 影响范围：callBackendEnhance 429 场景
+        // 潜在风险：无已知风险（最多额外等待 6s）
+        if (responseCode == 429) {
+            val retryDelays = longArrayOf(2000, 4000)
+            for (delay in retryDelays) {
+                if (indicator?.isCanceled == true) throw RuntimeException("已取消")
+                Thread.sleep(delay)
+                if (indicator?.isCanceled == true) throw RuntimeException("已取消")
+                val retry = doRequest()
+                responseCode = retry.first
+                responseBody = retry.second
+                if (responseCode != 429) break
+            }
+        }
+
+        // 非 2xx → 抛异常
+        if (responseCode !in 200..299) {
+            throw RuntimeException("Backend HTTP $responseCode: $responseBody")
+        }
+
+        val data = gson.fromJson(responseBody, JsonObject::class.java)
+        val success = data.get("success")?.asBoolean ?: false
+
+        if (!success) {
+            val errObj = data.getAsJsonObject("error")
+            val errCode = errObj?.get("code")?.asString ?: "UNKNOWN"
+            val errMsg = errObj?.get("message")?.asString ?: "Backend error"
+            if (errCode == "RATE_LIMIT_EXCEEDED" || errCode == "BLACKLISTED") {
+                throw RuntimeException(mapBackendError(errCode, errMsg))
+            }
+            throw RuntimeException(errMsg)
+        }
+
+        val dataObj = data.getAsJsonObject("data")
+        val output = dataObj?.get("output")?.asString ?: throw RuntimeException("Backend response missing output")
+        val scenes = dataObj.getAsJsonArray("scenes")?.map { it.asString } ?: listOf("optimize")
+        val composite = dataObj.get("composite")?.asBoolean ?: false
+
+        return BackendEnhanceResult(output, scenes, composite, "backend", requestId)
     }
 
     /**
@@ -992,15 +1051,48 @@ object ApiClient {
         onProgress: ((String) -> Unit)? = null,
         indicator: ProgressIndicator? = null
     ): SmartRouteResult {
+        // 2026-04-10 修复
+        // 变更类型：修复
+        // 功能描述：恢复 IntelliJ 端 backend-only 增强流程的分阶段进度提示，避免长请求期间一直停留在连接态
+        // 设计思路：对齐浏览器插件端已验证的状态机；在同步后端请求执行期间，通过后台线程估计 routing 与 generation 两阶段，保持跨端体验一致
+        // 参数与返回值：onProgress 依次接收连接、识别意图、生成 Prompt 文案；函数返回值结构保持 SmartRouteResult 不变
+        // 影响范围：IntelliJ 插件增强进度展示、用户对当前执行阶段的感知
+        // 潜在风险：无已知风险
         onProgress?.invoke("🌐 正在连接 AI 服务...")
-        val config = getEffectiveConfig()
-        val result = callBackendEnhance(
-            input = userInput,
-            enhanceMode = config.enhanceMode,
-            model = config.model,
-            indicator = indicator
-        )
-        return SmartRouteResult(result.result, result.scenes, result.composite)
+
+        val progressCallback = onProgress
+        var progressThread: Thread? = null
+        if (progressCallback != null) {
+            progressThread = Thread {
+                try {
+                    Thread.sleep(2000)
+                    if (indicator?.isCanceled != true) {
+                        progressCallback("🔍 正在识别意图...")
+                    }
+                    Thread.sleep(6000)
+                    if (indicator?.isCanceled != true) {
+                        progressCallback("✍️ 正在生成专业 Prompt...")
+                    }
+                } catch (_: InterruptedException) {
+                }
+            }.apply {
+                isDaemon = true
+                start()
+            }
+        }
+
+        try {
+            val config = getEffectiveConfig()
+            val result = callBackendEnhance(
+                input = userInput,
+                enhanceMode = config.enhanceMode,
+                model = config.model,
+                indicator = indicator
+            )
+            return SmartRouteResult(result.result, result.scenes, result.composite)
+        } finally {
+            progressThread?.interrupt()
+        }
     }
 
     /**

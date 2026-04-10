@@ -1,6 +1,8 @@
 package com.easyprompt.ui
 
 import com.easyprompt.core.Scenes
+import com.easyprompt.core.SsoAuthClient
+import com.intellij.openapi.Disposable
 import com.intellij.ide.BrowserUtil
 import com.intellij.ide.plugins.PluginManagerCore
 import com.intellij.openapi.application.ApplicationManager
@@ -29,7 +31,72 @@ import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.JScrollPane
 
+private const val ZHIZ_CHAT_HOME_URL = "https://zhiz.chat"
+
+// ========================== 变更记录 ==========================
+// [日期]     2026-04-10
+// [类型]     修复
+// [描述]     修复 IDEA ToolWindow 欢迎页与 JCEF 降级面板的 zhiz.chat CTA 在登录后不刷新的问题，并将已登录按钮改为打开 zhiz.chat。
+// [思路]     继续复用 SsoAuthClient.startLogin() 作为唯一登录触发点，同时通过 SsoAuthClient 登录态监听器重绘 JCEF Welcome HTML / Swing fallback 组件，避免欢迎页停留在旧登录态。
+// [参数与返回值] createFallbackPanel(project, parentDisposable) / buildWelcomeHtml(jsQuery) / buildWelcomeLoginPresentation() 会根据当前登录态返回最新 CTA 文案与行为。
+// [影响范围] Easy Prompt 右侧欢迎页、JCEF 不可用时的 fallback 面板、登录成功后返回 IDE 的欢迎页 CTA。
+// [潜在风险] 登录态变化时会重绘欢迎页内容；当前仅在登录/退出等有限时机触发，风险可控。
+// ==============================================================
+
 class EasyPromptToolWindowFactory : ToolWindowFactory {
+
+    private data class WelcomeLoginPresentation(
+        val isLoggedIn: Boolean,
+        val buttonLabel: String,
+        val hintPlainText: String,
+        val hintHtml: String,
+        val command: String
+    )
+
+    private fun escapeHtml(value: String): String {
+        return value
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&quot;")
+            .replace("'", "&#39;")
+    }
+
+    private fun buildWelcomeLoginPresentation(): WelcomeLoginPresentation {
+        val currentUser = SsoAuthClient.currentUser
+        val isLoggedIn = SsoAuthClient.isLoggedIn()
+        val accountName = currentUser?.displayName?.takeIf { it.isNotBlank() }
+            ?: currentUser?.username.orEmpty()
+        val safeAccountName = accountName.ifBlank { "当前账号" }
+        val loginButtonLabel = if (isLoggedIn) {
+            "当前登录用户：$safeAccountName"
+        } else {
+            "登录 zhiz.chat"
+        }
+        val loginHintPlainText = if (isLoggedIn) {
+            "当前已登录：$safeAccountName。点击下方按钮可直接打开 zhiz.chat。"
+        } else {
+            "想快捷登录账号？点击下方“登录 zhiz.chat”即可拉起浏览器授权。"
+        }
+        val loginHintHtml = if (isLoggedIn) {
+            "当前已登录：<strong>${escapeHtml(safeAccountName)}</strong>。点击下方按钮可直接打开 zhiz.chat。"
+        } else {
+            "需要快捷登录入口？点击下方“登录 zhiz.chat”即可直接拉起浏览器授权。"
+        }
+
+        return WelcomeLoginPresentation(
+            isLoggedIn = isLoggedIn,
+            buttonLabel = loginButtonLabel,
+            hintPlainText = loginHintPlainText,
+            hintHtml = loginHintHtml,
+            command = if (isLoggedIn) "openZhizHome" else "loginZhiz"
+        )
+    }
+
+    private fun loadWelcomeHtml(browser: JBCefBrowser, jsQuery: JBCefJSQuery) {
+        val html = buildWelcomeHtml(jsQuery).replace("\\\"", "\"")
+        browser.loadHTML(html)
+    }
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
         val contentComponent = createContentComponent(project, toolWindow)
@@ -39,7 +106,7 @@ class EasyPromptToolWindowFactory : ToolWindowFactory {
 
     private fun createContentComponent(project: Project, toolWindow: ToolWindow): JComponent {
         if (!JBCefApp.isSupported()) {
-            return createFallbackPanel(project)
+            return createFallbackPanel(project, toolWindow.disposable)
         }
 
         val browser = JBCefBrowser()
@@ -49,6 +116,18 @@ class EasyPromptToolWindowFactory : ToolWindowFactory {
         Disposer.register(toolWindow.disposable, browser)
         Disposer.register(toolWindow.disposable, jsQuery)
 
+        val loginStateListener = {
+            ApplicationManager.getApplication().invokeLater {
+                if (!Disposer.isDisposed(browser)) {
+                    loadWelcomeHtml(browser, jsQuery)
+                }
+            }
+        }
+        SsoAuthClient.addLoginStateListener(loginStateListener)
+        Disposer.register(toolWindow.disposable, Disposable {
+            SsoAuthClient.removeLoginStateListener(loginStateListener)
+        })
+
         jsQuery.addHandler { cmd ->
             handleCommand(project, cmd, contextComponent)
             JBCefJSQuery.Response("")
@@ -56,8 +135,7 @@ class EasyPromptToolWindowFactory : ToolWindowFactory {
 
         // Kotlin 的三引号字符串里不需要转义双引号；历史原因导致 HTML 中出现了 \"，会使 class/style 等属性失效。
         // 这里做一次归一化，确保 ToolWindow 内样式正常生效。
-        val html = buildWelcomeHtml(jsQuery).replace("\\\"", "\"")
-        browser.loadHTML(html)
+        loadWelcomeHtml(browser, jsQuery)
         return browser.component
     }
 
@@ -70,6 +148,8 @@ class EasyPromptToolWindowFactory : ToolWindowFactory {
                 "selectScene" -> executeAction(project, "EasyPrompt.EnhanceWithScene", contextComponent)
                 "showScenes" -> executeAction(project, "EasyPrompt.ShowScenes", contextComponent)
                 "showHistory" -> executeAction(project, "EasyPrompt.ShowHistory", contextComponent)
+                "loginZhiz" -> SsoAuthClient.startLogin()
+                "openZhizHome" -> BrowserUtil.browse(ZHIZ_CHAT_HOME_URL)
                 "openSettings", "configureApi" -> {
                     ShowSettingsUtil.getInstance().showSettingsDialog(project, "Easy Prompt")
                 }
@@ -86,10 +166,37 @@ class EasyPromptToolWindowFactory : ToolWindowFactory {
         ActionManager.getInstance().tryToExecute(action, null, componentForContext, "EasyPromptToolWindow", true)
     }
 
-    private fun createFallbackPanel(project: Project): JComponent {
+    private fun createFallbackPanel(project: Project, parentDisposable: Disposable): JComponent {
         val panel = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             border = JBUI.Borders.empty(16)
+        }
+        val loginHintLabel = JLabel().apply {
+            alignmentX = Component.LEFT_ALIGNMENT
+        }
+        val loginButton = JButton().apply {
+            alignmentX = Component.LEFT_ALIGNMENT
+        }
+
+        fun refreshFallbackLoginCta() {
+            val loginPresentation = buildWelcomeLoginPresentation()
+            loginHintLabel.text = loginPresentation.hintPlainText
+            loginButton.text = loginPresentation.buttonLabel
+            loginButton.toolTipText = if (loginPresentation.isLoggedIn) {
+                "打开 zhiz.chat"
+            } else {
+                "登录 zhiz.chat"
+            }
+            for (listener in loginButton.actionListeners) {
+                loginButton.removeActionListener(listener)
+            }
+            loginButton.addActionListener {
+                if (loginPresentation.isLoggedIn) {
+                    BrowserUtil.browse(ZHIZ_CHAT_HOME_URL)
+                } else {
+                    SsoAuthClient.startLogin()
+                }
+            }
         }
 
         panel.add(JLabel("Easy Prompt").apply {
@@ -103,6 +210,8 @@ class EasyPromptToolWindowFactory : ToolWindowFactory {
         ).apply {
             alignmentX = Component.LEFT_ALIGNMENT
         })
+        panel.add(Box.createVerticalStrut(12))
+        panel.add(loginHintLabel)
         panel.add(Box.createVerticalStrut(12))
 
         val buttonRow = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
@@ -121,6 +230,21 @@ class EasyPromptToolWindowFactory : ToolWindowFactory {
                 ShowSettingsUtil.getInstance().showSettingsDialog(project, "Easy Prompt")
             }
         })
+        buttonRow.add(loginButton)
+        refreshFallbackLoginCta()
+
+        val loginStateListener = {
+            ApplicationManager.getApplication().invokeLater {
+                refreshFallbackLoginCta()
+                panel.revalidate()
+                panel.repaint()
+            }
+        }
+        SsoAuthClient.addLoginStateListener(loginStateListener)
+        Disposer.register(parentDisposable, Disposable {
+            SsoAuthClient.removeLoginStateListener(loginStateListener)
+        })
+
         panel.add(buttonRow)
 
         return JScrollPane(panel).apply { border = null }
@@ -133,6 +257,7 @@ class EasyPromptToolWindowFactory : ToolWindowFactory {
             ?: "local"
 
         val scenesCount = Scenes.all.size
+        val loginPresentation = buildWelcomeLoginPresentation()
         val sceneSections = buildSceneSections()
 
         return """<!DOCTYPE html>
@@ -261,6 +386,12 @@ body {
     border: 1px solid var(--border);
 }
 .btn-secondary:hover { background: var(--card-hover); border-color: var(--accent); }
+.login-hint {
+    margin-top: 12px;
+    font-size: 13px;
+    color: var(--text-dim);
+}
+.login-hint strong { color: var(--text); }
 .shortcut-table { width: 100%; border-collapse: collapse; }
 .shortcut-table td {
     padding: 10px 12px;
@@ -390,7 +521,9 @@ kbd {
             <button class=\"btn btn-primary\" onclick=\"send('tryEnhance')\">立即体验</button>
             <button class=\"btn btn-secondary\" onclick=\"send('smartEnhance')\">智能增强</button>
             <button class=\"btn btn-secondary\" onclick=\"send('openSettings')\">打开设置 / API 配置</button>
+            <button class=\"btn btn-secondary\" onclick=\"send('${loginPresentation.command}')\">${escapeHtml(loginPresentation.buttonLabel)}</button>
         </div>
+        <p class=\"login-hint\">${loginPresentation.hintHtml}</p>
         <div class=\"tip-box\">
             <strong>如何触发：</strong>
             右键菜单（顶层） / Tools 菜单 / 状态栏快捷菜单 / 右侧 Easy Prompt 面板均可一键使用。
