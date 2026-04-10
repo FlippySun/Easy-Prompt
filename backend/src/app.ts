@@ -49,10 +49,17 @@ export function createApp() {
   app.use(helmet());
 
   // ── CORS ──
+  // 2026-04-10 安全修复 — SSO Plan v2 C3.7
+  // 变更类型：安全
+  // 设计思路：生产环境下 CORS_ORIGINS 为空时拒绝跨域（不回退到 '*'），
+  //   开发环境允许 '*' 方便本地调试
+  // 影响范围：全局 CORS 策略
+  // 潜在风险：若生产环境 CORS_ORIGINS 未配置会阻断所有跨域请求（fail-safe）
   const origins = getCorsOrigins();
+  const isProd = process.env.NODE_ENV === 'production';
   app.use(
     cors({
-      origin: origins.length > 0 ? origins : '*',
+      origin: origins.length > 0 ? origins : isProd ? false : '*',
       credentials: true,
       maxAge: 86400,
     }),
@@ -95,10 +102,31 @@ export function createApp() {
     max: config.RATE_LIMIT_LOGIN_MAX,
     windowSec: config.RATE_LIMIT_LOGIN_WINDOW_SEC,
   });
+  // 2026-04-10 新增 — SSO 全端审计 P0-2
+  // 变更类型：安全/性能
+  // 设计思路：/auth/refresh 使用独立 refreshLimiter（scope 隔离），
+  //   防止多客户端自动刷新 token 消耗 loginLimiter 配额导致用户被锁定。
+  //   配额 60 req/60s 远高于正常刷新频率（每客户端约 1 次/50min），
+  //   但仍可防止恶意刷新攻击。
+  // 影响范围：仅 POST /api/v1/auth/refresh
+  // 潜在风险：无已知风险
+  const refreshLimiter = createRateLimiter({
+    scope: 'refresh',
+    max: 60,
+    windowSec: 60,
+  });
 
   // ── 路由挂载 ──
   app.use('/health', healthRouter);
-  app.use('/api/v1/auth', loginLimiter, authRouter);
+  // 2026-04-10 修改 — SSO 全端审计 P0-2
+  // 按子路径精确挂载 limiter，避免 loginLimiter 覆盖 refresh 端点。
+  // Express app.use 是前缀匹配，必须将子路径 limiter 放在 authRouter 之前。
+  app.use('/api/v1/auth/refresh', refreshLimiter);
+  app.use('/api/v1/auth/register', loginLimiter);
+  app.use('/api/v1/auth/login', loginLimiter);
+  app.use('/api/v1/auth/me', loginLimiter);
+  app.use('/api/v1/auth/sso', loginLimiter);
+  app.use('/api/v1/auth', authRouter);
   app.use('/api/v1/ai', aiLimiter, aiRouter);
   app.use('/api/v1/meta', metaRouter);
   app.use('/api/v1/scenes', scenesRouter);

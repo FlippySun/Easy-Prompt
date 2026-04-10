@@ -227,7 +227,7 @@ export async function listRules(opts: {
 
   return {
     data: rules,
-    meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    meta: { total, page, pageSize: limit, totalPages: Math.ceil(total / limit) },
   };
 }
 

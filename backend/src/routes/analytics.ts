@@ -50,6 +50,7 @@ function extractDateRange(query: { from?: string; to?: string }): DateRange | un
 
 // ── Zod Schemas ──────────────────────────────────────
 
+// 2026-04-10 修改 — 增加 fingerprint / keyword 参数（增强日志 9 维筛选）
 const requestListQuerySchema = dateRangeSchema.extend({
   page: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().positive().max(100).optional(),
@@ -60,6 +61,8 @@ const requestListQuerySchema = dateRangeSchema.extend({
   status: z.string().optional(),
   userId: z.string().optional(),
   ipAddress: z.string().optional(),
+  fingerprint: z.string().optional(),
+  keyword: z.string().max(200).optional(),
 });
 
 const topLimitQuerySchema = dateRangeSchema.extend({
@@ -74,6 +77,7 @@ const topLimitQuerySchema = dateRangeSchema.extend({
 router.get('/requests', validate({ query: requestListQuerySchema }), async (req, res, next) => {
   try {
     const q = req.query as z.infer<typeof requestListQuerySchema>;
+    // 2026-04-10 修改 — 传递 fingerprint / keyword 参数
     const result = await getRequestList(
       {
         dateRange: extractDateRange(q),
@@ -84,6 +88,8 @@ router.get('/requests', validate({ query: requestListQuerySchema }), async (req,
         status: q.status,
         userId: q.userId,
         ipAddress: q.ipAddress,
+        fingerprint: q.fingerprint,
+        keyword: q.keyword,
       },
       { page: q.page, limit: q.limit },
     );
@@ -100,7 +106,12 @@ router.get('/requests/:id', async (req, res, next) => {
   try {
     const detail = await getRequestDetail(req.params.id);
     if (!detail) {
-      res.status(404).json({ success: false, error: { code: 'RESOURCE_NOT_FOUND', message: 'Request log not found' } });
+      res
+        .status(404)
+        .json({
+          success: false,
+          error: { code: 'RESOURCE_NOT_FOUND', message: 'Request log not found' },
+        });
       return;
     }
     res.json({ success: true, data: detail });

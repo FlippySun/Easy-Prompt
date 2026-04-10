@@ -342,6 +342,11 @@ model AiRequestLog {
   errorMessage    String?  @map("error_message") @db.Text
   retryCount      Int      @default(0) @map("retry_count")
 
+  // ── 全文搜索 ──
+  // 2026-04-10 新增 — 增强日志全文搜索支持
+  // tsvector 列由 DB 触发器自动维护，Prisma 不直接操作
+  searchVector    Unsupported("tsvector")? @map("search_vector")
+
   // ── 时间戳 ──
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz()
 

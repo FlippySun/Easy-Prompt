@@ -44,13 +44,26 @@ export const AI_LIMITS = {
 } as const;
 
 // ── SSO 授权码 ──────────────────────────────────────
+// 2026-04-10 修改 — SSO 全端白名单补全（Plan v2 A1）
+// 变更类型：安全/配置
+// 设计思路：
+//   1. vscode:// 从宽松 /^vscode:\/\// 收紧为精确匹配 publisher.name
+//   2. 新增 localhost/127.0.0.1 支持 IntelliJ SSO localhost HTTP server
+//   3. 新增 chromiumapp.org (Chrome) + allizom.org (Firefox) 支持 launchWebAuthFlow
+// 影响范围：generateSsoCode() redirect_uri 校验
+// 潜在风险：无已知风险（仅放宽受控域名，收紧 vscode）
 export const SSO = {
   CODE_EXPIRES_SEC: 5 * 60, // 5 分钟
   ALLOWED_REDIRECT_PATTERNS: [
     /^https:\/\/zhiz\.chat\//,
     /^https:\/\/prompt\.zhiz\.chat\//,
     /^chrome-extension:\/\//,
-    /^vscode:\/\//,
+    /^vscode:\/\/flippysun\.easy-prompt-ai\//, // VS Code — 精确匹配 publisher.name
+    /^http:\/\/localhost(:\d+)?\//, // IntelliJ — localhost 回调
+    /^http:\/\/127\.0\.0\.1(:\d+)?\//, // IntelliJ — loopback 备用
+    /^https:\/\/[a-z]+\.chromiumapp\.org\//, // Chrome launchWebAuthFlow redirect
+    /^https:\/\/[a-f0-9-]+\.extensions\.allizom\.org\//, // Firefox launchWebAuthFlow redirect
+    /^safari-web-extension:\/\//, // Safari WebExtension Tab redirect callback
   ],
 } as const;
 

@@ -1,12 +1,16 @@
 /**
  * Analytics 服务 — 请求分析与统计
  * 2026-04-08 新增 — P2.04
- * 变更类型：新增
+ * 2026-04-10 修改 — 增强日志：扩展 fingerprint/keyword 筛选 + tsvector 全文搜索
+ * 变更类型：修改
  * 设计思路：封装 ai_request_logs / daily_stats 的聚合查询，
  *   供 admin analytics 路由调用。所有方法均需 admin 权限（在路由层校验）。
- *   大表查询走索引（createdAt, clientType, status, ipAddress, providerId）。
+ *   大表查询走索引（createdAt, clientType, status, ipAddress, providerId, fingerprint）。
+ *   keyword 搜索采用 tsvector + ILIKE 双路策略：
+ *     - 优先 tsvector GIN 索引（`simple` 分词，对中文逐字切分）
+ *     - ILIKE 作为兜底（走 pg_trgm GIN 索引加速）
  * 参数：各方法接收 dateRange / filters / pagination
- * 影响范围：analytics 路由（P2.05）
+ * 影响范围：analytics 路由（P2.05）、增强日志前端页面
  * 潜在风险：大时间跨度查询可能慢，后续可加 DB 物化视图或缓存
  */
 
@@ -37,15 +41,32 @@ export interface RequestListFilters {
   status?: string;
   userId?: string;
   ipAddress?: string;
+  // 2026-04-10 新增 — 增强日志筛选扩展
+  fingerprint?: string;
+  /** 关键词搜索（搜索 original_input + ai_output，走 tsvector + ILIKE 双路） */
+  keyword?: string;
 }
 
-export async function getRequestList(
-  filters: RequestListFilters,
-  pagination: PaginationOpts,
-) {
+/**
+ * 获取请求列表（分页 + 筛选）
+ * 2026-04-10 修改 — 增强日志：
+ *   1. select 增加 fingerprint / userAgent / originalInput 供前端展示
+ *   2. keyword 搜索走 tsvector raw SQL 路径（Prisma 不原生支持 tsvector）
+ *   3. 非 keyword 场景保持原 Prisma 查询路径
+ * 参数：filters — 9 维筛选条件；pagination — 分页参数
+ * 返回：{ data, meta } 分页结果
+ * 影响范围：GET /admin/analytics/requests
+ * 潜在风险：keyword raw SQL 已严格参数化防注入
+ */
+export async function getRequestList(filters: RequestListFilters, pagination: PaginationOpts) {
   const page = pagination.page ?? PAGINATION.DEFAULT_PAGE;
   const limit = Math.min(pagination.limit ?? PAGINATION.DEFAULT_LIMIT, PAGINATION.MAX_LIMIT);
   const skip = (page - 1) * limit;
+
+  // keyword 搜索需走 raw SQL（tsvector + ILIKE 双路），其他筛选走 Prisma ORM
+  if (filters.keyword) {
+    return getRequestListWithKeyword(filters, page, limit, skip);
+  }
 
   const where = buildRequestWhere(filters);
 
@@ -55,33 +76,162 @@ export async function getRequestList(
       orderBy: { createdAt: 'desc' },
       skip,
       take: limit,
-      select: {
-        id: true,
-        requestId: true,
-        userId: true,
-        clientType: true,
-        ipAddress: true,
-        enhanceMode: true,
-        sceneIds: true,
-        isComposite: true,
-        providerSlug: true,
-        modelUsed: true,
-        durationMs: true,
-        promptTokens: true,
-        completionTokens: true,
-        totalTokens: true,
-        estimatedCost: true,
-        status: true,
-        errorMessage: true,
-        createdAt: true,
-      },
+      select: REQUEST_LIST_SELECT,
     }),
     prisma.aiRequestLog.count({ where }),
   ]);
 
   return {
     data,
-    meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    meta: { total, page, pageSize: limit, totalPages: Math.ceil(total / limit) },
+  };
+}
+
+/**
+ * 列表页 select 字段集（复用常量，避免重复定义）
+ * 2026-04-10 新增 — 增加 fingerprint / userAgent / originalInput
+ */
+const REQUEST_LIST_SELECT = {
+  id: true,
+  requestId: true,
+  userId: true,
+  clientType: true,
+  ipAddress: true,
+  fingerprint: true,
+  userAgent: true,
+  originalInput: true,
+  enhanceMode: true,
+  sceneIds: true,
+  isComposite: true,
+  providerSlug: true,
+  modelUsed: true,
+  durationMs: true,
+  promptTokens: true,
+  completionTokens: true,
+  totalTokens: true,
+  estimatedCost: true,
+  status: true,
+  errorMessage: true,
+  createdAt: true,
+} as const;
+
+/**
+ * keyword 搜索的 raw SQL 实现
+ * 2026-04-10 新增 — tsvector 全文搜索 + ILIKE 兜底
+ * 设计思路：
+ *   1. 构建 WHERE 子句：先拼接非 keyword 的普通筛选条件
+ *   2. keyword 条件：(search_vector @@ to_tsquery('simple', $kw)) OR (original_input ILIKE $pattern)
+ *      tsvector 走 GIN 索引；ILIKE 走 pg_trgm GIN 索引
+ *   3. 严格参数化查询，所有用户输入通过 $N 占位符传入
+ * 参数：filters — 筛选条件；page/limit/skip — 分页
+ * 返回：与 getRequestList 相同的 { data, meta } 结构
+ * 潜在风险：无已知风险（参数化查询防注入）
+ */
+async function getRequestListWithKeyword(
+  filters: RequestListFilters,
+  page: number,
+  limit: number,
+  skip: number,
+) {
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+  let paramIndex = 1;
+
+  // 普通筛选条件
+  if (filters.dateRange) {
+    conditions.push(`created_at >= $${paramIndex}`);
+    params.push(filters.dateRange.from);
+    paramIndex++;
+    conditions.push(`created_at <= $${paramIndex}`);
+    params.push(filters.dateRange.to);
+    paramIndex++;
+  }
+  if (filters.clientType) {
+    conditions.push(`client_type = $${paramIndex}`);
+    params.push(filters.clientType);
+    paramIndex++;
+  }
+  if (filters.scene) {
+    conditions.push(`$${paramIndex} = ANY(scene_ids)`);
+    params.push(filters.scene);
+    paramIndex++;
+  }
+  if (filters.model) {
+    conditions.push(`model_used = $${paramIndex}`);
+    params.push(filters.model);
+    paramIndex++;
+  }
+  if (filters.provider) {
+    conditions.push(`provider_slug = $${paramIndex}`);
+    params.push(filters.provider);
+    paramIndex++;
+  }
+  if (filters.status) {
+    conditions.push(`status = $${paramIndex}`);
+    params.push(filters.status);
+    paramIndex++;
+  }
+  if (filters.userId) {
+    conditions.push(`user_id = $${paramIndex}::uuid`);
+    params.push(filters.userId);
+    paramIndex++;
+  }
+  if (filters.ipAddress) {
+    conditions.push(`ip_address = $${paramIndex}::inet`);
+    params.push(filters.ipAddress);
+    paramIndex++;
+  }
+  if (filters.fingerprint) {
+    conditions.push(`fingerprint = $${paramIndex}`);
+    params.push(filters.fingerprint);
+    paramIndex++;
+  }
+
+  // keyword 搜索条件：tsvector 优先 + ILIKE 兜底
+  // 将空格替换为 & 构建 tsquery（'simple' 分词器对中文逐字切分）
+  const keyword = filters.keyword!.trim();
+  const tsQuery = keyword.split(/\s+/).filter(Boolean).join(' & ');
+  const likePattern = `%${keyword}%`;
+  conditions.push(
+    `(search_vector @@ to_tsquery('simple', $${paramIndex}) OR original_input ILIKE $${paramIndex + 1})`,
+  );
+  params.push(tsQuery, likePattern);
+  paramIndex += 2;
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  // 查询数据
+  const dataQuery = `
+    SELECT id, request_id as "requestId", user_id as "userId", client_type as "clientType",
+           ip_address as "ipAddress", fingerprint, user_agent as "userAgent",
+           original_input as "originalInput", enhance_mode as "enhanceMode",
+           scene_ids as "sceneIds", is_composite as "isComposite",
+           provider_slug as "providerSlug", model_used as "modelUsed",
+           duration_ms as "durationMs", prompt_tokens as "promptTokens",
+           completion_tokens as "completionTokens", total_tokens as "totalTokens",
+           estimated_cost as "estimatedCost", status, error_message as "errorMessage",
+           created_at as "createdAt"
+    FROM ai_request_logs
+    ${whereClause}
+    ORDER BY created_at DESC
+    LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+  `;
+  params.push(limit, skip);
+
+  // 查询总数
+  const countQuery = `SELECT COUNT(*)::int as total FROM ai_request_logs ${whereClause}`;
+  const countParams = params.slice(0, paramIndex - 1); // 不含 LIMIT/OFFSET
+
+  const [data, countResult] = await Promise.all([
+    prisma.$queryRawUnsafe(dataQuery, ...params),
+    prisma.$queryRawUnsafe(countQuery, ...countParams) as Promise<[{ total: number }]>,
+  ]);
+
+  const total = countResult[0]?.total ?? 0;
+
+  return {
+    data,
+    meta: { total, page, pageSize: limit, totalPages: Math.ceil(total / limit) },
   };
 }
 
@@ -269,6 +419,10 @@ function buildDateWhere(dateRange: DateRange): Prisma.AiRequestLogWhereInput {
   };
 }
 
+/**
+ * 构建 Prisma WHERE 条件（非 keyword 路径使用）
+ * 2026-04-10 修改 — 增加 fingerprint 条件
+ */
 function buildRequestWhere(filters: RequestListFilters): Prisma.AiRequestLogWhereInput {
   const where: Prisma.AiRequestLogWhereInput = {};
 
@@ -282,6 +436,8 @@ function buildRequestWhere(filters: RequestListFilters): Prisma.AiRequestLogWher
   if (filters.status) where.status = filters.status;
   if (filters.userId) where.userId = filters.userId;
   if (filters.ipAddress) where.ipAddress = filters.ipAddress;
+  // 2026-04-10 新增 — fingerprint 精确匹配
+  if (filters.fingerprint) where.fingerprint = filters.fingerprint;
 
   return where;
 }
