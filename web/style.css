@@ -441,6 +441,14 @@ a {
   color: var(--text-primary);
 }
 
+/* 2026-04-10 B9: SSO 登录按钮已登录状态 */
+.header__sso-btn.is-logged-in {
+  color: var(--accent);
+}
+.header__sso-btn.is-logged-in:hover {
+  color: var(--text-primary);
+}
+
 .header__nav-label {
   display: none;
 }
