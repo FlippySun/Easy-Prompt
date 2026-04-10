@@ -18,21 +18,66 @@
 import { toast } from 'sonner';
 import { ApiError } from './types';
 
-// ── 错误码 → 中文消息映射 ────────────────────────────────
-
+// 2026-04-10 修复 — 前后端错误码全量对齐审计
+// 变更类型：修复
+// 设计思路：错误码 key 必须与后端 ERROR_CODES（utils/errors.ts）完全一致，
+//   旧版使用了自编 key（如 INVALID_CREDENTIALS），导致全局 handleApiError()
+//   永远无法匹配后端返回的 code，退化为仅靠 HTTP 状态码的泛化提示
+// 影响范围：所有使用 handleApiError() / getErrorMessage() 的组件
+// 潜在风险：无已知风险
 const ERROR_CODE_MESSAGES: Record<string, string> = {
-  INVALID_CREDENTIALS: '邮箱或密码错误',
-  EMAIL_EXISTS: '该邮箱已注册',
-  USERNAME_EXISTS: '该用户名已被占用',
-  INVALID_TOKEN: '登录凭证无效，请重新登录',
-  TOKEN_EXPIRED: '登录已过期，请重新登录',
-  USER_NOT_FOUND: '用户不存在',
-  PROMPT_NOT_FOUND: 'Prompt 不存在或已删除',
-  COLLECTION_NOT_FOUND: '合集不存在或已删除',
-  FORBIDDEN: '没有权限执行此操作',
-  RATE_LIMITED: '请求过于频繁，请稍后重试',
-  VALIDATION_ERROR: '输入数据格式有误，请检查后重试',
-  INTERNAL_ERROR: '服务器异常，请稍后重试',
+  // ── AUTH ──
+  AUTH_TOKEN_EXPIRED: '登录已过期，请重新登录',
+  AUTH_TOKEN_INVALID: '登录凭证无效，请重新登录',
+  AUTH_REFRESH_EXPIRED: '登录已过期，请重新登录',
+  AUTH_UNAUTHORIZED: '请先登录',
+  AUTH_LOGIN_FAILED: '邮箱或密码错误',
+  AUTH_EMAIL_EXISTS: '该邮箱已被注册',
+  AUTH_USERNAME_EXISTS: '该用户名已被占用',
+  AUTH_CODE_INVALID: '授权码无效，请重新登录',
+  AUTH_CODE_EXPIRED: '授权码已过期，请重新登录',
+  AUTH_PROVIDER_ERROR: '第三方登录服务异常，请稍后重试',
+  // ── VALIDATION ──
+  VALIDATION_FAILED: '输入格式有误，请检查后重试',
+  VALIDATION_INPUT_TOO_LONG: '输入内容超出长度限制',
+  VALIDATION_INPUT_INVALID: '输入格式不正确',
+  VALIDATION_MISSING_FIELD: '缺少必填字段',
+  VALIDATION_FORMAT_ERROR: '数据格式错误',
+  // ── RATE ──
+  RATE_LIMIT_EXCEEDED: '请求过于频繁，请稍后重试',
+  RATE_AI_LIMIT_EXCEEDED: 'AI 增强次数已达上限，请稍后重试',
+  RATE_LOGIN_LIMIT_EXCEEDED: '登录尝试次数过多，请稍后再试',
+  RATE_SEARCH_LIMIT_EXCEEDED: '搜索过于频繁，请稍后重试',
+  // ── BLACKLIST ──
+  BLACKLIST_BLOCKED: '访问已被限制',
+  BLACKLIST_IP_BLOCKED: 'IP 地址已被限制',
+  BLACKLIST_USER_BLOCKED: '账户已被限制',
+  BLACKLIST_FINGERPRINT_BLOCKED: '设备已被限制',
+  // ── AI ──
+  AI_PROVIDER_ERROR: 'AI 服务异常，请稍后重试',
+  AI_MODEL_UNAVAILABLE: '当前模型不可用，请切换模型重试',
+  AI_TIMEOUT: 'AI 请求超时，请稍后重试',
+  AI_RATE_LIMITED: 'AI 服务限流，请稍后重试',
+  AI_CONTENT_FILTERED: '内容被 AI 安全策略过滤',
+  AI_INVALID_RESPONSE: 'AI 返回异常，请重试',
+  // ── PROVIDER ──
+  PROVIDER_NOT_FOUND: 'AI 服务商未配置',
+  PROVIDER_INACTIVE: 'AI 服务商已停用',
+  PROVIDER_CONFIG_ERROR: 'AI 服务商配置错误',
+  PROVIDER_LIMIT_REACHED: 'AI 服务商请求上限',
+  PROVIDER_KEY_DECRYPT_FAILED: 'AI 密钥解密失败，请联系管理员',
+  // ── RESOURCE ──
+  RESOURCE_NOT_FOUND: '请求的资源不存在',
+  RESOURCE_ALREADY_EXISTS: '资源已存在',
+  RESOURCE_CONFLICT: '操作冲突，请刷新后重试',
+  // ── PERMISSION ──
+  PERMISSION_DENIED: '没有权限执行此操作',
+  PERMISSION_ADMIN_REQUIRED: '需要管理员权限',
+  PERMISSION_OWNER_REQUIRED: '仅资源所有者可执行此操作',
+  // ── SYSTEM ──
+  SYSTEM_INTERNAL_ERROR: '服务器异常，请稍后重试',
+  SYSTEM_MAINTENANCE: '服务维护中，请稍后重试',
+  SYSTEM_DEPENDENCY_FAILED: '依赖服务异常，请稍后重试',
 };
 
 // ── HTTP 状态码 → 默认消息 ───────────────────────────────

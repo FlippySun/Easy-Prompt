@@ -23,6 +23,9 @@ const AdminBlacklist = lazy(() => import('./pages/admin/Blacklist').then((m) => 
 const AdminAnalytics = lazy(() => import('./pages/admin/Analytics').then((m) => ({ default: m.Analytics })));
 // 2026-04-09 新增 — P4.05 Prompt 审核管理页面
 const AdminPromptReview = lazy(() => import('./pages/admin/PromptReview').then((m) => ({ default: m.PromptReview })));
+// 2026-04-10 新增 — 增强日志管理（方案 B：列表 + 独立详情页）
+const AdminEnhanceLogs = lazy(() => import('./pages/admin/EnhanceLogs').then((m) => ({ default: m.EnhanceLogs })));
+const AdminLogDetail = lazy(() => import('./pages/admin/LogDetail').then((m) => ({ default: m.LogDetail })));
 
 function LoadingFallback() {
   return (
@@ -93,6 +96,23 @@ export const router = createBrowserRouter([
         element: (
           <SuspenseWrapper>
             <AdminAnalytics />
+          </SuspenseWrapper>
+        ),
+      },
+      // 2026-04-10 新增 — 增强日志管理路由
+      {
+        path: 'logs',
+        element: (
+          <SuspenseWrapper>
+            <AdminEnhanceLogs />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: 'logs/:id',
+        element: (
+          <SuspenseWrapper>
+            <AdminLogDetail />
           </SuspenseWrapper>
         ),
       },

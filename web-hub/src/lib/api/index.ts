@@ -438,6 +438,27 @@ export const adminApi = {
     );
     return res.data;
   },
+
+  // ── 增强日志管理 ──
+  // 2026-04-10 新增 — 增强日志列表 + 详情（复用 GET /admin/analytics/requests 端点）
+  // 设计思路：前端「增强日志」页面通过 adminApi 调用已有的 analytics requests 端点，
+  //   支持 9 维筛选（时间/客户端/状态/模型/场景/IP/指纹/userId/关键词）
+  // 影响范围：admin/logs 页面
+  // 潜在风险：无已知风险
+
+  /** 获取增强日志列表（分页 + 9 维筛选） */
+  async listEnhanceLogs(params?: EnhanceLogListParams) {
+    return get<ApiPaginatedResponse<EnhanceLogItem>>(
+      '/api/v1/admin/analytics/requests',
+      params as Record<string, unknown>,
+    );
+  },
+
+  /** 获取单条增强日志详情 */
+  async getEnhanceLogDetail(id: string) {
+    const res = await get<ApiSuccessResponse<EnhanceLogDetail>>(`/api/v1/admin/analytics/requests/${id}`);
+    return res.data;
+  },
 };
 
 /** Dashboard 统计数据类型 */
@@ -536,6 +557,69 @@ export interface CostReportItem {
   totalTokens: number;
   totalCost: number;
   avgLatencyMs: number;
+}
+
+// ── 增强日志类型 — 2026-04-10 新增 ──────────────────────────
+// 设计思路：对齐后端 analytics.service.ts 返回的 REQUEST_LIST_SELECT 字段集
+// 影响范围：admin/logs 列表页 + 详情页
+
+/** 增强日志列表查询参数（9 维筛选 + 分页） */
+export interface EnhanceLogListParams {
+  from?: string;
+  to?: string;
+  page?: number;
+  limit?: number;
+  clientType?: string;
+  scene?: string;
+  model?: string;
+  provider?: string;
+  status?: string;
+  userId?: string;
+  ipAddress?: string;
+  fingerprint?: string;
+  keyword?: string;
+}
+
+/** 增强日志列表项（精简字段） */
+export interface EnhanceLogItem {
+  id: string;
+  requestId: string;
+  userId: string | null;
+  clientType: string;
+  ipAddress: string | null;
+  fingerprint: string | null;
+  userAgent: string | null;
+  originalInput: string;
+  enhanceMode: string | null;
+  sceneIds: string[];
+  isComposite: boolean;
+  providerSlug: string | null;
+  modelUsed: string | null;
+  durationMs: number | null;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  totalTokens: number | null;
+  estimatedCost: string | null;
+  status: string;
+  errorMessage: string | null;
+  createdAt: string;
+}
+
+/** 增强日志详情（全部字段） */
+export interface EnhanceLogDetail extends EnhanceLogItem {
+  clientVersion: string | null;
+  clientPlatform: string | null;
+  language: string | null;
+  country: string | null;
+  region: string | null;
+  routerResult: Record<string, unknown> | null;
+  systemPrompt: string | null;
+  aiOutput: string | null;
+  providerId: string | null;
+  apiMode: string | null;
+  routerDurationMs: number | null;
+  genDurationMs: number | null;
+  retryCount: number;
 }
 
 // ── Prompt 审核管理类型 — P4.05 ──────────────────────────

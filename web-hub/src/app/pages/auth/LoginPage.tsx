@@ -21,22 +21,12 @@ import { motion } from 'motion/react';
 import { Mail, Lock, Eye, EyeOff, LogIn, Github, Loader2 } from 'lucide-react';
 // 2026-04-10 — P5 修复：改用 authApi 替代直接 fetch，获得统一错误处理、token 自动存储
 import { authApi, ApiError } from '@/lib/api';
+// 2026-04-10 — SSO Plan v2 A3：登录成功后生成 SSO code 再 redirect
+import { handleSsoRedirect } from '@/lib/api/sso';
 
-/** 允许的 redirect_uri 域名白名单（防止开放重定向） */
-const ALLOWED_REDIRECT_DOMAINS = ['zhiz.chat', 'prompt.zhiz.chat', 'localhost', '127.0.0.1'];
-
-/**
- * 校验 redirect_uri 是否在白名单内
- * 2026-04-08 新增 — 安全：防止开放重定向攻击
- */
-function isRedirectAllowed(uri: string): boolean {
-  try {
-    const url = new URL(uri);
-    return ALLOWED_REDIRECT_DOMAINS.some((d) => url.hostname === d || url.hostname.endsWith(`.${d}`));
-  } catch {
-    return false;
-  }
-}
+// 2026-04-10 — SSO Plan v2 A3：移除前端 ALLOWED_REDIRECT_DOMAINS 白名单
+// redirect_uri 校验统一由后端 /sso/authorize → ALLOWED_REDIRECT_PATTERNS 负责
+// 前端仅判断是否存在 redirectUri，不做域名过滤
 
 export function LoginPage() {
   const [searchParams] = useSearchParams();
@@ -54,8 +44,18 @@ export function LoginPage() {
       e.preventDefault();
       setError('');
 
+      // 2026-04-10 修复 — 前后端校验对齐审计
+      // 变更类型：修复
+      // 设计思路：后端 loginSchema 校验 email 格式（z.string().email()），
+      //   前端也应同步校验，避免后端返回泛化 VALIDATION_FAILED
+      // 影响范围：登录表单客户端校验
+      // 潜在风险：无已知风险
       if (!email.trim() || !password.trim()) {
         setError('请填写邮箱和密码');
+        return;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+        setError('请输入有效的邮箱地址');
         return;
       }
 
@@ -65,19 +65,33 @@ export function LoginPage() {
         // 2026-04-10 — P5 修复：改用 authApi.login()（自动存储 token + 统一错误处理）
         await authApi.login({ email: email.trim(), password });
 
-        // 登录成功 — 处理跳转
-        if (redirectUri && isRedirectAllowed(redirectUri)) {
-          window.location.href = redirectUri;
-        } else {
-          // 无 redirect_uri 或不在白名单 → 跳回首页
-          window.location.href = '/';
+        // 2026-04-10 — SSO Plan v2 A3（Gap #7 修正）：
+        // 登录成功后 authApi.login() 已自动 setTokens()
+        // 有 redirectUri → 调 handleSsoRedirect 生成一次性 code 再跳转
+        // 无 redirectUri → 直接跳首页（Web-Hub 自身登录场景）
+        if (redirectUri && state) {
+          try {
+            await handleSsoRedirect(redirectUri, state);
+            return; // redirect 已执行，不会走到这里
+          } catch (ssoErr) {
+            // SSO 授权码生成失败（如 redirect_uri 不在白名单）
+            // 登录态已保存，仅提示 SSO 错误
+            if (ssoErr instanceof ApiError) {
+              setError(`SSO 授权失败：${ssoErr.message}`);
+            } else {
+              setError('SSO 授权失败，请重试');
+            }
+            return;
+          }
         }
+        // 无 redirect_uri → Web-Hub 自身登录，跳首页
+        window.location.href = '/';
       } catch (err) {
         // 使用后端返回的错误码映射中文消息
         const ERROR_MESSAGES: Record<string, string> = {
           AUTH_LOGIN_FAILED: '邮箱或密码错误',
           RATE_LOGIN_LIMIT_EXCEEDED: '登录尝试次数过多，请稍后再试',
-          VALIDATION_FAILED: '输入格式不正确',
+          VALIDATION_FAILED: '邮箱或密码格式不正确',
         };
         if (err instanceof ApiError) {
           setError(ERROR_MESSAGES[err.code] ?? err.message ?? '登录失败，请重试');
@@ -88,7 +102,7 @@ export function LoginPage() {
         setLoading(false);
       }
     },
-    [email, password, redirectUri],
+    [email, password, redirectUri, state],
   );
 
   return (

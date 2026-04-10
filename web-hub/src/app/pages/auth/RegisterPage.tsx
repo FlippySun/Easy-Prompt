@@ -18,6 +18,8 @@ import { motion } from 'motion/react';
 import { User, Mail, Lock, Eye, EyeOff, UserPlus, Loader2, Check, X } from 'lucide-react';
 // 2026-04-10 — P5 修复：改用 authApi 替代直接 fetch
 import { authApi, ApiError } from '@/lib/api';
+// 2026-04-10 — SSO Plan v2 A4：注册成功后生成 SSO code 再 redirect
+import { handleSsoRedirect } from '@/lib/api/sso';
 
 /** 密码强度等级 */
 type StrengthLevel = 'weak' | 'fair' | 'good' | 'strong';
@@ -60,12 +62,22 @@ export function RegisterPage() {
   const strength = useMemo(() => getPasswordStrength(password), [password]);
   const strengthCfg = STRENGTH_CONFIG[strength.level];
 
-  // 客户端校验规则
+  // 2026-04-10 修复 — SSO 全端审计：前端校验对齐后端 PASSWORD_POLICY + username 规则
+  // 变更类型：修复
+  // 设计思路：后端 Zod schema 要求 username 3-50 且 /^[a-zA-Z0-9_-]+$/，
+  //   密码要求 ≥8 且含大写+小写+数字（PASSWORD_POLICY.PATTERN），
+  //   前端必须同步校验，避免后端返回泛化的 VALIDATION_FAILED 错误
+  // 影响范围：注册表单客户端校验
+  // 潜在风险：无已知风险
   const validations = useMemo(
     () => [
-      { label: '用户名 2-50 字符', ok: username.length >= 2 && username.length <= 50 },
+      {
+        label: '用户名 3-50 字符，仅字母数字下划线',
+        ok: username.length >= 3 && username.length <= 50 && /^[a-zA-Z0-9_-]+$/.test(username),
+      },
       { label: '有效邮箱格式', ok: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) },
       { label: '密码至少 8 位', ok: password.length >= 8 },
+      { label: '密码需含大写、小写字母和数字', ok: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/.test(password) },
       { label: '两次密码一致', ok: password.length > 0 && password === confirmPassword },
     ],
     [username, email, password, confirmPassword],
@@ -89,16 +101,31 @@ export function RegisterPage() {
         // 2026-04-10 — P5 修复：改用 authApi.register()（自动存储 token + 统一错误处理）
         await authApi.register({ username: username.trim(), email: email.trim(), password });
 
-        // 注册成功 — 跳转登录页（携带 redirect 参数）
-        const loginUrl = redirectUri
-          ? `/auth/login?redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}&registered=1`
-          : '/auth/login?registered=1';
-        window.location.href = loginUrl;
+        // 2026-04-10 — SSO Plan v2 A4：
+        // 注册成功后 authApi.register() 已自动 setTokens()
+        // 有 redirectUri → 调 handleSsoRedirect 生成一次性 code 再跳转
+        // 无 redirectUri → 直接跳首页（Web-Hub 自身注册场景）
+        if (redirectUri && state) {
+          try {
+            await handleSsoRedirect(redirectUri, state);
+            return; // redirect 已执行
+          } catch (ssoErr) {
+            // SSO 授权码生成失败，注册态已保存，仅提示错误
+            if (ssoErr instanceof ApiError) {
+              setError(`SSO 授权失败：${ssoErr.message}`);
+            } else {
+              setError('SSO 授权失败，请重试');
+            }
+            return;
+          }
+        }
+        // 无 redirect_uri → Web-Hub 自身注册，跳首页
+        window.location.href = '/';
       } catch (err) {
         const ERROR_MESSAGES: Record<string, string> = {
           AUTH_EMAIL_EXISTS: '该邮箱已被注册',
           AUTH_USERNAME_EXISTS: '该用户名已被占用',
-          VALIDATION_FAILED: '输入格式不正确，请检查后重试',
+          VALIDATION_FAILED: '输入格式不正确：密码需包含大小写字母和数字',
         };
         if (err instanceof ApiError) {
           setError(ERROR_MESSAGES[err.code] ?? err.message ?? '注册失败，请重试');

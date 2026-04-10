@@ -21,6 +21,7 @@ import {
   Server,
   ShieldBan,
   BarChart3,
+  ScrollText,
   ChevronLeft,
   ChevronRight,
   ArrowLeft,
@@ -43,6 +44,8 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/admin/providers', label: 'Provider 管理', icon: Server, end: false },
   { to: '/admin/blacklist', label: '黑名单管理', icon: ShieldBan, end: false },
   { to: '/admin/analytics', label: '数据分析', icon: BarChart3, end: false },
+  // 2026-04-10 新增 — 增强日志管理（方案 B）
+  { to: '/admin/logs', label: '增强日志', icon: ScrollText, end: false },
 ];
 
 // 2026-04-09 — 路由标题映射，用于顶部 header 面包屑
@@ -52,6 +55,9 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/providers': 'Provider 管理',
   '/admin/blacklist': '黑名单管理',
   '/admin/analytics': '数据分析',
+  // 2026-04-10 新增 — 增强日志管理（方案 B）
+  '/admin/logs': '增强日志',
+  '/admin/logs/:id': '日志详情',
 };
 
 export function AdminLayout() {
@@ -60,7 +66,12 @@ export function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
 
   // 当前页面标题
-  const currentTitle = PAGE_TITLES[location.pathname] || '管理后台';
+  // 2026-04-10 修改 — 支持动态路由匹配（如 /admin/logs/:id → '日志详情'）
+  // 设计思路：先精确匹配，再用 startsWith 匹配带参数的路由模式
+  const currentTitle =
+    PAGE_TITLES[location.pathname] ||
+    (location.pathname.startsWith('/admin/logs/') ? PAGE_TITLES['/admin/logs/:id'] : undefined) ||
+    '管理后台';
 
   if (isLoading) {
     return (
