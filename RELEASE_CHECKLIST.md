@@ -101,7 +101,7 @@
 3. **测试安装**
 
    ```bash
-   code --install-extension easy-prompt-ai-5.3.7.vsix
+   code --install-extension easy-prompt-ai-5.3.8.vsix
    ```
 
 4. **发布途径**
@@ -135,7 +135,7 @@
    ```bash
    cd intellij
    JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew buildPlugin
-   # 输出：build/distributions/easy-prompt-intellij-5.3.7.zip
+   # 输出：build/distributions/easy-prompt-intellij-5.3.8.zip
    ```
 
 2. **测试安装**
@@ -183,7 +183,7 @@
    - 访问 https://addons.mozilla.org/developers/
    - 上传 `dist/easy-prompt-firefox.zip`
 
-4. **Safari Extensions（本次 5.3.7 不包含）**
+4. **Safari Extensions（本次 5.3.8 不包含）**
    - 本轮发版不打包 Safari，不提交 App Store Connect
 
 ## 🌐 后端对接检查（Phase 9 — 2026-04-08）

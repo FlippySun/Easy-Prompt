@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.easyprompt"
-version = "5.3.7"
+version = "5.3.8"
 
 repositories {
     mavenCentral()
@@ -161,6 +161,20 @@ intellijPlatform {
             sinceBuild = "243"
         }
         changeNotes = """
+            <h3>v5.3.8 — 统一后端上线（Backend Phase 1-4）</h3>
+            <b>正式引入 Easy Prompt 统一后端服务（api.zhiz.chat），完成 Phase 1 ~ Phase 4 共约 80 项任务</b>
+            <ul>
+                <li><b>统一后端服务</b>：Express 5 + TypeScript + Prisma + PostgreSQL 16 + Redis，部署在 api.zhiz.chat（PM2 cluster × 2）</li>
+                <li><b>AI 代理网关</b>：POST /api/v1/ai/enhance 统一增强接口，支持 4 种 API 协议，路由超时 30s、生成超时 90s</li>
+                <li><b>认证系统</b>：邮箱注册/登录 + JWT Token + SSO 授权码交换，支持匿名和认证两种模式</li>
+                <li><b>PromptHub 数据层</b>：Prompt CRUD + 全文检索 + 用户交互（点赞/收藏/复制）+ Collection + 成就系统</li>
+                <li><b>Trending 与内容管理</b>：热门排行算法 + 每日精选 + 分类趋势 + Admin 审核流程</li>
+                <li><b>多维安全</b>：IP/用户/指纹三维黑名单 + Redis 滑动窗口限流 + BAN_LADDER 阶梯封禁</li>
+                <li><b>全端 backendMode</b>：新增 auto / backend-only / local-only 三模式开关</li>
+                <li><b>全端 SSO 登录入口</b>：IntelliJ ToolWindow + Welcome Screen 新增 zhiz.chat 登录 CTA</li>
+                <li><b>修复：504 超时</b>：后端 ai-gateway 超时策略优化，Provider 默认超时从 30s 提升至 90s</li>
+                <li><b>全端版本同步</b>：VSCode / IntelliJ / Browser / Web 统一升级至 5.3.8</li>
+            </ul>
             <h3>v5.3.7 — Edge 浏览器支持 + E2E 测试 + WXT + 内置服务商 URL 更新</h3>
             <b>浏览器插件端全面升级：接入 Edge、完善 E2E 测试、引入 WXT 管理、更新内置服务商请求地址</b>
             <ul>
