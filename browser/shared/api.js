@@ -480,7 +480,8 @@ async function fetchModels(config) {
    ═══════════════════════════════════════════════════ */
 
 const BACKEND_API_BASE = "https://api.zhiz.chat";
-const BACKEND_TIMEOUT_MS = 30000;
+// 2026-04-09 修复：30s → 90s，实测 AI provider 响应可达 45s+
+const BACKEND_TIMEOUT_MS = 90000;
 
 /**
  * 生成 UUID v4（用于 requestId 透传 — P2.14）
@@ -554,13 +555,16 @@ async function callBackendEnhance(input, config, signal) {
       headers["Authorization"] = `Bearer ${token}`;
     }
 
+    // 2026-04-09 修复：条件传递 model 字段
+    // - 默认配置（使用我们的 LLM 服务）：不传 model，后端用 provider defaultModel
+    // - 用户自定义 LLM 服务：传用户写的 model（config.model 来自 Storage，非 builtin defaults）
     const resp = await fetch(`${BACKEND_API_BASE}/api/v1/ai/enhance`, {
       method: "POST",
       headers,
       body: JSON.stringify({
         input,
         enhanceMode: config.enhanceMode || "fast",
-        model: config.model || "",
+        ...(config.model ? { model: config.model } : {}),
         language: "zh-CN",
         clientType: "browser",
       }),
@@ -609,8 +613,31 @@ async function dualTrackEnhance(
   onProgress,
   signal,
 ) {
+  // 2026-04-09 修复：为 backend 两步流程添加估计进度阶段
+  // 后端内部执行 routing(~3-8s) + generation(~15-45s)，HTTP 同步返回
+  // 使用定时器模拟进度阶段，与原有客户端两步流程 UX 一致
   if (onProgress) onProgress("routing", "正在连接 AI 服务...");
-  return await callBackendEnhance(input, config, signal);
+
+  const progressTimers = [];
+  if (onProgress) {
+    progressTimers.push(
+      setTimeout(() => onProgress("routing", "正在识别意图..."), 2000),
+    );
+    progressTimers.push(
+      setTimeout(
+        () => onProgress("generating", "正在生成专业 Prompt..."),
+        8000,
+      ),
+    );
+  }
+
+  try {
+    const result = await callBackendEnhance(input, config, signal);
+    return result;
+  } finally {
+    // 无论成功/失败/取消，清除所有进度定时器
+    for (const t of progressTimers) clearTimeout(t);
+  }
 }
 
 // eslint-disable-next-line no-unused-vars

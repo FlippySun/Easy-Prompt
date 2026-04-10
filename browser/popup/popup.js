@@ -409,26 +409,18 @@ async function handleGenerate() {
     return;
   }
 
-  // Load config (merge with builtin defaults)
-  let config = await Storage.loadConfig();
-  const enhanceMode = config.enhanceMode === "deep" ? "deep" : "fast";
-  if (!config.apiKey || !config.baseUrl || !config.model) {
-    try {
-      const defaults = await Defaults.getBuiltinDefaults();
-      if (!defaults) throw new Error("no defaults");
-      config = {
-        baseUrl: config.baseUrl || defaults.baseUrl,
-        apiKey: config.apiKey || defaults.apiKey,
-        model: config.model || defaults.model,
-        apiMode: config.apiMode || "",
-        enhanceMode,
-      };
-    } catch (e) {
-      showToast("请先在设置中配置 API", "error");
-      return;
-    }
-  }
-  config.enhanceMode = enhanceMode;
+  // 2026-04-09 架构重构：backend-only 模式下不需要本地 API 配置
+  // 所有增强请求走后端 API，后端自行管理 provider 和 model
+  // 只读取用户偏好设置（enhanceMode）
+  const config = await Storage.loadConfig();
+  config.enhanceMode = config.enhanceMode === "deep" ? "deep" : "fast";
+
+  // 2026-04-09 修复：二次增强前清除旧结果，避免旧输出覆盖进度状态
+  $("#output-area").hidden = true;
+  $("#empty-state").hidden = false;
+  _currentOutputText = "";
+  _currentOutputScenes = [];
+  _currentOutputComposite = false;
 
   // UI → generating state
   isGenerating = true;

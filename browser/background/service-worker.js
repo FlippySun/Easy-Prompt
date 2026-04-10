@@ -127,29 +127,13 @@ export function setupBackground() {
   /* ─── Inline Enhance (AI 聊天网站原地增强) ─── */
 
   /**
-   * 获取有效 API 配置（用户配置 + 内置默认值合并）
-   * 返回 { baseUrl, apiKey, model, apiMode }
+   * 获取有效配置（用户偏好）
+   * 2026-04-09 架构重构：backend-only 模式下不需要本地 API 配置
+   * 后端自行管理 provider 和 model，只读取 enhanceMode 用户偏好
    */
   async function getEffectiveConfig() {
-    let config = await Storage.loadConfig();
-    const enhanceMode = config.enhanceMode === "deep" ? "deep" : "fast";
-    // 从 apiHost + apiPath 构建 baseUrl（如果用户使用新版配置）
-    if (config.apiHost && !config.baseUrl) {
-      config.baseUrl =
-        config.apiHost.replace(/\/+$/, "") + (config.apiPath || "");
-    }
-    if (!config.apiKey || !config.baseUrl || !config.model) {
-      const defaults = await Defaults.getBuiltinDefaults();
-      if (!defaults) throw new Error("请先在设置中配置 API");
-      config = {
-        baseUrl: config.baseUrl || defaults.baseUrl,
-        apiKey: config.apiKey || defaults.apiKey,
-        model: config.model || defaults.model,
-        apiMode: config.apiMode || "",
-        enhanceMode,
-      };
-    }
-    config.enhanceMode = enhanceMode;
+    const config = await Storage.loadConfig();
+    config.enhanceMode = config.enhanceMode === "deep" ? "deep" : "fast";
     return config;
   }
 
