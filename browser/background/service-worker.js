@@ -20,6 +20,8 @@ import { Defaults } from "../shared/defaults.js";
 import { Api } from "../shared/api.js";
 import { Scenes } from "../shared/scenes.js";
 import { Router } from "../shared/router.js";
+// 2026-04-10 SSO B2: Token 自动刷新
+import { Sso } from "../shared/sso.js";
 
 let _backgroundInitialized = false;
 
@@ -121,6 +123,78 @@ export function setupBackground() {
         .then((result) => sendResponse(result))
         .catch((err) => sendResponse({ ok: false, error: err.message }));
       return true; // Keep channel open for async
+    }
+  });
+
+  /* ─── SSO Token Refresh Alarm (B2) ─── */
+  // 2026-04-10 新增 — SSO Plan v2 B2
+  // 设计思路：
+  //   1. 扩展安装/启动时检查 token 过期时间，设置 chrome.alarms 定时刷新
+  //   2. Alarm 在 token 过期前 5 分钟触发（最小间隔 50 分钟）
+  //   3. 刷新失败不阻塞正常功能（匿名模式仍可用）
+  // 影响范围：background service-worker，不影响 popup/content
+  // 潜在风险：service worker 被浏览器休眠后 alarm 可能延迟，但 401 重试兜底
+
+  const SSO_REFRESH_ALARM = "ep-sso-token-refresh";
+  const REFRESH_BUFFER_MS = 5 * 60 * 1000; // 提前 5 分钟刷新
+  const MIN_ALARM_INTERVAL_MIN = 50; // 最小定时间隔（分钟）
+
+  /**
+   * 根据 token 过期时间调度下次刷新 alarm
+   * 无 token 时清除 alarm
+   */
+  async function scheduleTokenRefresh() {
+    const expiresAt = await Sso.getExpiresAt();
+    if (!expiresAt) {
+      // 无 token，清除 alarm
+      chrome.alarms.clear(SSO_REFRESH_ALARM);
+      return;
+    }
+
+    const now = Date.now();
+    const refreshAt = expiresAt - REFRESH_BUFFER_MS;
+    const delayMs = Math.max(refreshAt - now, 60 * 1000); // 至少 1 分钟后
+    const delayMin = delayMs / 60000;
+
+    // 设置一次性 alarm + 周期性兜底（防止单次 alarm 丢失）
+    chrome.alarms.create(SSO_REFRESH_ALARM, {
+      delayInMinutes: delayMin,
+      periodInMinutes: MIN_ALARM_INTERVAL_MIN,
+    });
+  }
+
+  // 安装/启动时调度
+  chrome.runtime.onInstalled.addListener(() => scheduleTokenRefresh());
+  chrome.runtime.onStartup.addListener(() => scheduleTokenRefresh());
+
+  // Alarm 触发时刷新 token
+  chrome.alarms.onAlarm.addListener(async (alarm) => {
+    if (alarm.name !== SSO_REFRESH_ALARM) return;
+
+    const token = await Sso.getAccessToken();
+    if (!token) {
+      // 用户已退出，清除 alarm
+      chrome.alarms.clear(SSO_REFRESH_ALARM);
+      return;
+    }
+
+    try {
+      await Sso.refreshAccessToken();
+      // 刷新成功，重新调度下次刷新
+      await scheduleTokenRefresh();
+      console.log("[EP] SSO token refreshed successfully");
+    } catch (err) {
+      // 刷新失败（refresh token 过期等），清除 alarm
+      // 用户下次请求会收到 401，需重新登录
+      console.warn("[EP] SSO token refresh failed:", err.message);
+      chrome.alarms.clear(SSO_REFRESH_ALARM);
+    }
+  });
+
+  // 监听 storage 变化：登录/退出时重新调度
+  chrome.storage.onChanged.addListener((changes) => {
+    if (changes[Sso.SSO_KEYS.EXPIRES_AT]) {
+      scheduleTokenRefresh();
     }
   });
 

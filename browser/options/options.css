@@ -724,6 +724,35 @@ html.theme-transitioning *::after {
   }
 }
 
+/* ═══ SSO Login Status (2026-04-10 B1+B3) ═══ */
+.sso-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sso-user-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.sso-user-badge svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.btn--sm {
+  padding: 5px 12px;
+  font-size: 12px;
+}
+
 /* ═══ Reduced Motion ═══ */
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -11,7 +11,9 @@ import { defineConfig } from "wxt";
 // ==============================================================
 
 const rootPackageJsonPath = new URL("../package.json", import.meta.url);
-const rootPackageJson = JSON.parse(readFileSync(rootPackageJsonPath, "utf8")) as {
+const rootPackageJson = JSON.parse(
+  readFileSync(rootPackageJsonPath, "utf8"),
+) as {
   version?: string;
 };
 
@@ -40,10 +42,18 @@ export default defineConfig({
     icons: sharedIcons,
     action: {
       default_icon: sharedIcons,
-      default_title:
-        browser === "chrome" ? "__MSG_extName__" : "Easy Prompt",
+      default_title: browser === "chrome" ? "__MSG_extName__" : "Easy Prompt",
     },
-    permissions: ["storage", "contextMenus", "activeTab", "scripting"],
+    // 2026-04-10 SSO B1: 新增 identity 权限，用于 chrome.identity.launchWebAuthFlow SSO 登录
+    // Safari 不支持 identity API，使用 Tab redirect fallback（auth-callback 页面）
+    permissions: [
+      "storage",
+      "contextMenus",
+      "activeTab",
+      "scripting",
+      "identity",
+      "alarms",
+    ],
     host_permissions: ["https://*/*", "http://*/*"],
     commands: {
       "smart-enhance": {
@@ -80,15 +90,15 @@ export default defineConfig({
             },
           }
         : browser === "edge"
-        ? {
-            // Microsoft Edge uses Chromium manifest format with edge-specific settings.
-            // extension_id: set after first publish to Microsoft Add-ons.
-            // strict_min_version: Edge 130+ supports MV3.
-            edge: {
-              strict_min_version: "130",
-            },
-          }
-        : undefined,
+          ? {
+              // Microsoft Edge uses Chromium manifest format with edge-specific settings.
+              // extension_id: set after first publish to Microsoft Add-ons.
+              // strict_min_version: Edge 130+ supports MV3.
+              edge: {
+                strict_min_version: "130",
+              },
+            }
+          : undefined,
   }),
   hooks: {
     "build:manifestGenerated": (wxt, manifest) => {

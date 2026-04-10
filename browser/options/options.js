@@ -19,6 +19,8 @@
 import { Storage } from "../shared/storage.js";
 import { Defaults } from "../shared/defaults.js";
 import { Api } from "../shared/api.js";
+// 2026-04-10 SSO B1: SSO 登录/退出/状态管理
+import { Sso } from "../shared/sso.js";
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -146,41 +148,34 @@ document.addEventListener("DOMContentLoaded", async () => {
     btnBackendTest.addEventListener("click", handleBackendHealthCheck);
   }
 
-  // 2026-04-08 P9.10: Access Token 手动输入（首期 SSO）
-  // 设计思路：从 chrome.storage.local 读写 ep-access-token，与 shared/api.js getAccessToken() 对齐
-  // 影响范围：options 页面新增 Token 输入/保存/可见性切换
-  // 潜在风险：无已知风险
-  const tokenInput = $("#input-access-token");
-  if (tokenInput) {
-    const savedToken = await Api.getAccessToken();
-    if (savedToken) tokenInput.value = savedToken;
+  // 2026-04-10 SSO B1: SSO 登录/退出 + 状态显示
+  // 设计思路：替换旧的手动 Token 输入，改用 SSO 单点登录
+  // 影响范围：options 页面「后端服务」卡片中的账号区域
+  // 潜在风险：Safari 使用 Tab redirect（异步完成，页面无法感知登录完成）
+  await updateSsoStatus();
 
-    // Visibility toggle
-    const btnToggle = $("#btn-toggle-token-visibility");
-    if (btnToggle) {
-      btnToggle.addEventListener("click", () => {
-        tokenInput.type = tokenInput.type === "password" ? "text" : "password";
-        btnToggle.textContent = tokenInput.type === "password" ? "👁" : "🙈";
-      });
-    }
-
-    // Save token button
-    const btnSaveToken = $("#btn-save-token");
-    if (btnSaveToken) {
-      btnSaveToken.addEventListener("click", async () => {
-        const token = tokenInput.value.trim();
-        try {
-          await chrome.storage.local.set({ "ep-access-token": token || "" });
-          showToast(
-            token ? "Token 已保存" : "Token 已清除（匿名模式）",
-            "success",
-          );
-        } catch (err) {
-          showToast("保存失败: " + err.message, "error");
-        }
-      });
-    }
+  const btnSsoLogin = $("#btn-sso-login");
+  if (btnSsoLogin) {
+    btnSsoLogin.addEventListener("click", handleSsoLogin);
   }
+
+  const btnSsoLogout = $("#btn-sso-logout");
+  if (btnSsoLogout) {
+    btnSsoLogout.addEventListener("click", handleSsoLogout);
+  }
+
+  // 旧版手动 Token 迁移检测（B1a）
+  const hadLegacy = await Sso.migrateLegacyToken();
+  if (hadLegacy) {
+    showToast("旧版 Token 已清除，请使用 SSO 登录", "info");
+  }
+
+  // 监听 storage 变化，Tab redirect（Safari）完成后自动刷新状态
+  chrome.storage.onChanged.addListener((changes) => {
+    if (changes[Sso.SSO_KEYS.ACCESS_TOKEN] || changes[Sso.SSO_KEYS.USER]) {
+      updateSsoStatus();
+    }
+  });
 });
 
 /** 从表单读取当前值 */
@@ -381,4 +376,84 @@ function showToast(message, type = "info") {
   toast._timer = setTimeout(() => {
     toast.hidden = true;
   }, 3000);
+}
+
+/* ═══════════════════════════════════════════════════
+   SSO 登录/退出/状态管理
+   2026-04-10 新增 — SSO Plan v2 B1 + B3
+   设计思路：
+     1. updateSsoStatus() 读取 storage 中的 SSO 用户信息，切换显示已登录/未登录状态
+     2. handleSsoLogin() 调用 Sso.ssoLogin() 触发双路径登录
+     3. handleSsoLogout() 调用 Sso.ssoLogout() 清除 tokens
+     4. storage.onChanged 监听器（DOMContentLoaded 中注册）处理 Safari Tab redirect 异步完成
+   影响范围：options 页面「后端服务」卡片
+   潜在风险：Safari Tab redirect 是异步的，用户需在 callback 页面完成后回到 options 页面
+   ═══════════════════════════════════════════════════ */
+
+/**
+ * 读取 SSO 登录状态并更新 UI
+ * 已登录 → 显示用户名 + 退出按钮
+ * 未登录 → 显示登录按钮
+ */
+async function updateSsoStatus() {
+  const loggedInEl = $("#sso-logged-in");
+  const loggedOutEl = $("#sso-logged-out");
+  const usernameEl = $("#sso-username");
+
+  if (!loggedInEl || !loggedOutEl) return;
+
+  const user = await Sso.getSsoUser();
+  const token = await Sso.getAccessToken();
+
+  if (user && token) {
+    // 已登录
+    usernameEl.textContent = user.displayName || user.username || user.email;
+    loggedInEl.hidden = false;
+    loggedOutEl.hidden = true;
+  } else {
+    // 未登录
+    loggedInEl.hidden = true;
+    loggedOutEl.hidden = false;
+  }
+}
+
+/**
+ * SSO 登录按钮点击处理
+ * 路径 A（Chrome/Firefox/Edge）：launchWebAuthFlow 弹窗 → 自动完成
+ * 路径 B（Safari）：打开新 Tab → 用户在 Tab 中完成 → storage listener 刷新状态
+ */
+async function handleSsoLogin() {
+  const btn = $("#btn-sso-login");
+  if (btn) btn.disabled = true;
+
+  try {
+    const user = await Sso.ssoLogin();
+
+    if (user) {
+      // 路径 A：同步完成，直接更新 UI
+      showToast(`登录成功：${user.displayName || user.username}`, "success");
+      await updateSsoStatus();
+    } else {
+      // 路径 B（Safari Tab redirect）：异步完成
+      // storage.onChanged 监听器会在 callback 页面写入 token 后自动刷新状态
+      showToast("已打开登录页面，请在新标签页中完成登录", "info");
+    }
+  } catch (err) {
+    showToast(err.message || "登录失败，请重试", "error");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+/**
+ * SSO 退出登录按钮点击处理
+ */
+async function handleSsoLogout() {
+  try {
+    await Sso.ssoLogout();
+    showToast("已退出登录", "success");
+    await updateSsoStatus();
+  } catch (err) {
+    showToast("退出失败: " + err.message, "error");
+  }
 }

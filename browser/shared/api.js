@@ -5,6 +5,9 @@
  * 含重试、友好错误信息、安全限制
  */
 
+// 2026-04-10 SSO B2: 引入 Sso 模块用于 401 自动刷新重试
+import { Sso } from "./sso.js";
+
 const MAX_INPUT_LENGTH = 10000;
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [2000, 4000, 8000];
@@ -502,11 +505,13 @@ function generateRequestId() {
 
 /**
  * 从 chrome.storage.local 获取 access token
+ * 2026-04-10 B1a: 改为读取 SSO token key（ep-sso-access-token）
+ * 旧 key ep-access-token 由 Sso.migrateLegacyToken() 在 options 页面加载时清除
  */
 async function getAccessToken() {
   try {
-    const data = await chrome.storage.local.get("ep-access-token");
-    return data["ep-access-token"] || null;
+    const data = await chrome.storage.local.get("ep-sso-access-token");
+    return data["ep-sso-access-token"] || null;
   } catch {
     return null;
   }
@@ -538,62 +543,96 @@ function mapBackendError(errorCode, defaultMsg) {
  */
 async function callBackendEnhance(input, config, signal) {
   const requestId = generateRequestId();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), BACKEND_TIMEOUT_MS);
 
-  if (signal) {
-    signal.addEventListener("abort", () => controller.abort());
-  }
-
-  try {
-    const token = await getAccessToken();
-    const headers = {
-      "Content-Type": "application/json",
-      "X-Request-Id": requestId,
-    };
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
+  // 2026-04-10 B2: 内部请求函数，支持 401 重试
+  // 设计思路：将单次请求封装为 _doRequest，401 时刷新 token 重试一次
+  // 影响范围：callBackendEnhance 内部
+  // 潜在风险：refresh 本身也可能失败（抛出异常由外层 catch 处理）
+  async function _doRequest(tokenOverride) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), BACKEND_TIMEOUT_MS);
+    if (signal) {
+      signal.addEventListener("abort", () => controller.abort());
     }
 
-    // 2026-04-09 修复：条件传递 model 字段
-    // - 默认配置（使用我们的 LLM 服务）：不传 model，后端用 provider defaultModel
-    // - 用户自定义 LLM 服务：传用户写的 model（config.model 来自 Storage，非 builtin defaults）
-    const resp = await fetch(`${BACKEND_API_BASE}/api/v1/ai/enhance`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        input,
-        enhanceMode: config.enhanceMode || "fast",
-        ...(config.model ? { model: config.model } : {}),
-        language: "zh-CN",
-        clientType: "browser",
-      }),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeout);
-    const data = await resp.json();
-
-    if (!data.success) {
-      const errCode = data.error?.code || "UNKNOWN";
-      const errMsg = data.error?.message || "Backend error";
-      if (errCode === "RATE_LIMIT_EXCEEDED" || errCode === "BLACKLISTED") {
-        throw new Error(mapBackendError(errCode, errMsg));
+    try {
+      const token = tokenOverride ?? (await getAccessToken());
+      const headers = {
+        "Content-Type": "application/json",
+        "X-Request-Id": requestId,
+      };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
       }
-      throw new Error(mapBackendError(errCode, errMsg));
-    }
 
-    return {
-      result: data.data.output,
-      scenes: data.data.scenes || ["optimize"],
-      composite: data.data.composite || false,
-      source: "backend",
-      requestId,
-    };
-  } catch (err) {
-    clearTimeout(timeout);
-    throw err;
+      // 2026-04-09 修复：条件传递 model 字段
+      // - 默认配置（使用我们的 LLM 服务）：不传 model，后端用 provider defaultModel
+      // - 用户自定义 LLM 服务：传用户写的 model（config.model 来自 Storage，非 builtin defaults）
+      const resp = await fetch(`${BACKEND_API_BASE}/api/v1/ai/enhance`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          input,
+          enhanceMode: config.enhanceMode || "fast",
+          ...(config.model ? { model: config.model } : {}),
+          language: "zh-CN",
+          clientType: "browser",
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeout);
+      return { resp, data: await resp.json() };
+    } catch (err) {
+      clearTimeout(timeout);
+      throw err;
+    }
   }
+
+  // 第一次请求
+  let { resp, data } = await _doRequest();
+
+  // 2026-04-10 B2: 401 自动刷新重试（仅重试一次）
+  if (resp.status === 401) {
+    try {
+      const newTokens = await Sso.refreshAccessToken();
+      if (newTokens?.accessToken) {
+        ({ resp, data } = await _doRequest(newTokens.accessToken));
+      }
+    } catch {
+      // refresh 失败，使用原始 401 响应继续处理
+    }
+  }
+
+  // 2026-04-10 新增 — SSO 全端审计 P1-3
+  // 429 退避重试（最多 2 次，间隔 2s/4s）
+  // 设计思路：后端 AI 端 429 是暂态错误，短暂等待后通常可成功
+  // 影响范围：callBackendEnhance 429 场景
+  // 潜在风险：无已知风险（最多额外等待 6s）
+  if (resp.status === 429) {
+    const retryDelays = [2000, 4000];
+    for (const delay of retryDelays) {
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      await new Promise((r) => setTimeout(r, delay));
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      ({ resp, data } = await _doRequest());
+      if (resp.status !== 429) break;
+    }
+  }
+
+  if (!data.success) {
+    const errCode = data.error?.code || "UNKNOWN";
+    const errMsg = data.error?.message || "Backend error";
+    throw new Error(mapBackendError(errCode, errMsg));
+  }
+
+  return {
+    result: data.data.output,
+    scenes: data.data.scenes || ["optimize"],
+    composite: data.data.composite || false,
+    source: "backend",
+    requestId,
+  };
 }
 
 /**

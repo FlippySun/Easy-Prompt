@@ -230,33 +230,54 @@
             >
           </div>
 
-          <!-- 2026-04-08 P9.10: Access Token 手动输入（首期 SSO） -->
+          <!-- 2026-04-10 SSO B1: SSO 登录区域 -->
           <div class="form-group">
-            <label class="form-label" for="input-access-token"
-              >Access Token</label
-            >
-            <div class="input-with-action">
-              <input
-                type="password"
-                id="input-access-token"
-                class="form-input"
-                placeholder="粘贴从 zhiz.chat 获取的 Access Token..."
-                autocomplete="off"
-              />
-              <button
-                type="button"
-                id="btn-toggle-token-visibility"
-                class="icon-btn icon-btn--sm"
-                title="显示/隐藏"
-                aria-label="切换 Token 可见性"
-              >
-                👁
+            <label class="form-label">账号</label>
+            <!-- 已登录状态：显示用户名 + 退出按钮 -->
+            <div id="sso-logged-in" class="sso-status" hidden>
+              <span id="sso-user-display" class="sso-user-badge">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <circle cx="12" cy="8" r="5" />
+                  <path d="M20 21a8 8 0 0 0-16 0" />
+                </svg>
+                <span id="sso-username">—</span>
+              </span>
+              <button id="btn-sso-logout" class="btn btn--secondary btn--sm">
+                退出登录
               </button>
             </div>
-            <span class="form-hint"
-              >登录 zhiz.chat
-              后在个人设置中获取。留空则以匿名身份使用（受更严格限流）</span
-            >
+            <!-- 未登录状态：登录按钮 -->
+            <div id="sso-logged-out">
+              <button id="btn-sso-login" class="btn btn--primary">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                  <polyline points="10 17 15 12 10 7" />
+                  <line x1="15" y1="12" x2="3" y2="12" />
+                </svg>
+                <span>登录 zhiz.chat</span>
+              </button>
+              <span class="form-hint"
+                >通过 SSO 单点登录。未登录也可使用（受更严格限流）</span
+              >
+            </div>
           </div>
 
           <div id="backend-status" class="backend-status" hidden>
@@ -267,9 +288,6 @@
           <div class="actions">
             <button id="btn-backend-test" class="btn btn--secondary">
               <span>检测后端连接</span>
-            </button>
-            <button id="btn-save-token" class="btn btn--primary">
-              <span>保存 Token</span>
             </button>
           </div>
         </section>
