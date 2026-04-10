@@ -72,6 +72,14 @@ rsync -avz --delete $DRY_FLAG \
   -e "$SSH_CMD" \
   prisma/ "${VPS_USER}@${VPS_HOST}:${REMOTE_DIR}/prisma/"
 
+# 2026-04-09 新增：同步 core/scenes.js 到 VPS
+# scene-router.service.ts 通过 require('../../../core/scenes.js') 加载场景数据
+echo "📋 Syncing core/ to VPS..."
+rsync -avz $DRY_FLAG \
+  -e "$SSH_CMD" \
+  --include='scenes.js' --exclude='*' \
+  ../core/ "${VPS_USER}@${VPS_HOST}:${REMOTE_DIR}/core/"
+
 echo "📋 Uploading config files to VPS..."
 if ! $DRY_RUN; then
   scp -i "$VPS_KEY" package.json package-lock.json ecosystem.config.js \
