@@ -21,6 +21,8 @@ const AdminDashboard = lazy(() => import('./pages/admin/Dashboard').then((m) => 
 const AdminProviders = lazy(() => import('./pages/admin/Providers').then((m) => ({ default: m.Providers })));
 const AdminBlacklist = lazy(() => import('./pages/admin/Blacklist').then((m) => ({ default: m.Blacklist })));
 const AdminAnalytics = lazy(() => import('./pages/admin/Analytics').then((m) => ({ default: m.Analytics })));
+// 2026-04-09 新增 — P4.05 Prompt 审核管理页面
+const AdminPromptReview = lazy(() => import('./pages/admin/PromptReview').then((m) => ({ default: m.PromptReview })));
 
 function LoadingFallback() {
   return (
@@ -59,6 +61,14 @@ export const router = createBrowserRouter([
         element: (
           <SuspenseWrapper>
             <AdminDashboard />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: 'prompts',
+        element: (
+          <SuspenseWrapper>
+            <AdminPromptReview />
           </SuspenseWrapper>
         ),
       },

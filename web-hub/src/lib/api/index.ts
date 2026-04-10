@@ -382,6 +382,62 @@ export const adminApi = {
     );
     return res.data;
   },
+
+  // ── Prompt 审核管理 ──
+  // 2026-04-09 新增 — 对齐后端 admin.routes.ts (P4.05) 的全部端点
+  // 设计思路：封装待审核列表、审批、拒绝、批量审批、精选管理
+  // 影响范围：admin/prompts 页面
+  // 潜在风险：批量操作需控制数量上限
+
+  /** 获取待审核 Prompt 列表（分页） */
+  async pendingPrompts(params?: { page?: number; pageSize?: number }) {
+    return get<ApiPaginatedResponse<PendingPromptItem>>(
+      '/api/v1/admin/prompts/pending',
+      params as Record<string, unknown>,
+    );
+  },
+
+  /** 审批通过单个 Prompt */
+  async approvePrompt(id: string) {
+    const res = await post<ApiSuccessResponse<{ id: string; status: string; updatedAt: string }>>(
+      `/api/v1/admin/prompts/${id}/approve`,
+    );
+    return res.data;
+  },
+
+  /** 拒绝单个 Prompt */
+  async rejectPrompt(id: string, reason: string) {
+    const res = await post<ApiSuccessResponse<{ id: string; status: string; updatedAt: string }>>(
+      `/api/v1/admin/prompts/${id}/reject`,
+      { reason },
+    );
+    return res.data;
+  },
+
+  /** 批量审批通过（最多 50 个） */
+  async bulkApprovePrompts(ids: string[]) {
+    const res = await post<ApiSuccessResponse<{ approved: number; failed: number }>>(
+      '/api/v1/admin/prompts/bulk-approve',
+      { ids },
+    );
+    return res.data;
+  },
+
+  /** 手动标记 Prompt 为精选 */
+  async featurePrompt(id: string) {
+    const res = await post<ApiSuccessResponse<{ id: string; isFeatured: boolean }>>(
+      `/api/v1/admin/prompts/${id}/feature`,
+    );
+    return res.data;
+  },
+
+  /** 取消 Prompt 精选标记 */
+  async unfeaturePrompt(id: string) {
+    const res = await post<ApiSuccessResponse<{ id: string; isFeatured: boolean }>>(
+      `/api/v1/admin/prompts/${id}/unfeature`,
+    );
+    return res.data;
+  },
 };
 
 /** Dashboard 统计数据类型 */
@@ -480,6 +536,31 @@ export interface CostReportItem {
   totalTokens: number;
   totalCost: number;
   avgLatencyMs: number;
+}
+
+// ── Prompt 审核管理类型 — P4.05 ──────────────────────────
+// 2026-04-09 新增 — 对齐后端 admin.service.ts pendingSelect 返回字段
+
+/** 待审核 Prompt 项（对应 GET /admin/prompts/pending） */
+export interface PendingPromptItem {
+  id: string;
+  title: string;
+  description: string | null;
+  content: string;
+  tags: string[];
+  category: string;
+  model: string | null;
+  status: string;
+  likesCount: number;
+  viewsCount: number;
+  copiesCount: number;
+  createdAt: string;
+  author: {
+    id: string;
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+  };
 }
 
 // ═══════════════════════════════════════════════════════════
