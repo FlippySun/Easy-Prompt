@@ -10,6 +10,12 @@
 import { prisma } from '../lib/prisma';
 import { getActiveProvider } from './provider.service';
 import { callAiProvider, callAiProviderStream } from './adapters/openai.adapter';
+import {
+  buildRouterPrompt,
+  parseRouterResult,
+  buildGenerationPrompt,
+  decorateGenerationPrompt,
+} from './scene-router.service';
 import { AppError } from '../utils/errors';
 import { createChildLogger } from '../utils/logger';
 import { logAiRequest } from '../utils/aiLogger';
@@ -40,8 +46,14 @@ export interface GatewayContext {
 }
 
 /**
- * 执行 AI 增强请求
- * 流程：获取 provider → 调用适配器 → 记录日志 → 返回结果
+ * 执行 AI 增强请求 — 两步路由+生成流程
+ * 2026-04-09 重构：从单次 AI 调用改为两步流程（port from core/router.js + core/composer.js）
+ * Step 1（Router）：意图识别 — 构建分类 prompt → AI 调用 → 解析 JSON → scenes[]
+ * Step 2（Generation）：Prompt 生成 — 根据 scenes 构建专业 prompt → AI 调用 → 增强输出
+ * 参数：input — 增强请求；context — 请求上下文
+ * 返回：EnhanceResponse（含 scenes + composite 供客户端展示）
+ * 影响范围：所有客户端（浏览器/VSCode/Web/IntelliJ）的增强请求
+ * 潜在风险：两次 AI 调用总耗时更长（routing ~3-8s + generation ~15-45s）
  */
 export async function enhance(
   input: EnhanceRequest,
@@ -53,69 +65,124 @@ export async function enhance(
   try {
     // 1. 获取激活的 provider
     provider = await getActiveProvider();
-
-    // 2. 构建 system prompt（由客户端发送，或未来由 ai-router 生成）
-    const systemPrompt =
-      input.systemPrompt || 'You are a helpful AI assistant specializing in prompt enhancement.';
     const model = input.model || provider.defaultModel;
+    const extraHeaders = (provider.extraHeaders as Record<string, string>) ?? {};
 
-    // 3. 调用适配器
-    const adapterResult = await callAiProvider({
+    // ── Step 1: 意图识别（Router） ──
+    // 使用低 temperature + 短 maxTokens + 短超时，快速获取场景分类
+    const routerSystemPrompt = buildRouterPrompt();
+    log.info({ requestId: context.requestId }, 'Step 1: routing — identifying intent');
+
+    const routerResult = await callAiProvider({
       apiMode: provider.apiMode,
       baseUrl: provider.baseUrl,
       apiKey: provider.apiKey,
       model,
-      systemPrompt,
+      systemPrompt: routerSystemPrompt,
       userMessage: input.input,
-      maxTokens: provider.maxTokens,
+      maxTokens: 500,
+      timeoutMs: Math.min(provider.timeoutMs, 30000),
+      extraHeaders,
+    });
+
+    const routerParsed = parseRouterResult(routerResult.content);
+    log.info(
+      {
+        requestId: context.requestId,
+        scenes: routerParsed.scenes,
+        composite: routerParsed.composite,
+      },
+      'Step 1 done: routing result',
+    );
+
+    // ── Step 2: Prompt 生成（Generation） ──
+    // 根据路由结果构建专业生成 prompt，使用 enhance mode 装饰
+    const { prompt: genSystemPrompt, sceneNames } = buildGenerationPrompt(routerParsed);
+    const decoratedPrompt = decorateGenerationPrompt(genSystemPrompt, input.enhanceMode);
+
+    // Generation 参数根据 enhanceMode 调整
+    const isDeep = input.enhanceMode === 'deep';
+    const genMaxTokens = isDeep
+      ? routerParsed.composite
+        ? 8192
+        : 4096
+      : routerParsed.composite
+        ? 4096
+        : 2048;
+
+    log.info(
+      {
+        requestId: context.requestId,
+        sceneNames,
+        enhanceMode: input.enhanceMode || 'fast',
+        genMaxTokens,
+      },
+      'Step 2: generating — building enhanced prompt',
+    );
+
+    const genResult = await callAiProvider({
+      apiMode: provider.apiMode,
+      baseUrl: provider.baseUrl,
+      apiKey: provider.apiKey,
+      model,
+      systemPrompt: decoratedPrompt,
+      userMessage: input.input,
+      maxTokens: genMaxTokens,
       timeoutMs: provider.timeoutMs,
-      extraHeaders: (provider.extraHeaders as Record<string, string>) ?? {},
+      extraHeaders,
     });
 
     const duration = Date.now() - startTime;
 
-    // 4. 异步记录日志（不阻塞响应）
+    // 合并两步 token 统计
+    const totalUsage = {
+      promptTokens: (routerResult.promptTokens ?? 0) + (genResult.promptTokens ?? 0),
+      completionTokens: (routerResult.completionTokens ?? 0) + (genResult.completionTokens ?? 0),
+      totalTokens: (routerResult.totalTokens ?? 0) + (genResult.totalTokens ?? 0),
+    };
+
+    // 更新 input 的 sceneIds/isComposite 供日志记录
+    input.sceneIds = routerParsed.scenes;
+    input.isComposite = routerParsed.composite;
+
+    // 异步记录日志（不阻塞响应）
     recordLog({
       context,
       input,
       provider,
       model,
-      output: adapterResult.content,
+      output: genResult.content,
       status: 'success',
       duration,
-      adapterResult,
+      adapterResult: totalUsage,
     }).catch((err) => log.error({ err }, 'Failed to record AI request log'));
 
-    // 2026-04-08 新增 — P2.01 结构化 AI 日志（与 DB 日志并行输出）
     logAiRequest({
       requestId: context.requestId,
       userId: context.userId,
       clientType: context.clientType,
-      scenes: input.sceneIds,
+      scenes: routerParsed.scenes,
       model,
       provider: provider.slug,
-      inputTokens: adapterResult.promptTokens,
-      outputTokens: adapterResult.completionTokens,
-      totalTokens: adapterResult.totalTokens,
+      inputTokens: totalUsage.promptTokens,
+      outputTokens: totalUsage.completionTokens,
+      totalTokens: totalUsage.totalTokens,
       latencyMs: duration,
       status: 'success',
     });
 
     return {
-      output: adapterResult.content,
+      output: genResult.content,
       model,
       provider: provider.slug,
-      usage: {
-        promptTokens: adapterResult.promptTokens ?? 0,
-        completionTokens: adapterResult.completionTokens ?? 0,
-        totalTokens: adapterResult.totalTokens ?? 0,
-      },
+      scenes: routerParsed.scenes,
+      composite: routerParsed.composite,
+      usage: totalUsage,
       durationMs: duration,
     };
   } catch (err) {
     const duration = Date.now() - startTime;
 
-    // 记录失败日志
     const failStatus = err instanceof AppError && err.code === 'AI_TIMEOUT' ? 'timeout' : 'error';
     if (provider) {
       recordLog({
@@ -129,7 +196,6 @@ export async function enhance(
         errorMessage: err instanceof Error ? err.message : 'Unknown error',
       }).catch((logErr) => log.error({ logErr }, 'Failed to record error log'));
 
-      // 2026-04-08 新增 — P2.01 结构化 AI 错误日志
       logAiRequest({
         requestId: context.requestId,
         userId: context.userId,
@@ -189,9 +255,37 @@ export async function enhanceStream(
 
   try {
     provider = await getActiveProvider();
-    const systemPrompt =
-      input.systemPrompt || 'You are a helpful AI assistant specializing in prompt enhancement.';
     const model = input.model || provider.defaultModel;
+    const extraHeaders = (provider.extraHeaders as Record<string, string>) ?? {};
+
+    // ── Step 1: 意图识别（Router）— 同步调用，不流式 ──
+    const routerSystemPrompt = buildRouterPrompt();
+    const routerResult = await callAiProvider({
+      apiMode: provider.apiMode,
+      baseUrl: provider.baseUrl,
+      apiKey: provider.apiKey,
+      model,
+      systemPrompt: routerSystemPrompt,
+      userMessage: input.input,
+      maxTokens: 500,
+      timeoutMs: Math.min(provider.timeoutMs, 30000),
+      extraHeaders,
+    });
+    const routerParsed = parseRouterResult(routerResult.content);
+    input.sceneIds = routerParsed.scenes;
+    input.isComposite = routerParsed.composite;
+
+    // ── Step 2: Prompt 生成 — 流式输出 ──
+    const { prompt: genSystemPrompt } = buildGenerationPrompt(routerParsed);
+    const decoratedPrompt = decorateGenerationPrompt(genSystemPrompt, input.enhanceMode);
+    const isDeep = input.enhanceMode === 'deep';
+    const genMaxTokens = isDeep
+      ? routerParsed.composite
+        ? 8192
+        : 4096
+      : routerParsed.composite
+        ? 4096
+        : 2048;
 
     await callAiProviderStream(
       {
@@ -199,11 +293,11 @@ export async function enhanceStream(
         baseUrl: provider.baseUrl,
         apiKey: provider.apiKey,
         model,
-        systemPrompt,
+        systemPrompt: decoratedPrompt,
         userMessage: input.input,
-        maxTokens: provider.maxTokens,
+        maxTokens: genMaxTokens,
         timeoutMs: provider.timeoutMs,
-        extraHeaders: (provider.extraHeaders as Record<string, string>) ?? {},
+        extraHeaders,
       },
       {
         onChunk: (content) => {
@@ -211,16 +305,19 @@ export async function enhanceStream(
         },
         onDone: (fullContent, usage) => {
           const duration = Date.now() - startTime;
+          // 合并 router + generation token 统计
+          const totalUsage = {
+            promptTokens: (routerResult.promptTokens ?? 0) + (usage?.promptTokens ?? 0),
+            completionTokens: (routerResult.completionTokens ?? 0) + (usage?.completionTokens ?? 0),
+            totalTokens: (routerResult.totalTokens ?? 0) + (usage?.totalTokens ?? 0),
+          };
+
           onEvent({
             type: 'done',
             fullContent,
             model,
             provider: provider!.slug,
-            usage: {
-              promptTokens: usage?.promptTokens ?? 0,
-              completionTokens: usage?.completionTokens ?? 0,
-              totalTokens: usage?.totalTokens ?? 0,
-            },
+            usage: totalUsage,
             durationMs: duration,
           });
 
