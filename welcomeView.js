@@ -9,6 +9,19 @@ const { SCENES, SCENE_NAMES } = require("./core");
 const WELCOME_STATE_KEY = "easyPrompt.welcomed.v4.0";
 
 /**
+ * 2026-04-10
+ * 变更类型：修复
+ * 功能描述：让 VS Code Welcome Webview 的 zhiz.chat CTA 在登录完成后自动刷新，并将已登录按钮改为展示当前账号后跳转 zhiz.chat。
+ * 设计思路：继续复用 extension.js 已注册的 easy-prompt.ssoLogin 命令，但把欢迎页渲染抽象为可重复调用的 renderWelcomePanel(context)；登录态变化时重绘已打开的欢迎页，避免静态 HTML 长时间停留在旧状态。
+ * 参数与返回值：showWelcomePage(context) / refreshWelcomePanels(context) 会根据 globalState 中的 SSO 用户信息重绘 Webview；getWelcomeHtml(options) 接收登录态展示参数并返回 HTML 字符串。
+ * 影响范围：VS Code 首次安装欢迎页、手动打开 welcome 页入口、登录成功后返回 IDE 的欢迎页 CTA。
+ * 潜在风险：重绘欢迎页会重置页面滚动位置；当前仅在登录态变化或欢迎页重新可见时触发，风险可控。
+ */
+const SSO_USER_STATE_KEY = "easy-prompt.ssoUser";
+const ZHIZ_CHAT_HOME_URL = "https://zhiz.chat";
+const _welcomePanels = new Set();
+
+/**
  * 检查是否需要显示 Welcome 页面（首次安装/大版本升级时触发）
  */
 function checkAndShowWelcome(context) {
@@ -16,6 +29,27 @@ function checkAndShowWelcome(context) {
   if (!welcomed) {
     showWelcomePage(context);
     context.globalState.update(WELCOME_STATE_KEY, true);
+  }
+}
+
+function getWelcomeLoginState(context) {
+  const ssoUser = context.globalState.get(SSO_USER_STATE_KEY);
+  const accountName =
+    ssoUser?.displayName || ssoUser?.username || ssoUser?.email || "";
+
+  return {
+    isLoggedIn: Boolean(ssoUser),
+    accountName,
+  };
+}
+
+function renderWelcomePanel(panel, context) {
+  panel.webview.html = getWelcomeHtml(getWelcomeLoginState(context));
+}
+
+function refreshWelcomePanels(context) {
+  for (const panel of Array.from(_welcomePanels)) {
+    renderWelcomePanel(panel, context);
   }
 }
 
@@ -30,7 +64,26 @@ function showWelcomePage(context) {
     { enableScripts: true, retainContextWhenHidden: false },
   );
 
-  panel.webview.html = getWelcomeHtml();
+  _welcomePanels.add(panel);
+  renderWelcomePanel(panel, context);
+
+  panel.onDidDispose(
+    () => {
+      _welcomePanels.delete(panel);
+    },
+    undefined,
+    context.subscriptions,
+  );
+
+  panel.onDidChangeViewState(
+    (event) => {
+      if (event.webviewPanel.visible) {
+        renderWelcomePanel(event.webviewPanel, context);
+      }
+    },
+    undefined,
+    context.subscriptions,
+  );
 
   // 接收 Webview 消息
   panel.webview.onDidReceiveMessage(
@@ -54,6 +107,12 @@ function showWelcomePage(context) {
         case "selectScene":
           vscode.commands.executeCommand("easy-prompt.enhanceWithScene");
           break;
+        case "loginZhiz":
+          vscode.commands.executeCommand("easy-prompt.ssoLogin");
+          break;
+        case "openZhizHome":
+          vscode.env.openExternal(vscode.Uri.parse(ZHIZ_CHAT_HOME_URL));
+          break;
       }
     },
     undefined,
@@ -61,7 +120,7 @@ function showWelcomePage(context) {
   );
 }
 
-function getWelcomeHtml() {
+function getWelcomeHtml({ isLoggedIn = false, accountName = "" } = {}) {
   // 构建场景分类
   const categories = {
     "🚀 需求 & 规划": ["optimize", "split-task", "techstack", "api-design"],
@@ -154,6 +213,15 @@ function getWelcomeHtml() {
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
   }
+
+  const safeAccountName = _esc(accountName || "zhiz.chat 账号");
+  const loginButtonLabel = isLoggedIn
+    ? `当前登录用户：${safeAccountName}`
+    : "登录 zhiz.chat";
+  const loginButtonCommand = isLoggedIn ? "openZhizHome" : "loginZhiz";
+  const loginHint = isLoggedIn
+    ? `当前已登录：<strong>${safeAccountName}</strong>。点击下方按钮可直接打开 zhiz.chat。`
+    : "想直接用账号体系登录？点击下方“登录 zhiz.chat”即可快速进入登录流程。";
 
   const sceneSections = Object.entries(categories)
     .map(([cat, ids]) => {
@@ -424,6 +492,16 @@ kbd {
     border-color: var(--accent);
 }
 
+.login-hint {
+    margin-top: 12px;
+    font-size: 13px;
+    color: var(--text-dim);
+}
+
+.login-hint strong {
+    color: var(--text);
+}
+
 /* Tips */
 .tip-box {
     background: #1a2a3a;
@@ -432,9 +510,7 @@ kbd {
     padding: 14px 18px;
     font-size: 13px;
     color: var(--text);
-    margin-top: 16px;
 }
-.tip-box strong { color: var(--accent-light); }
 
 /* Footer */
 .footer {
@@ -480,7 +556,9 @@ kbd {
         <div class="btn-group">
             <button class="btn btn-primary" onclick="send('tryEnhance')">🚀 立即体验</button>
             <button class="btn btn-secondary" onclick="send('configureApi')">⚙️ 自定义 API Key</button>
+            <button class="btn btn-secondary" onclick="send('${loginButtonCommand}')">${loginButtonLabel}</button>
         </div>
+        <p class="login-hint">${loginHint}</p>
     </div>
 
     <!-- Shortcuts -->
@@ -578,4 +656,4 @@ document.querySelectorAll('.scene-card').forEach(card => {
 </html>`;
 }
 
-module.exports = { checkAndShowWelcome, showWelcomePage };
+module.exports = { checkAndShowWelcome, showWelcomePage, refreshWelcomePanels };

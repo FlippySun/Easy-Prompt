@@ -26,7 +26,8 @@
   },
   "icon": "assets/images/logo-vscode@128x128.png",
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onUri"
   ],
   "main": "./extension.js",
   "contributes": {
@@ -74,6 +75,16 @@
       {
         "command": "easy-prompt.showHistory",
         "title": "Easy Prompt: 查看增强历史",
+        "category": "Easy Prompt"
+      },
+      {
+        "command": "easy-prompt.ssoLogin",
+        "title": "Easy Prompt: 登录 zhiz.chat",
+        "category": "Easy Prompt"
+      },
+      {
+        "command": "easy-prompt.ssoLogout",
+        "title": "Easy Prompt: 退出登录",
         "category": "Easy Prompt"
       }
     ],

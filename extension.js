@@ -12,7 +12,11 @@ const {
   detectApiMode,
   dualTrackEnhance,
 } = require("./core");
-const { checkAndShowWelcome, showWelcomePage } = require("./welcomeView");
+const {
+  checkAndShowWelcome,
+  showWelcomePage,
+  refreshWelcomePanels,
+} = require("./welcomeView");
 
 // ============ 场景命中计数 ============
 
@@ -375,11 +379,20 @@ function getConfig() {
  */
 async function runSmartRoute(config, text, progress) {
   const startTime = Date.now();
-  progress.report({ message: "🔍 正在识别意图..." });
+  // 2026-04-10 修复
+  // 变更类型：修复
+  // 功能描述：恢复 VS Code 端 backend-only 增强流程的分阶段进度文案，避免连接态与识别态被折叠成同一条提示
+  // 设计思路：共享 core/api.js 已恢复连接 → 识别意图 → 生成 Prompt 的阶段回调；此处保留 detail 并按阶段映射图标，确保用户能看到完整流转
+  // 参数与返回值：progress.report 现在直接消费 onProgress(stage, detail) 的 detail；函数返回值结构保持不变
+  // 影响范围：VS Code 扩展增强进度通知、用户对当前阶段的感知
+  // 潜在风险：无已知风险
+  progress.report({ message: "🌐 正在连接 AI 服务..." });
 
   const onProgress = (stage, detail) => {
     if (stage === "routing") {
-      progress.report({ message: "🔍 正在识别意图..." });
+      const message = detail || "正在识别意图...";
+      const icon = message.includes("连接") ? "🌐" : "🔍";
+      progress.report({ message: `${icon} ${message}` });
     } else if (stage === "generating") {
       progress.report({ message: `✍️ ${detail}` });
     } else if (stage === "retrying") {
@@ -387,24 +400,56 @@ async function runSmartRoute(config, text, progress) {
     }
   };
 
-  // 2026-04-09 架构重构：统一走 backend API，不再有本地直连回退
+  // 2026-04-10 B4: 改用 SSO token（SecretStorage），保留 backendUrl 自定义后端支持
   const backendCfg = vscode.workspace.getConfiguration("easyPrompt");
   const backendUrl = backendCfg.get("backendUrl", "");
-  const backendToken = backendCfg.get("backendToken", "");
+  const ssoToken = await getSsoAccessToken();
 
-  const result = await dualTrackEnhance(
-    config,
-    text,
-    null, // localEnhanceFn 已废弃，保留参数位
-    {
-      enhanceMode: config.enhanceMode || "fast",
-      model: config.model || "",
-      clientType: "vscode",
-      backendUrl: backendUrl || undefined,
-      accessToken: backendToken || undefined,
-    },
-    onProgress,
-  );
+  let result;
+  try {
+    result = await dualTrackEnhance(
+      config,
+      text,
+      null, // localEnhanceFn 已废弃，保留参数位
+      {
+        enhanceMode: config.enhanceMode || "fast",
+        model: config.model || "",
+        clientType: "vscode",
+        backendUrl: backendUrl || undefined,
+        accessToken: ssoToken || undefined,
+      },
+      onProgress,
+    );
+  } catch (err) {
+    // 2026-04-10 B5: 401 自动刷新重试（仅重试一次）
+    if (
+      err.message &&
+      (err.message.includes("401") ||
+        err.message.includes("expired") ||
+        err.message.includes("过期"))
+    ) {
+      try {
+        const newTokens = await refreshSsoToken();
+        result = await dualTrackEnhance(
+          config,
+          text,
+          null,
+          {
+            enhanceMode: config.enhanceMode || "fast",
+            model: config.model || "",
+            clientType: "vscode",
+            backendUrl: backendUrl || undefined,
+            accessToken: newTokens.accessToken,
+          },
+          onProgress,
+        );
+      } catch {
+        throw err; // refresh 或重试失败，抛原始错误
+      }
+    } else {
+      throw err;
+    }
+  }
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
   const label = result.composite
@@ -1089,7 +1134,7 @@ function configureApi(context) {
             const model = (msg.model || "").trim();
 
             // 组装 baseUrl
-            let baseUrl = "";
+            let baseUrl;
             if (apiHost) {
               const host = apiHost.replace(/\/+$/, "");
               const path =
@@ -2165,6 +2210,317 @@ function showHistoryCommand(context) {
   };
 }
 
+/* ═══════════════════════════════════════════════════
+   SSO 登录/退出/Token 管理
+   2026-04-10 新增 — SSO Plan v2 B4+B5+B6
+   变更类型：新增
+   设计思路：
+     1. vscode.env.openExternal 打开浏览器到 zhiz.chat 登录
+     2. registerUriHandler 接收 vscode://flippysun.easy-prompt-ai/auth-callback?code=xxx&state=yyy
+     3. SecretStorage 存 accessToken/refreshToken（安全存储）
+     4. globalState 存 expiresAt + user（非敏感）
+     5. setTimeout 定时刷新 token（过期前 60s）
+     6. 401 重试逻辑在 runSmartRoute 中处理
+   参数与返回值：各函数独立说明
+   影响范围：extension.js activate/runSmartRoute/statusBar
+   潜在风险：URI handler 回调依赖浏览器正确 redirect；SecretStorage 依赖 VS Code keychain
+   ═══════════════════════════════════════════════════ */
+
+const SSO_HUB_BASE = "https://zhiz.chat";
+const SSO_BACKEND_BASE = "https://api.zhiz.chat";
+const SSO_URI_SCHEME = "vscode://flippysun.easy-prompt-ai/auth-callback";
+const SSO_STATE_KEY = "easy-prompt.ssoState";
+const SSO_USER_KEY = "easy-prompt.ssoUser";
+const SSO_EXPIRES_KEY = "easy-prompt.ssoExpiresAt";
+const SSO_SECRET_ACCESS = "easy-prompt.ssoAccessToken";
+const SSO_SECRET_REFRESH = "easy-prompt.ssoRefreshToken";
+const LEGACY_SETTING_KEY = "backendToken";
+
+/** 状态栏 item 引用（activate 中赋值） */
+let _ssoStatusBarItem = null;
+/** token 刷新定时器 */
+let _ssoRefreshTimer = null;
+
+/**
+ * SSO 登录 — 打开浏览器到 zhiz.chat 登录页
+ * 登录完成后浏览器 redirect 回 VS Code URI handler
+ */
+async function ssoLogin() {
+  const { randomUUID } = require("crypto");
+  const state = randomUUID();
+  _context.globalState.update(SSO_STATE_KEY, state);
+
+  const loginUrl =
+    `${SSO_HUB_BASE}/auth/login?` +
+    `redirect_uri=${encodeURIComponent(SSO_URI_SCHEME)}&state=${encodeURIComponent(state)}`;
+
+  await vscode.env.openExternal(vscode.Uri.parse(loginUrl));
+}
+
+/**
+ * SSO 退出 — 清除所有 SSO tokens 和用户信息
+ */
+async function ssoLogout() {
+  await _context.secrets.delete(SSO_SECRET_ACCESS);
+  await _context.secrets.delete(SSO_SECRET_REFRESH);
+  _context.globalState.update(SSO_USER_KEY, undefined);
+  _context.globalState.update(SSO_EXPIRES_KEY, undefined);
+  _context.globalState.update(SSO_STATE_KEY, undefined);
+
+  if (_ssoRefreshTimer) {
+    clearTimeout(_ssoRefreshTimer);
+    _ssoRefreshTimer = null;
+  }
+
+  updateSsoStatusBar();
+  refreshWelcomePanels(_context);
+  vscode.window.showInformationMessage("Easy Prompt: 已退出登录");
+}
+
+/**
+ * URI handler — 处理 vscode://flippysun.easy-prompt-ai/auth-callback 回调
+ * @param {vscode.Uri} uri
+ */
+async function handleSsoCallback(uri) {
+  try {
+    const params = new URLSearchParams(uri.query);
+    const code = params.get("code");
+    const returnedState = params.get("state");
+
+    if (!code) {
+      vscode.window.showErrorMessage("Easy Prompt: 未收到授权码，请重试");
+      return;
+    }
+
+    // CSRF 校验
+    const storedState = _context.globalState.get(SSO_STATE_KEY);
+    _context.globalState.update(SSO_STATE_KEY, undefined);
+
+    if (!storedState || storedState !== returnedState) {
+      vscode.window.showErrorMessage(
+        "Easy Prompt: 登录验证失败（CSRF），请重试",
+      );
+      return;
+    }
+
+    // 用授权码换取 tokens
+    const tokenData = await exchangeSsoCode(code, SSO_URI_SCHEME);
+
+    // 存储 tokens
+    await saveSsoTokens(tokenData);
+
+    const displayName =
+      tokenData.user?.displayName || tokenData.user?.username || "";
+    vscode.window.showInformationMessage(
+      `Easy Prompt: 登录成功${displayName ? " — " + displayName : ""}`,
+    );
+  } catch (err) {
+    vscode.window.showErrorMessage(`Easy Prompt: 登录失败 — ${err.message}`);
+  }
+}
+
+/**
+ * 用一次性授权码换取 tokens（Node.js https）
+ * @param {string} code
+ * @param {string} redirectUri
+ * @returns {Promise<{user: object, tokens: {accessToken: string, refreshToken: string, expiresIn: number}}>}
+ */
+function exchangeSsoCode(code, redirectUri) {
+  const https = require("https");
+  const postData = JSON.stringify({ code, redirectUri });
+
+  return new Promise((resolve, reject) => {
+    const url = new URL(`${SSO_BACKEND_BASE}/api/v1/auth/sso/token`);
+    const req = https.request(
+      {
+        hostname: url.hostname,
+        port: url.port || 443,
+        path: url.pathname,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(postData),
+        },
+        timeout: 15000,
+      },
+      (res) => {
+        let body = "";
+        res.on("data", (chunk) => (body += chunk));
+        res.on("end", () => {
+          try {
+            const data = JSON.parse(body);
+            if (!data.success) {
+              return reject(new Error(data.error?.message || "授权码兑换失败"));
+            }
+            resolve(data.data);
+          } catch (e) {
+            reject(new Error("SSO response parse error"));
+          }
+        });
+      },
+    );
+    req.on("error", (e) => reject(e));
+    req.on("timeout", () => {
+      req.destroy();
+      reject(new Error("SSO request timeout"));
+    });
+    req.write(postData);
+    req.end();
+  });
+}
+
+/**
+ * 保存 SSO tokens 到 SecretStorage + globalState
+ * @param {{user: object, tokens: {accessToken: string, refreshToken: string, expiresIn: number}}} data
+ */
+async function saveSsoTokens(data) {
+  const { user, tokens } = data;
+  const expiresAt = Date.now() + (tokens.expiresIn || 3600) * 1000;
+
+  await _context.secrets.store(SSO_SECRET_ACCESS, tokens.accessToken);
+  await _context.secrets.store(SSO_SECRET_REFRESH, tokens.refreshToken);
+  _context.globalState.update(SSO_USER_KEY, user);
+  _context.globalState.update(SSO_EXPIRES_KEY, expiresAt);
+
+  updateSsoStatusBar();
+  refreshWelcomePanels(_context);
+  scheduleSsoRefresh(expiresAt);
+}
+
+/**
+ * 获取 SSO access token（从 SecretStorage）
+ * @returns {Promise<string|null>}
+ */
+async function getSsoAccessToken() {
+  try {
+    return (await _context.secrets.get(SSO_SECRET_ACCESS)) || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 刷新 SSO access token
+ * @returns {Promise<{accessToken: string, refreshToken: string, expiresIn: number}>}
+ */
+async function refreshSsoToken() {
+  const refreshToken = await _context.secrets.get(SSO_SECRET_REFRESH);
+  if (!refreshToken) {
+    throw new Error("无 refresh token，请重新登录");
+  }
+
+  const https = require("https");
+  const postData = JSON.stringify({ refreshToken });
+
+  const tokens = await new Promise((resolve, reject) => {
+    const url = new URL(`${SSO_BACKEND_BASE}/api/v1/auth/refresh`);
+    const req = https.request(
+      {
+        hostname: url.hostname,
+        port: url.port || 443,
+        path: url.pathname,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(postData),
+        },
+        timeout: 15000,
+      },
+      (res) => {
+        let body = "";
+        res.on("data", (chunk) => (body += chunk));
+        res.on("end", () => {
+          try {
+            const data = JSON.parse(body);
+            if (!data.success) {
+              return reject(new Error(data.error?.message || "Token 刷新失败"));
+            }
+            resolve(data.data.tokens);
+          } catch (e) {
+            reject(new Error("Refresh response parse error"));
+          }
+        });
+      },
+    );
+    req.on("error", (e) => reject(e));
+    req.on("timeout", () => {
+      req.destroy();
+      reject(new Error("Refresh request timeout"));
+    });
+    req.write(postData);
+    req.end();
+  });
+
+  // 保存新 tokens
+  const expiresAt = Date.now() + (tokens.expiresIn || 3600) * 1000;
+  await _context.secrets.store(SSO_SECRET_ACCESS, tokens.accessToken);
+  await _context.secrets.store(SSO_SECRET_REFRESH, tokens.refreshToken);
+  _context.globalState.update(SSO_EXPIRES_KEY, expiresAt);
+
+  scheduleSsoRefresh(expiresAt);
+  return tokens;
+}
+
+/**
+ * 调度 token 刷新定时器（过期前 60 秒）
+ * @param {number} expiresAt — 绝对时间戳（ms）
+ */
+function scheduleSsoRefresh(expiresAt) {
+  if (_ssoRefreshTimer) {
+    clearTimeout(_ssoRefreshTimer);
+    _ssoRefreshTimer = null;
+  }
+
+  const delay = Math.max(expiresAt - Date.now() - 60 * 1000, 30 * 1000);
+  _ssoRefreshTimer = setTimeout(async () => {
+    try {
+      await refreshSsoToken();
+      console.log("[EP] SSO token refreshed");
+    } catch (err) {
+      console.warn("[EP] SSO token refresh failed:", err.message);
+      // 刷新失败 → 清除 tokens，用户需重新登录
+      await ssoLogout();
+    }
+  }, delay);
+}
+
+/**
+ * 更新状态栏 SSO 登录状态显示
+ */
+function updateSsoStatusBar() {
+  if (!_ssoStatusBarItem) return;
+  const user = _context.globalState.get(SSO_USER_KEY);
+  if (user) {
+    const name = user.displayName || user.username || user.email;
+    _ssoStatusBarItem.text = `$(account) ${name}`;
+    _ssoStatusBarItem.tooltip = `Easy Prompt — 已登录: ${name}\n点击退出`;
+    _ssoStatusBarItem.command = "easy-prompt.ssoLogout";
+  } else {
+    _ssoStatusBarItem.text = "$(sign-in) 登录";
+    _ssoStatusBarItem.tooltip = "Easy Prompt — 点击登录 zhiz.chat";
+    _ssoStatusBarItem.command = "easy-prompt.ssoLogin";
+  }
+}
+
+/**
+ * 迁移旧版手动 backendToken setting（B4a）
+ * @returns {Promise<boolean>} true 如果发现并清除了旧 token
+ */
+async function migrateLegacyVscodeToken() {
+  const cfg = vscode.workspace.getConfiguration("easyPrompt");
+  const oldToken = cfg.get(LEGACY_SETTING_KEY, "");
+  if (oldToken) {
+    // 清除旧 setting
+    await cfg.update(
+      LEGACY_SETTING_KEY,
+      undefined,
+      vscode.ConfigurationTarget.Global,
+    );
+    return true;
+  }
+  return false;
+}
+
 function activate(context) {
   // 保存全局上下文引用（用于场景命中计数）
   _context = context;
@@ -2199,6 +2555,13 @@ function activate(context) {
     ),
   );
 
+  // 2026-04-10 B4: SSO 登录/退出命令 + URI handler
+  context.subscriptions.push(
+    vscode.commands.registerCommand("easy-prompt.ssoLogin", ssoLogin),
+    vscode.commands.registerCommand("easy-prompt.ssoLogout", ssoLogout),
+    vscode.window.registerUriHandler({ handleUri: handleSsoCallback }),
+  );
+
   // 状态栏常驻入口
   const statusBarItem = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Right,
@@ -2209,6 +2572,30 @@ function activate(context) {
   statusBarItem.command = "easy-prompt.statusBarMenu";
   statusBarItem.show();
   context.subscriptions.push(statusBarItem);
+
+  // 2026-04-10 B6: SSO 登录状态栏（右侧，优先级 99，在主按钮左边）
+  _ssoStatusBarItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Right,
+    99,
+  );
+  _ssoStatusBarItem.show();
+  context.subscriptions.push(_ssoStatusBarItem);
+  updateSsoStatusBar();
+
+  // 2026-04-10 B4a: 旧版手动 Token 迁移
+  migrateLegacyVscodeToken().then((hadLegacy) => {
+    if (hadLegacy) {
+      vscode.window.showInformationMessage(
+        "Easy Prompt: 旧版 Token 已清除，请使用「登录 zhiz.chat」命令重新登录",
+      );
+    }
+  });
+
+  // 2026-04-10 B5: 恢复 token 刷新定时器（如已登录）
+  const existingExpiry = context.globalState.get(SSO_EXPIRES_KEY);
+  if (existingExpiry) {
+    scheduleSsoRefresh(existingExpiry);
+  }
 
   // 首次安装检测 → 弹出 Welcome 引导页
   checkAndShowWelcome(context);
@@ -2269,6 +2656,25 @@ function showStatusBarMenu(context) {
         command: "easy-prompt.configureApi",
       },
     ];
+
+    // 2026-04-10 B6: 动态添加 SSO 登录/退出选项
+    const ssoUser = context.globalState.get(SSO_USER_KEY);
+    if (ssoUser) {
+      const name = ssoUser.displayName || ssoUser.username || "";
+      menuItems.push({
+        label: `$(sign-out) 退出登录`,
+        description: name,
+        detail: "退出 zhiz.chat 账号",
+        command: "easy-prompt.ssoLogout",
+      });
+    } else {
+      menuItems.push({
+        label: "$(sign-in) 登录 zhiz.chat",
+        description: "",
+        detail: "SSO 登录以获得更高额度",
+        command: "easy-prompt.ssoLogin",
+      });
+    }
 
     const selected = await vscode.window.showQuickPick(menuItems, {
       placeHolder: "Easy Prompt — 选择操作",

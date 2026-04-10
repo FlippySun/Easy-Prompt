@@ -676,7 +676,14 @@ const http = require("http");
 const { randomUUID } = require("crypto");
 
 const BACKEND_API_BASE = "https://api.zhiz.chat";
-const BACKEND_TIMEOUT_MS = 30000;
+// 2026-04-10 修复
+// 变更类型：修复
+// 功能描述：将共享后端增强请求超时从 30s 提升到 90s，避免两步增强尚未完成时客户端提前断开
+// 设计思路：backend /api/v1/ai/enhance 已是 routing + generation 双阶段；浏览器插件端已升级为 90s，core 调用方也必须保持一致，避免出现“用户侧超时但后台 success”分叉
+// 参数与返回值：BACKEND_TIMEOUT_MS 仅控制 callBackendEnhance 的 HTTP 超时，不改变请求体和返回结构
+// 影响范围：VS Code 扩展及所有复用 core/api.js 后端增强链路的调用方
+// 潜在风险：无已知风险
+const BACKEND_TIMEOUT_MS = 90000;
 
 /**
  * 生成 UUID v4（用于 requestId 透传 — P2.14）
@@ -818,8 +825,72 @@ async function dualTrackEnhance(
   backendOptions,
   onProgress,
 ) {
+  // 2026-04-10 修复
+  // 变更类型：修复
+  // 功能描述：恢复共享 backend-only 增强链路的阶段性进度回调，避免调用方长时间只停留在初始连接态
+  // 设计思路：复用浏览器插件端已验证的定时阶段切换；在后端同步返回期间估计 routing 与 generation 两阶段，同时保留原有 429 退避重试逻辑
+  // 参数与返回值：onProgress(stage, detail) 会按 routing → generating → retrying 触发；函数返回值结构保持 {result, scenes, composite, source} 不变
+  // 影响范围：VS Code 扩展及所有复用 core/api.js backend-only 增强链路的调用方
+  // 潜在风险：无已知风险
   if (onProgress) onProgress("routing", "正在连接 AI 服务...");
-  return await callBackendEnhance(input, backendOptions);
+
+  const progressTimers = [];
+  if (onProgress) {
+    progressTimers.push(
+      setTimeout(() => onProgress("routing", "正在识别意图..."), 2000),
+    );
+    progressTimers.push(
+      setTimeout(
+        () => onProgress("generating", "正在生成专业 Prompt..."),
+        8000,
+      ),
+    );
+  }
+
+  // 2026-04-10 新增 — SSO 全端审计 P1-3
+  // 429 退避重试（最多 2 次，间隔 2s/4s）
+  // 设计思路：后端 AI 端 429 是暂态错误，短暂等待后通常可成功
+  // 影响范围：dualTrackEnhance → callBackendEnhance 429 场景
+  // 潜在风险：无已知风险（最多额外等待 6s）
+  const retryDelays = [2000, 4000];
+  let lastErr;
+  try {
+    try {
+      return await callBackendEnhance(input, backendOptions);
+    } catch (err) {
+      lastErr = err;
+      // 仅对 429 / RATE_LIMIT 错误做退避重试
+      if (
+        !err.message ||
+        (!err.message.includes("429") &&
+          !err.message.includes("请求过于频繁") &&
+          !err.message.includes("RATE_LIMIT"))
+      ) {
+        throw err;
+      }
+    }
+    for (const delay of retryDelays) {
+      if (onProgress)
+        onProgress("retrying", `请求频率受限，${delay / 1000}s 后重试...`);
+      await new Promise((r) => setTimeout(r, delay));
+      try {
+        return await callBackendEnhance(input, backendOptions);
+      } catch (err) {
+        lastErr = err;
+        if (
+          !err.message ||
+          (!err.message.includes("429") &&
+            !err.message.includes("请求过于频繁") &&
+            !err.message.includes("RATE_LIMIT"))
+        ) {
+          throw err;
+        }
+      }
+    }
+    throw lastErr;
+  } finally {
+    for (const timer of progressTimers) clearTimeout(timer);
+  }
 }
 
 module.exports = {
