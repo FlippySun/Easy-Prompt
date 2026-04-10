@@ -10,6 +10,9 @@ browser/**
 # PromptHub Web 应用（独立产品，不属于 VSCode 插件）
 web-hub/**
 
+# 后端服务（独立部署，不属于 VSCode 插件）
+backend/**
+
 # DeerFlow（独立项目，不属于 VSCode 插件）
 deer-flow/**
 
@@ -59,6 +62,10 @@ doc/**
 .mcp.json
 .mcp.json.bak*
 secrets.json
+
+# 环境变量文件（不得打包）
+**/.env
+**/.env.*
 
 # 打包产物
 easy-prompt-web-*.zip
