@@ -9,17 +9,18 @@
       content="97 个专业场景，两步 AI 路由，将你的需求扩写为大师级 Prompt"
     />
     <meta name="theme-color" content="#09090b" />
+    <!-- CSP：Vite dev server 需要 'unsafe-inline' script；生产构建由部署层 CSP header 覆盖 -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src https://cdn.jsdelivr.net; connect-src *; img-src 'self' data:;"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src https://cdn.jsdelivr.net; connect-src *; img-src 'self' data:;"
     />
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <link
       href="https://cdn.jsdelivr.net/npm/misans-webfont@4.3.1/misans/misans-regular/result.css"
       rel="stylesheet"
     />
-    <link href="misans-500.css" rel="stylesheet" />
-    <link href="misans-600.css" rel="stylesheet" />
+    <link href="/misans-500.css" rel="stylesheet" />
+    <link href="/misans-600.css" rel="stylesheet" />
     <link
       href="https://cdn.jsdelivr.net/npm/misans-webfont@4.3.1/misans/misans-bold/result.css"
       rel="stylesheet"
@@ -29,7 +30,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b5cf6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z'/%3E%3C/svg%3E"
     />
-    <link rel="stylesheet" href="style.css" />
+    <!-- Vite 会处理 src/style.css 的导入，此处仅保留外部字体 -->
   </head>
 
   <body>
@@ -1115,6 +1116,6 @@
       </div>
     </div>
 
-    <script src="app.js"></script>
+    <script type="module" src="/src/main.js"></script>
   </body>
 </html>
