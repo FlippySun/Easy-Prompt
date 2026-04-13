@@ -14,6 +14,16 @@ const MAX_INPUT_LENGTH = 10000;
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [2000, 4000, 8000];
 
+// 2026-04-13 新增 — 客户端元数据（供后端日志记录）
+// 变更类型：新增
+// 功能描述：定义客户端版本和平台标识，随增强请求发送至后端
+// 设计思路：后端 AiRequestLog 中 clientVersion / clientPlatform 始终为空，
+//   因为客户端从未在请求中携带这些字段。此处补充定义并在 fetch body 中传递。
+// 影响范围：callBackendEnhance 请求体
+// 潜在风险：版本号需随发版同步更新（deploy.sh --bump 已覆盖 index.html，此处需手动对齐）
+const CLIENT_VERSION = "5.3.8";
+const CLIENT_PLATFORM = "web";
+
 // 场景分类（用于 Browser 和 Picker）
 const SCENE_CATEGORIES = [
   {
@@ -1607,15 +1617,20 @@ async function callBackendEnhance(input, config, signal) {
         headers["Authorization"] = `Bearer ${token}`;
       }
 
+      // 2026-04-13 修复 — 补发 clientVersion / clientPlatform 供后端日志记录
       const resp = await fetch(`${BACKEND_API_BASE}/api/v1/ai/enhance`, {
         method: "POST",
-        headers,
+        headers: {
+          ...headers,
+          "X-Client-Platform": CLIENT_PLATFORM,
+        },
         body: JSON.stringify({
           input,
           enhanceMode: config.enhanceMode || "fast",
           model: config.model || "",
           language: "zh-CN",
           clientType: "web",
+          clientVersion: CLIENT_VERSION,
         }),
         signal: controller.signal,
       });

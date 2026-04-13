@@ -729,12 +729,20 @@ function mapBackendError(errorCode, defaultMsg) {
 function callBackendEnhance(input, options = {}) {
   return new Promise((resolve, reject) => {
     const requestId = generateRequestId();
+    // 2026-04-13 修复 — 补发 clientVersion / clientPlatform 供后端日志记录
+    // 变更类型：修复
+    // 功能描述：在请求体中增加 clientVersion，请求头中增加 X-Client-Platform
+    // 设计思路：后端 AiRequestLog 中 clientVersion / clientPlatform 始终为空，
+    //   因为客户端从未在请求中携带这些字段
+    // 影响范围：callBackendEnhance 请求体 + 请求头
+    // 潜在风险：版本号需随发版同步更新
     const postData = JSON.stringify({
       input,
       enhanceMode: options.enhanceMode || "fast",
       model: options.model || "",
       language: "zh-CN",
       clientType: options.clientType || "vscode",
+      clientVersion: options.clientVersion || "",
     });
 
     // 2026-04-08 P9.05: 支持自定义后端 URL（通过 options.backendUrl 传入）
@@ -750,6 +758,7 @@ function callBackendEnhance(input, options = {}) {
       "Content-Type": "application/json",
       "Content-Length": Buffer.byteLength(postData),
       "X-Request-Id": requestId,
+      "X-Client-Platform": options.clientPlatform || "vscode",
     };
     if (options.accessToken) {
       headers["Authorization"] = `Bearer ${options.accessToken}`;

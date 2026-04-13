@@ -938,6 +938,18 @@ object ApiClient {
         val requestId = generateRequestId()
 
         // 内部请求函数（支持 token 覆写用于 401 重试）
+        // 2026-04-13 修复 — 补发 clientVersion / clientPlatform 供后端日志记录
+        // 变更类型：修复
+        // 功能描述：在请求体中增加 clientVersion，请求头中增加 X-Client-Platform
+        // 设计思路：后端 AiRequestLog 中 clientVersion / clientPlatform 始终为空
+        // 影响范围：callBackendEnhance 请求体 + 请求头
+        // 潜在风险：版本号需随 build.gradle.kts version 同步更新
+        val pluginVersion = try {
+            com.intellij.ide.plugins.PluginManagerCore.getPlugin(
+                com.intellij.openapi.extensions.PluginId.getId("com.easyprompt.easy-prompt-ai")
+            )?.version ?: ""
+        } catch (_: Exception) { "" }
+
         fun doRequest(tokenOverride: String? = null): Pair<Int, String> {
             val postBody = JsonObject().apply {
                 addProperty("input", input)
@@ -945,6 +957,7 @@ object ApiClient {
                 addProperty("model", model)
                 addProperty("language", "zh-CN")
                 addProperty("clientType", "intellij")
+                addProperty("clientVersion", pluginVersion)
             }
 
             val url = URI("$BACKEND_API_BASE/api/v1/ai/enhance").toURL()
@@ -953,6 +966,7 @@ object ApiClient {
                 conn.requestMethod = "POST"
                 conn.setRequestProperty("Content-Type", "application/json")
                 conn.setRequestProperty("X-Request-Id", requestId)
+                conn.setRequestProperty("X-Client-Platform", "intellij")
                 // 2026-04-10 B7a: SSO Bearer Token（从 PasswordSafe 读取）
                 val token = tokenOverride ?: SsoAuthClient.getAccessToken()
                 if (!token.isNullOrBlank()) {

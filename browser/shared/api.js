@@ -12,6 +12,14 @@ const MAX_INPUT_LENGTH = 10000;
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [2000, 4000, 8000];
 
+// 2026-04-13 新增 — 客户端元数据（供后端日志记录）
+// 变更类型：新增
+// 功能描述：定义客户端版本和平台标识，随增强请求发送至后端
+// 设计思路：后端 AiRequestLog 中 clientVersion / clientPlatform 始终为空，此处补充
+// 影响范围：callBackendEnhance 请求体 + 请求头
+// 潜在风险：版本号需随发版同步更新
+const CLIENT_VERSION = "5.3.8";
+
 /** 支持的 API 模式 */
 const API_MODES = {
   openai: "OpenAI Chat Completions",
@@ -568,15 +576,20 @@ async function callBackendEnhance(input, config, signal) {
       // 2026-04-09 修复：条件传递 model 字段
       // - 默认配置（使用我们的 LLM 服务）：不传 model，后端用 provider defaultModel
       // - 用户自定义 LLM 服务：传用户写的 model（config.model 来自 Storage，非 builtin defaults）
+      // 2026-04-13 修复 — 补发 clientVersion / clientPlatform 供后端日志记录
       const resp = await fetch(`${BACKEND_API_BASE}/api/v1/ai/enhance`, {
         method: "POST",
-        headers,
+        headers: {
+          ...headers,
+          "X-Client-Platform": "browser",
+        },
         body: JSON.stringify({
           input,
           enhanceMode: config.enhanceMode || "fast",
           ...(config.model ? { model: config.model } : {}),
           language: "zh-CN",
           clientType: "browser",
+          clientVersion: CLIENT_VERSION,
         }),
         signal: controller.signal,
       });

@@ -407,6 +407,7 @@ async function runSmartRoute(config, text, progress) {
 
   let result;
   try {
+    // 2026-04-13 修复 — 补发 clientVersion / clientPlatform 供后端日志记录
     result = await dualTrackEnhance(
       config,
       text,
@@ -415,6 +416,10 @@ async function runSmartRoute(config, text, progress) {
         enhanceMode: config.enhanceMode || "fast",
         model: config.model || "",
         clientType: "vscode",
+        clientVersion:
+          vscode.extensions.getExtension("FlippySun.easy-prompt-ai")
+            ?.packageJSON?.version || "",
+        clientPlatform: "vscode",
         backendUrl: backendUrl || undefined,
         accessToken: ssoToken || undefined,
       },
@@ -438,6 +443,10 @@ async function runSmartRoute(config, text, progress) {
             enhanceMode: config.enhanceMode || "fast",
             model: config.model || "",
             clientType: "vscode",
+            clientVersion:
+              vscode.extensions.getExtension("FlippySun.easy-prompt-ai")
+                ?.packageJSON?.version || "",
+            clientPlatform: "vscode",
             backendUrl: backendUrl || undefined,
             accessToken: newTokens.accessToken,
           },
