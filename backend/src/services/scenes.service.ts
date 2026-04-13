@@ -39,23 +39,47 @@ let _coreCache: Map<string, CoreScene> | null = null;
  * 从 core/scenes.js 加载场景到内存（仅首次加载，后续读缓存）
  * 返回 Map<sceneId, CoreScene>
  */
+// 2026-04-13 修复 — 兼容本地开发与生产部署的 core/scenes.js 路径
+// 变更类型：修复
+// 功能描述：使用多路径探测策略加载 core/scenes.js，解决生产环境路径错位导致场景全部 fallback 到 optimize 的问题
+// 设计思路：
+//   本地开发：__dirname = backend/dist/services/ → ../../../core/scenes.js = 项目根/core/scenes.js ✅
+//   生产部署：__dirname = api.zhiz.chat/dist/services/ → ../../../core/scenes.js = /www/wwwroot/core/scenes.js ❌
+//   实际文件在 api.zhiz.chat/core/scenes.js，需要 ../../core/scenes.js（2 级而非 3 级）
+//   解决方案：按优先级尝试多个候选路径，第一个成功即止
+// 影响范围：getCoreScenes() → scene-router.service.ts 路由 + 生成 prompt
+// 潜在风险：无已知风险（失败仍回退到空 Map，与原行为一致）
 export function getCoreScenes(): Map<string, CoreScene> {
   if (_coreCache) return _coreCache;
 
-  try {
-    // core/scenes.js 是 CommonJS，使用 require 同步导入（缓存模式需同步）
-    const corePath = path.resolve(__dirname, '../../../core/scenes.js');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { SCENES } = require(corePath) as { SCENES: Record<string, CoreScene> };
+  // 候选路径：本地开发（3 级）→ 生产部署（2 级）→ process.cwd() 兜底
+  const candidates = [
+    path.resolve(__dirname, '../../../core/scenes.js'),
+    path.resolve(__dirname, '../../core/scenes.js'),
+    path.resolve(process.cwd(), 'core/scenes.js'),
+  ];
 
-    _coreCache = new Map(Object.entries(SCENES));
-    log.info({ count: _coreCache.size }, 'Core scenes loaded into memory cache');
-    return _coreCache;
-  } catch (err) {
-    log.error({ err }, 'Failed to load core/scenes.js — returning empty map');
-    _coreCache = new Map();
-    return _coreCache;
+  for (const corePath of candidates) {
+    try {
+      // core/scenes.js 是 CommonJS，使用 require 同步导入（缓存模式需同步）
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { SCENES } = require(corePath) as { SCENES: Record<string, CoreScene> };
+
+      _coreCache = new Map(Object.entries(SCENES));
+      log.info({ count: _coreCache.size, path: corePath }, 'Core scenes loaded into memory cache');
+      return _coreCache;
+    } catch {
+      // 此路径不可用，尝试下一个
+      continue;
+    }
   }
+
+  log.error(
+    { candidates },
+    'Failed to load core/scenes.js from all candidate paths — returning empty map',
+  );
+  _coreCache = new Map();
+  return _coreCache;
 }
 
 /**
