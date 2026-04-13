@@ -82,6 +82,17 @@ export async function enhance(
 ): Promise<EnhanceResponse> {
   const startTime = Date.now();
   let provider;
+  // 2026-04-13 修复 — 提升路由阶段变量作用域
+  // 变更类型：修复
+  // 功能描述：将路由阶段产出（routerParsed / routerDurationMs / decoratedPrompt）从 try 内 const 改为外层 let，
+  //   使 catch 块在生成阶段失败时仍可将已完成的路由数据写入错误日志
+  // 设计思路：原 const 声明在 try 块内，catch 块访问不到；改为 let + 外层声明后，
+  //   catch 中检测是否已赋值来决定是否传递
+  // 影响范围：enhance() 错误日志的 routerResult / routerDurationMs / actualSystemPrompt 字段
+  // 潜在风险：无已知风险（仅扩大变量可见域，不改变控制流）
+  let routerParsed: ReturnType<typeof parseRouterResult> | undefined;
+  let routerDurationMs: number | undefined;
+  let decoratedPrompt: string | undefined;
 
   try {
     // 1. 获取激活的 provider
@@ -96,6 +107,8 @@ export async function enhance(
     const routerSystemPrompt = buildRouterPrompt();
     log.info({ requestId: context.requestId }, 'Step 1: routing — identifying intent');
 
+    // 2026-04-13 修复 — 记录路由阶段耗时
+    const routerStartTime = Date.now();
     const routerResult = await callAiProvider({
       apiMode: provider.apiMode,
       baseUrl: provider.baseUrl,
@@ -107,13 +120,15 @@ export async function enhance(
       timeoutMs: routerTimeoutMs,
       extraHeaders,
     });
+    routerDurationMs = Date.now() - routerStartTime;
 
-    const routerParsed = parseRouterResult(routerResult.content);
+    routerParsed = parseRouterResult(routerResult.content);
     log.info(
       {
         requestId: context.requestId,
         scenes: routerParsed.scenes,
         composite: routerParsed.composite,
+        routerDurationMs,
       },
       'Step 1 done: routing result',
     );
@@ -121,7 +136,7 @@ export async function enhance(
     // ── Step 2: Prompt 生成（Generation） ──
     // 根据路由结果构建专业生成 prompt，使用 enhance mode 装饰
     const { prompt: genSystemPrompt, sceneNames } = buildGenerationPrompt(routerParsed);
-    const decoratedPrompt = decorateGenerationPrompt(genSystemPrompt, input.enhanceMode);
+    decoratedPrompt = decorateGenerationPrompt(genSystemPrompt, input.enhanceMode);
 
     // Generation 参数根据 enhanceMode 调整
     const isDeep = input.enhanceMode === 'deep';
@@ -143,6 +158,8 @@ export async function enhance(
       'Step 2: generating — building enhanced prompt',
     );
 
+    // 2026-04-13 修复 — 记录生成阶段耗时
+    const genStartTime = Date.now();
     const genResult = await callAiProvider({
       apiMode: provider.apiMode,
       baseUrl: provider.baseUrl,
@@ -154,6 +171,7 @@ export async function enhance(
       timeoutMs: generationTimeoutMs,
       extraHeaders,
     });
+    const genDurationMs = Date.now() - genStartTime;
 
     const duration = Date.now() - startTime;
 
@@ -169,6 +187,7 @@ export async function enhance(
     input.isComposite = routerParsed.composite;
 
     // 异步记录日志（不阻塞响应）
+    // 2026-04-13 修复 — 补写 routerResult / routerDurationMs / genDurationMs / actualSystemPrompt
     recordLog({
       context,
       input,
@@ -178,6 +197,10 @@ export async function enhance(
       status: 'success',
       duration,
       adapterResult: totalUsage,
+      routerResult: routerParsed,
+      routerDurationMs,
+      genDurationMs,
+      actualSystemPrompt: decoratedPrompt,
     }).catch((err) => log.error({ err }, 'Failed to record AI request log'));
 
     logAiRequest({
@@ -208,6 +231,7 @@ export async function enhance(
 
     const failStatus = err instanceof AppError && err.code === 'AI_TIMEOUT' ? 'timeout' : 'error';
     if (provider) {
+      // 2026-04-13 修复 — 错误日志保留已完成的路由阶段数据
       recordLog({
         context,
         input,
@@ -217,6 +241,9 @@ export async function enhance(
         status: failStatus,
         duration,
         errorMessage: err instanceof Error ? err.message : 'Unknown error',
+        routerResult: routerParsed,
+        routerDurationMs,
+        actualSystemPrompt: decoratedPrompt,
       }).catch((logErr) => log.error({ logErr }, 'Failed to record error log'));
 
       logAiRequest({
@@ -239,6 +266,12 @@ export async function enhance(
 
 // ── 日志记录 ──────────────────────────────────────────
 
+// 2026-04-13 修改 — 补全日志记录字段
+// 变更类型：修复
+// 功能描述：扩展 LogParams 以支持 routerResult / routerDurationMs / genDurationMs / actualSystemPrompt
+// 设计思路：Prisma schema 已预留这些字段但 recordLog 从未写入，导致详情页大量数据为空
+// 影响范围：recordLog → AiRequestLog 表
+// 潜在风险：无已知风险
 interface LogParams {
   context: GatewayContext;
   input: EnhanceRequest;
@@ -249,6 +282,14 @@ interface LogParams {
   duration: number;
   adapterResult?: { promptTokens?: number; completionTokens?: number; totalTokens?: number };
   errorMessage?: string;
+  /** 路由器原始 JSON 结果（供管理后台展示） */
+  routerResult?: { scenes: string[]; composite: boolean } | null;
+  /** 路由阶段耗时（ms） */
+  routerDurationMs?: number;
+  /** 生成阶段耗时（ms） */
+  genDurationMs?: number;
+  /** 实际使用的 generation system prompt（非客户端传入的 input.systemPrompt） */
+  actualSystemPrompt?: string;
 }
 
 /**
@@ -270,6 +311,10 @@ export async function enhanceStream(
 ): Promise<void> {
   const startTime = Date.now();
   let provider: Awaited<ReturnType<typeof getActiveProvider>> | undefined;
+  // 2026-04-13 修复 — 提升路由阶段变量作用域（与 enhance() 同理）
+  let routerParsed: ReturnType<typeof parseRouterResult> | undefined;
+  let routerDurationMs: number | undefined;
+  let decoratedPrompt: string | undefined;
 
   try {
     provider = await getActiveProvider();
@@ -280,6 +325,8 @@ export async function enhanceStream(
 
     // ── Step 1: 意图识别（Router）— 同步调用，不流式 ──
     const routerSystemPrompt = buildRouterPrompt();
+    // 2026-04-13 修复 — 记录路由阶段耗时
+    const routerStartTime = Date.now();
     const routerResult = await callAiProvider({
       apiMode: provider.apiMode,
       baseUrl: provider.baseUrl,
@@ -291,13 +338,14 @@ export async function enhanceStream(
       timeoutMs: routerTimeoutMs,
       extraHeaders,
     });
-    const routerParsed = parseRouterResult(routerResult.content);
+    routerDurationMs = Date.now() - routerStartTime;
+    routerParsed = parseRouterResult(routerResult.content);
     input.sceneIds = routerParsed.scenes;
     input.isComposite = routerParsed.composite;
 
     // ── Step 2: Prompt 生成 — 流式输出 ──
     const { prompt: genSystemPrompt } = buildGenerationPrompt(routerParsed);
-    const decoratedPrompt = decorateGenerationPrompt(genSystemPrompt, input.enhanceMode);
+    decoratedPrompt = decorateGenerationPrompt(genSystemPrompt, input.enhanceMode);
     const isDeep = input.enhanceMode === 'deep';
     const genMaxTokens = isDeep
       ? routerParsed.composite
@@ -307,6 +355,8 @@ export async function enhanceStream(
         ? 4096
         : 2048;
 
+    // 2026-04-13 修复 — 记录生成阶段起始时间
+    const genStartTime = Date.now();
     await callAiProviderStream(
       {
         apiMode: provider.apiMode,
@@ -324,6 +374,7 @@ export async function enhanceStream(
           onEvent({ type: 'chunk', content });
         },
         onDone: (fullContent, usage) => {
+          const genDurationMs = Date.now() - genStartTime;
           const duration = Date.now() - startTime;
           // 合并 router + generation token 统计
           const totalUsage = {
@@ -342,6 +393,7 @@ export async function enhanceStream(
           });
 
           // 异步记录日志（不阻塞 SSE 关闭）
+          // 2026-04-13 修复 — 补写 routerResult / routerDurationMs / genDurationMs / actualSystemPrompt
           recordLog({
             context,
             input,
@@ -355,6 +407,10 @@ export async function enhanceStream(
               completionTokens: usage?.completionTokens,
               totalTokens: usage?.totalTokens,
             },
+            routerResult: routerParsed,
+            routerDurationMs,
+            genDurationMs,
+            actualSystemPrompt: decoratedPrompt,
           }).catch((err) => log.error({ err }, 'Failed to record stream AI request log'));
 
           logAiRequest({
@@ -378,6 +434,7 @@ export async function enhanceStream(
           if (provider) {
             const failStatus =
               error instanceof AppError && error.code === 'AI_TIMEOUT' ? 'timeout' : 'error';
+            // 2026-04-13 修复 — 错误日志保留已完成的路由阶段数据
             recordLog({
               context,
               input,
@@ -387,6 +444,9 @@ export async function enhanceStream(
               status: failStatus,
               duration,
               errorMessage: error.message,
+              routerResult: routerParsed,
+              routerDurationMs,
+              actualSystemPrompt: decoratedPrompt,
             }).catch((logErr) => log.error({ logErr }, 'Failed to record stream error log'));
 
             logAiRequest({
@@ -413,6 +473,7 @@ export async function enhanceStream(
     });
 
     if (provider) {
+      // 2026-04-13 修复 — 错误日志保留已完成的路由阶段数据
       recordLog({
         context,
         input,
@@ -422,6 +483,9 @@ export async function enhanceStream(
         status: 'error',
         duration,
         errorMessage: err instanceof Error ? err.message : 'Unknown error',
+        routerResult: routerParsed,
+        routerDurationMs,
+        actualSystemPrompt: decoratedPrompt,
       }).catch((logErr) => log.error({ logErr }, 'Failed to record stream gateway error log'));
     }
   }
@@ -429,6 +493,16 @@ export async function enhanceStream(
 
 // ── 日志记录 ──────────────────────────────────────────
 
+// 2026-04-13 修复 — 补全 routerResult / routerDurationMs / genDurationMs / systemPrompt 写入
+// 变更类型：修复
+// 功能描述：将 recordLog 中缺失的 5 个字段补齐写入 AiRequestLog 表
+// 设计思路：
+//   - systemPrompt：改用 actualSystemPrompt（实际 generation prompt），而非 input.systemPrompt（客户端传入，通常为空）
+//   - routerResult：存储路由器解析结果 JSON，供管理后台展示路由决策过程
+//   - routerDurationMs / genDurationMs：分步耗时，便于性能分析
+// 参数与返回值：params.routerResult / params.routerDurationMs / params.genDurationMs / params.actualSystemPrompt
+// 影响范围：AiRequestLog 表新增 4 个字段的实际写入
+// 潜在风险：无已知风险
 async function recordLog(params: LogParams): Promise<void> {
   // 2026-04-08 P2.06: GeoIP 解析（纯内存查询，<1ms）
   const geo = params.context.ipAddress ? lookupGeo(params.context.ipAddress) : null;
@@ -448,8 +522,11 @@ async function recordLog(params: LogParams): Promise<void> {
       region: geo?.region ?? null,
       enhanceMode: params.input.enhanceMode,
       originalInput: params.input.input,
-      systemPrompt: params.input.systemPrompt,
+      // 2026-04-13 修复：使用实际 generation prompt 而非客户端传入的空 systemPrompt
+      systemPrompt: params.actualSystemPrompt ?? params.input.systemPrompt,
       aiOutput: params.output,
+      // 2026-04-13 修复：写入路由器解析结果（JsonB）
+      routerResult: params.routerResult ?? undefined,
       sceneIds: params.input.sceneIds ?? [],
       isComposite: params.input.isComposite ?? false,
       providerId: params.provider.id,
@@ -457,6 +534,9 @@ async function recordLog(params: LogParams): Promise<void> {
       modelUsed: params.model,
       apiMode: params.provider.apiMode,
       durationMs: params.duration,
+      // 2026-04-13 修复：写入分步耗时
+      routerDurationMs: params.routerDurationMs,
+      genDurationMs: params.genDurationMs,
       promptTokens: params.adapterResult?.promptTokens,
       completionTokens: params.adapterResult?.completionTokens,
       totalTokens: params.adapterResult?.totalTokens,
