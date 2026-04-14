@@ -55,6 +55,17 @@ export default defineConfig({
       "alarms",
     ],
     host_permissions: ["https://*/*", "http://*/*"],
+    // 2026-04-13 修复：为 MAIN world skill panel 注册器暴露 web accessible resource，
+    //   供 isolated content script 通过 injectScript() 注入页面主世界。
+    // [参数与返回值] 无外部参数；声明 manifest.web_accessible_resources。
+    // [影响范围] browser/wxt.config.ts、browser/wxt-entrypoints/easy-prompt.content.js、browser/wxt-entrypoints/skill-panel-main-world.js。
+    // [潜在风险] 页面脚本可探测到该公开资源路径，但资源本身仅包含 skill panel 注册逻辑。
+    web_accessible_resources: [
+      {
+        resources: ["skill-panel-main-world.js"],
+        matches: ["<all_urls>"],
+      },
+    ],
     commands: {
       "smart-enhance": {
         suggested_key: {

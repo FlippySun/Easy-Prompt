@@ -22,9 +22,114 @@
   const ICON_UNDO = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 0 1 15-6.7L21 9"/></svg>`;
   const ICON_ARROW_DOWN = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>`;
 
-  const _htmlParser = new DOMParser();
-  function _parseSVG(svg) {
-    return _htmlParser.parseFromString(svg, "text/html").body.childNodes;
+  const _svgDataUrlCache = new Map();
+
+  // 2026-04-13 修复：content.js 内建 ICON_* 常量和部分共享 SVG 可能缺少 xmlns，
+  //   直接转成 data URL 后会导致 mask 图标在 Gemini 等站点不可见。
+  //   统一在这里补齐命名空间，确保 trigger / preview / undo / nudge 图标一致渲染。
+  // [参数与返回值] 输入原始 SVG 字符串，返回规范化后的 SVG 字符串。
+  // [影响范围] browser/content/content.js 所有 parser-free 图标渲染路径。
+  // [潜在风险] 无已知风险。
+  function _normalizeSvgSource(svgText) {
+    const raw = String(svgText || "").trim();
+    if (!raw) return "";
+    if (/^<svg\b/i.test(raw) && !/\bxmlns=/.test(raw)) {
+      return raw.replace(/^<svg\b/i, '<svg xmlns="http://www.w3.org/2000/svg"');
+    }
+    return raw;
+  }
+
+  function _svgToDataUrl(svgText) {
+    if (!svgText) return "";
+    const normalizedSvg = _normalizeSvgSource(svgText);
+    if (_svgDataUrlCache.has(normalizedSvg)) {
+      return _svgDataUrlCache.get(normalizedSvg);
+    }
+    const dataUrl = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+      normalizedSvg,
+    )}")`;
+    _svgDataUrlCache.set(normalizedSvg, dataUrl);
+    return dataUrl;
+  }
+
+  // 2026-04-13 修复：Gemini 等 Trusted Types 页面会拦截 innerHTML，
+  //   所有落到页面文档的扩展 UI 统一改为 DOM API 构建。
+  // [参数与返回值] 根据输入返回已配置好的 DOM 节点/按钮；无副作用外部返回值。
+  // [影响范围] browser/content/content.js 预览面板、撤销条、提示气泡、图标按钮。
+  // [潜在风险] 无已知风险。
+  function _createDomNode(tag, { className, id, title, text } = {}) {
+    const el = document.createElement(tag);
+    if (className) el.className = className;
+    if (id) el.id = id;
+    if (title) el.title = title;
+    if (typeof text === "string") el.textContent = text;
+    if (tag === "button") el.type = "button";
+    return el;
+  }
+
+  function _createMaskIconNode(svgText, { size = 14, className = "" } = {}) {
+    const dataUrl = _svgToDataUrl(svgText);
+    if (!dataUrl) return null;
+    const icon = _createDomNode("span", {
+      className: className ? `ep-mask-icon ${className}` : "ep-mask-icon",
+    });
+    icon.style.display = "inline-block";
+    icon.style.width = `${size}px`;
+    icon.style.height = `${size}px`;
+    icon.style.minWidth = `${size}px`;
+    icon.style.flexShrink = "0";
+    icon.style.backgroundColor = "currentColor";
+    icon.style.webkitMaskImage = dataUrl;
+    icon.style.maskImage = dataUrl;
+    icon.style.webkitMaskRepeat = "no-repeat";
+    icon.style.maskRepeat = "no-repeat";
+    icon.style.webkitMaskSize = "contain";
+    icon.style.maskSize = "contain";
+    icon.style.webkitMaskPosition = "center";
+    icon.style.maskPosition = "center";
+    return icon;
+  }
+
+  function _appendSvgNodes(container, svgText, options = {}) {
+    const iconNode = _createMaskIconNode(svgText, options);
+    if (iconNode) {
+      container.appendChild(iconNode);
+    }
+  }
+
+  function _setIconNode(container, svgText, options = {}) {
+    const iconNode = _createMaskIconNode(svgText, options);
+    container.replaceChildren(...(iconNode ? [iconNode] : []));
+  }
+
+  function _setButtonIconLabel(button, iconSvg, label, options = {}) {
+    const labelNode = _createDomNode("span", { text: label || "" });
+    const iconNode = _createMaskIconNode(iconSvg, options);
+    button.replaceChildren(...(iconNode ? [iconNode, labelNode] : [labelNode]));
+  }
+
+  function _createIconButton({
+    className,
+    id,
+    title,
+    iconSvg,
+    label,
+    iconSize = 14,
+    iconClassName = "",
+  }) {
+    const button = _createDomNode("button", { className, id, title });
+    if (typeof label === "string") {
+      _setButtonIconLabel(button, iconSvg, label, {
+        size: iconSize,
+        className: iconClassName,
+      });
+    } else {
+      _setIconNode(button, iconSvg, {
+        size: iconSize,
+        className: iconClassName,
+      });
+    }
+    return button;
   }
 
   const isMac = navigator.platform?.toUpperCase().includes("MAC");
@@ -215,6 +320,40 @@
   let nudgeShownThisSession = false; // Only show once per page load
   let hasUsedEnhance = false; // Track if user has used enhance this session
 
+  // --- 2026-04-13 Skill 浮窗状态 ---
+  // 依赖通过异步动态 import() 加载，避免阻塞主 IIFE（若加载失败仅影响 skill 浮窗）
+  let _skillPanel = null; // <ep-skill-panel> 元素
+  let _skillPanelVisible = false;
+  let _skillSlashIndex = -1; // 2026-04-13 修复：记录触发 "/" 在文本中的位置（光标感知）
+  let _skillDepsLoaded = false;
+  let _skillFilterDebounceTimer = null;
+  let _SKILLS = [];
+  let _SKILL_TYPE_MAP = { 1: "通用", 2: "写作", 3: "制图", 4: "编程" };
+  let _SKILL_ICON_MAP = {};
+  let _FOLDER_ICON_SVG = "";
+  const SKILL_FILTER_DEBOUNCE_MS = 160;
+  let _skillPanelResizeObserver = null;
+
+  // 异步预加载 skill 依赖（不阻塞主流程）
+  (async () => {
+    try {
+      // 2026-04-13 修复：custom element 注册与 CSS 注入改由 WXT 注入的
+      //   MAIN world registrar 负责；isolated content script 仅加载数据与图标。
+      // [影响范围] browser/wxt-entrypoints/easy-prompt.content.js + skill panel 预加载链路
+      // [潜在风险] 若 MAIN world 注入被页面 CSP 拦截，_createSkillPanel 会在升级校验处降级失败。
+      const [dataMod, iconsMod] = await Promise.all([
+        import("../../core/mock.json"),
+        import("../../shared-ui/icons/index.js"),
+      ]);
+      _SKILLS = Array.isArray(dataMod.default) ? dataMod.default : [];
+      _SKILL_ICON_MAP = iconsMod.SKILL_ICON_MAP || {};
+      _FOLDER_ICON_SVG = iconsMod.FOLDER_ICON_SVG || "";
+      _skillDepsLoaded = true;
+    } catch (e) {
+      console.warn("[Easy Prompt] Skill panel deps failed to load:", e);
+    }
+  })();
+
   /** 检查输入是否适合进行 Prompt 增强 */
   function isValidInput(text) {
     if (!text) return false;
@@ -386,7 +525,7 @@
     triggerIcon = document.createElement("div");
     triggerIcon.id = "ep-trigger-icon";
     triggerIcon.title = `Easy Prompt 增强 (${SHORTCUT_LABEL})`;
-    triggerIcon.replaceChildren(..._parseSVG(ICON_SPARKLES_SM));
+    _setIconNode(triggerIcon, ICON_SPARKLES_SM, { size: 14 });
 
     triggerIcon.addEventListener("click", (e) => {
       e.preventDefault();
@@ -481,59 +620,121 @@
 
     previewPanel = document.createElement("div");
     previewPanel.id = "ep-preview-panel";
+    const header = _createDomNode("div", { className: "ep-preview-header" });
+    const headerIcon = _createDomNode("span", { className: "ep-preview-icon" });
+    _appendSvgNodes(headerIcon, ICON_SPARKLES, { size: 16 });
+    const headerTitle = _createDomNode("span", {
+      className: "ep-preview-title",
+      text: "Prompt 增强预览",
+    });
+    const closeBtn = _createIconButton({
+      className: "ep-preview-close",
+      title: "关闭",
+      iconSvg: ICON_X,
+      iconSize: 12,
+    });
+    header.append(headerIcon, headerTitle, closeBtn);
 
-    previewPanel.innerHTML = `
-      <div class="ep-preview-header">
-        <span class="ep-preview-icon">${ICON_SPARKLES}</span>
-        <span class="ep-preview-title">Prompt 增强预览</span>
-        <button class="ep-preview-close" title="关闭">${ICON_X}</button>
-      </div>
-      <div class="ep-preview-body">
-        <div class="ep-preview-section ep-preview-original">
-          <div class="ep-preview-section-label">原始 Prompt</div>
-          <div class="ep-preview-section-text" id="ep-original-text"></div>
-        </div>
-        <div class="ep-preview-arrow">${ICON_ARROW_DOWN}</div>
-        <div class="ep-preview-section ep-preview-enhanced">
-          <div class="ep-preview-section-label">增强后</div>
-          <div class="ep-preview-section-text" id="ep-enhanced-text"></div>
-        </div>
-      </div>
-      <div class="ep-preview-loading" id="ep-preview-loading">
-        <span class="ep-preview-loading-icon">${ICON_LOADER}</span>
-        <span id="ep-loading-text">正在识别意图...</span>
-      </div>
-      <div class="ep-preview-error" id="ep-preview-error">
-        <span class="ep-preview-error-msg" id="ep-error-msg"></span>
-        <button class="ep-preview-retry" id="ep-retry-btn">重试</button>
-      </div>
-      <div class="ep-preview-actions" id="ep-preview-actions">
-        <button class="ep-preview-btn ep-btn-cancel" id="ep-btn-cancel">取消</button>
-        <button class="ep-preview-btn ep-btn-copy" id="ep-btn-copy">
-          ${ICON_COPY}<span>复制</span>
-        </button>
-        <button class="ep-preview-btn ep-btn-replace" id="ep-btn-replace">
-          ${ICON_REPLACE}<span>替换原文</span>
-        </button>
-      </div>
-    `;
+    const body = _createDomNode("div", { className: "ep-preview-body" });
+    const originalSection = _createDomNode("div", {
+      className: "ep-preview-section ep-preview-original",
+    });
+    originalSection.append(
+      _createDomNode("div", {
+        className: "ep-preview-section-label",
+        text: "原始 Prompt",
+      }),
+      _createDomNode("div", {
+        className: "ep-preview-section-text",
+        id: "ep-original-text",
+      }),
+    );
+    const arrow = _createDomNode("div", { className: "ep-preview-arrow" });
+    _appendSvgNodes(arrow, ICON_ARROW_DOWN, { size: 12 });
+    const enhancedSection = _createDomNode("div", {
+      className: "ep-preview-section ep-preview-enhanced",
+    });
+    enhancedSection.append(
+      _createDomNode("div", {
+        className: "ep-preview-section-label",
+        text: "增强后",
+      }),
+      _createDomNode("div", {
+        className: "ep-preview-section-text",
+        id: "ep-enhanced-text",
+      }),
+    );
+    body.append(originalSection, arrow, enhancedSection);
+
+    const loading = _createDomNode("div", {
+      className: "ep-preview-loading",
+      id: "ep-preview-loading",
+    });
+    const loadingIcon = _createDomNode("span", {
+      className: "ep-preview-loading-icon",
+    });
+    _appendSvgNodes(loadingIcon, ICON_LOADER, {
+      size: 16,
+      className: "ep-spin",
+    });
+    loading.append(
+      loadingIcon,
+      _createDomNode("span", {
+        id: "ep-loading-text",
+        text: "正在识别意图...",
+      }),
+    );
+
+    const error = _createDomNode("div", {
+      className: "ep-preview-error",
+      id: "ep-preview-error",
+    });
+    const retryBtn = _createDomNode("button", {
+      className: "ep-preview-retry",
+      id: "ep-retry-btn",
+      text: "重试",
+    });
+    error.append(
+      _createDomNode("span", {
+        className: "ep-preview-error-msg",
+        id: "ep-error-msg",
+      }),
+      retryBtn,
+    );
+
+    const actions = _createDomNode("div", {
+      className: "ep-preview-actions",
+      id: "ep-preview-actions",
+    });
+    const cancelBtn = _createDomNode("button", {
+      className: "ep-preview-btn ep-btn-cancel",
+      id: "ep-btn-cancel",
+      text: "取消",
+    });
+    const copyBtn = _createIconButton({
+      className: "ep-preview-btn ep-btn-copy",
+      id: "ep-btn-copy",
+      iconSvg: ICON_COPY,
+      label: "复制",
+      iconSize: 14,
+    });
+    const replaceBtn = _createIconButton({
+      className: "ep-preview-btn ep-btn-replace",
+      id: "ep-btn-replace",
+      iconSvg: ICON_REPLACE,
+      label: "替换原文",
+      iconSize: 14,
+    });
+    actions.append(cancelBtn, copyBtn, replaceBtn);
+
+    previewPanel.append(header, body, loading, error, actions);
 
     // Event listeners
-    previewPanel
-      .querySelector(".ep-preview-close")
-      .addEventListener("click", () => hidePreviewPanel());
-    previewPanel
-      .querySelector("#ep-btn-cancel")
-      .addEventListener("click", () => hidePreviewPanel());
-    previewPanel
-      .querySelector("#ep-btn-copy")
-      .addEventListener("click", handleCopy);
-    previewPanel
-      .querySelector("#ep-btn-replace")
-      .addEventListener("click", handleReplace);
-    previewPanel
-      .querySelector("#ep-retry-btn")
-      .addEventListener("click", () => triggerEnhance());
+    closeBtn.addEventListener("click", () => hidePreviewPanel());
+    cancelBtn.addEventListener("click", () => hidePreviewPanel());
+    copyBtn.addEventListener("click", handleCopy);
+    replaceBtn.addEventListener("click", handleReplace);
+    retryBtn.addEventListener("click", () => triggerEnhance());
 
     document.body.appendChild(previewPanel);
     return previewPanel;
@@ -616,11 +817,10 @@
       .then(() => {
         // Brief feedback
         const btn = previewPanel.querySelector("#ep-btn-copy");
-        const origHTML = btn.innerHTML;
-        btn.innerHTML = `${ICON_CHECK}<span>已复制</span>`;
+        _setButtonIconLabel(btn, ICON_CHECK, "已复制", { size: 14 });
         btn.classList.add("is-copied");
         setTimeout(() => {
-          btn.innerHTML = origHTML;
+          _setButtonIconLabel(btn, ICON_COPY, "复制", { size: 14 });
           btn.classList.remove("is-copied");
         }, 1500);
       })
@@ -656,15 +856,22 @@
 
     undoBar = document.createElement("div");
     undoBar.id = "ep-undo-bar";
-    undoBar.innerHTML = `
-      <span class="ep-undo-icon">${ICON_CHECK}</span>
-      <span class="ep-undo-label">Prompt 已增强替换</span>
-      <button class="ep-undo-btn" id="ep-undo-btn">
-        ${ICON_UNDO}<span>撤销</span>
-      </button>
-    `;
+    const undoIcon = _createDomNode("span", { className: "ep-undo-icon" });
+    _appendSvgNodes(undoIcon, ICON_CHECK, { size: 14 });
+    const undoLabel = _createDomNode("span", {
+      className: "ep-undo-label",
+      text: "Prompt 已增强替换",
+    });
+    const undoBtn = _createIconButton({
+      className: "ep-undo-btn",
+      id: "ep-undo-btn",
+      iconSvg: ICON_UNDO,
+      label: "撤销",
+      iconSize: 14,
+    });
+    undoBar.append(undoIcon, undoLabel, undoBtn);
 
-    undoBar.querySelector("#ep-undo-btn").addEventListener("click", (e) => {
+    undoBtn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
       handleUndo();
@@ -736,37 +943,48 @@
 
     nudgeBubble = document.createElement("div");
     nudgeBubble.id = "ep-nudge-bubble";
+    const content = _createDomNode("div", { className: "ep-nudge-content" });
+    const nudgeIcon = _createDomNode("span", { className: "ep-nudge-icon" });
+    _appendSvgNodes(nudgeIcon, NUDGE_ICON, { size: 18 });
+    const nudgeText = _createDomNode("span", { className: "ep-nudge-text" });
+    nudgeText.append(
+      document.createTextNode("试试用 AI 增强你的 Prompt？"),
+      _createDomNode("kbd", {
+        className: "ep-nudge-kbd",
+        text: SHORTCUT_LABEL,
+      }),
+    );
+    content.append(nudgeIcon, nudgeText);
 
-    nudgeBubble.innerHTML = `
-      <div class="ep-nudge-content">
-        <span class="ep-nudge-icon">${NUDGE_ICON}</span>
-        <span class="ep-nudge-text">试试用 AI 增强你的 Prompt？<kbd class="ep-nudge-kbd">${SHORTCUT_LABEL}</kbd></span>
-      </div>
-      <div class="ep-nudge-actions">
-        <button class="ep-nudge-btn ep-nudge-enhance" id="ep-nudge-enhance">增强</button>
-        <button class="ep-nudge-btn ep-nudge-dismiss" id="ep-nudge-dismiss">不再提醒</button>
-      </div>
-    `;
+    const actions = _createDomNode("div", { className: "ep-nudge-actions" });
+    const enhanceBtn = _createDomNode("button", {
+      className: "ep-nudge-btn ep-nudge-enhance",
+      id: "ep-nudge-enhance",
+      text: "增强",
+    });
+    const dismissBtn = _createDomNode("button", {
+      className: "ep-nudge-btn ep-nudge-dismiss",
+      id: "ep-nudge-dismiss",
+      text: "不再提醒",
+    });
+    actions.append(enhanceBtn, dismissBtn);
+    nudgeBubble.append(content, actions);
 
     // Enhance button
-    nudgeBubble
-      .querySelector("#ep-nudge-enhance")
-      .addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        hideNudgeBubble();
-        triggerEnhance();
-      });
+    enhanceBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      hideNudgeBubble();
+      triggerEnhance();
+    });
 
     // Dismiss permanently
-    nudgeBubble
-      .querySelector("#ep-nudge-dismiss")
-      .addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        hideNudgeBubble();
-        dismissNudgePermanently();
-      });
+    dismissBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      hideNudgeBubble();
+      dismissNudgePermanently();
+    });
 
     document.body.appendChild(nudgeBubble);
     return nudgeBubble;
@@ -852,6 +1070,287 @@
     }, 3000);
   }
 
+  /**
+   * ═══════════════════════════════
+   * Skill Panel（"/" 触发浮窗）
+   * 2026-04-13 新增：在输入框键入 "/" 时弹出 skill 选择列表
+   *
+   * [类型]       新增功能
+   * [功能描述]   用户在支持的 AI 站点输入框中键入 "/" 时，弹出类似 slash command 的
+   *              skill 选择浮窗；选中后将对应 instructions 注入到输入框。
+   * [设计思路]   用户在输入框键入 "/" 时弹出 skill 列表，选中后将 instructions
+   *              注入到输入框，替换 "/" 前缀。自定义元素由 MAIN world registrar
+   *              注册，isolated content script 仅消费升级后的元素实例。
+   * [影响范围]   content.js（新增）, shared-ui/skill-panel.js（复用）
+   * [潜在风险] 目标站点若拦截主世界脚本注入，则元素不会升级，skill 浮窗安全降级不可用。
+   * ═══════════════════════════════ */
+
+  function _createSkillPanel() {
+    if (_skillPanel) return _skillPanel;
+    // 依赖尚未加载完成时跳过（异步预加载中）
+    if (!_skillDepsLoaded) return null;
+    _skillPanel = document.createElement("ep-skill-panel");
+    // 2026-04-13 修复：isolated world 不再尝试直接访问 customElements。
+    //   这里通过 ShadowRoot 升级结果校验主世界注册器是否生效。
+    // [参数与返回值] 若元素未升级为真实 Web Component，则返回 null。
+    // [影响范围] browser/content/content.js skill panel 创建路径。
+    // [潜在风险] 无——未升级时只阻止浮窗创建，不影响其余增强能力。
+    if (!_skillPanel.shadowRoot) {
+      console.warn(
+        "[Easy Prompt] Skill panel element was not upgraded by main-world registrar.",
+      );
+      _skillPanel = null;
+      return null;
+    }
+    // 2026-04-13 修复：MAIN world custom element 与 isolated content script
+    //   间通过 DOM attribute 传递状态，避免自定义属性 setter 跨 world 丢失。
+    // [参数与返回值] 无外部参数；将 panel 初始状态序列化到 attribute。
+    // [影响范围] browser/content/content.js → shared-ui/skill-panel.js 状态同步链路。
+    // [潜在风险] skills/iconMap JSON 会增加 attribute 长度，但数据量在可接受范围内。
+    _skillPanel.setAttribute("skills", JSON.stringify(_SKILLS));
+    _skillPanel.setAttribute("skill-type-map", JSON.stringify(_SKILL_TYPE_MAP));
+    _skillPanel.setAttribute("icon-map", JSON.stringify(_SKILL_ICON_MAP));
+    _skillPanel.setAttribute("folder-icon", _FOLDER_ICON_SVG || "");
+
+    // 固定定位，避免页面 CSS 干扰
+    _skillPanel.style.cssText =
+      "position:fixed;z-index:2147483645;display:none;";
+
+    // 深色/浅色模式自动检测 + 不透明背景色覆盖
+    // 2026-04-13 修复：外部站点无 CSS 变量，硬编码不透明背景以遮盖页面内容
+    const syncTheme = () => {
+      const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      _skillPanel.classList.toggle("dark", isDark);
+      if (isDark) {
+        // 不透明深色背景（匹配 web端 input-box: color-mix(--bg-elevated 97%, --accent 3%) ≈ #1f1e28）
+        _skillPanel.style.setProperty("--ep-panel-bg", "#1f1e28");
+        _skillPanel.style.setProperty(
+          "--ep-panel-border",
+          "rgba(255,255,255,0.12)",
+        );
+        _skillPanel.style.setProperty(
+          "--ep-panel-shadow",
+          "inset 0 1px 0 rgba(255,255,255,0.2), inset 0 -1px 0 rgba(0,0,0,0.15), inset 0 0 0 0.5px rgba(255,255,255,0.08), 0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.1)",
+        );
+      } else {
+        _skillPanel.style.setProperty("--ep-panel-bg", "#ffffff");
+        _skillPanel.style.setProperty("--ep-panel-border", "#e5e7eb");
+        _skillPanel.style.removeProperty("--ep-panel-shadow");
+      }
+    };
+    syncTheme();
+    window
+      .matchMedia("(prefers-color-scheme: dark)")
+      .addEventListener("change", syncTheme);
+
+    // 选中 skill：移除 "/" + filter 文本，注入 instructions
+    // 2026-04-13 修复：使用 _skillSlashIndex 精确定位 "/" 位置，
+    //   保留 "/" 前的文本 + "/" 后 filter 之后的文本，中间插入 instructions。
+    _skillPanel.addEventListener("skill-select", (e) => {
+      const skill = e.detail;
+      if (!trackedInput) return;
+
+      const text = extractText(trackedInput);
+      let before = "";
+      let after = "";
+
+      if (_skillSlashIndex >= 0) {
+        before = text.substring(0, _skillSlashIndex);
+        // filter 长度 = 当前面板 filter attribute 的值长度
+        const filterText = _skillPanel.getAttribute("filter") || "";
+        const filterLen = filterText.length;
+        after = text.substring(_skillSlashIndex + 1 + filterLen);
+      } else {
+        before = text;
+      }
+
+      // 拼接：instructions + before（保留原文） + after
+      let newVal = before.trimEnd();
+      if (skill.instructions) {
+        newVal = (newVal ? newVal + "\n" : "") + skill.instructions;
+      }
+      if (after.trimStart()) {
+        newVal += "\n" + after.trimStart();
+      }
+      _skillSlashIndex = -1;
+      injectText(trackedInput, newVal);
+      _hideSkillPanel();
+    });
+
+    _skillPanel.addEventListener("panel-close", () => {
+      _hideSkillPanel();
+    });
+
+    document.body.appendChild(_skillPanel);
+    // 2026-04-13 修复：skill 面板高度会随过滤结果变化，监听 host 尺寸变化后
+    //   复用统一的 scheduleReposition 链路，确保浮窗底边始终贴住输入框。
+    // [参数与返回值] 无外部参数；建立 ResizeObserver；无返回值。
+    // [影响范围] browser/content/content.js skill panel 定位链路。
+    // [潜在风险] 无已知风险。
+    if (_skillPanelResizeObserver) {
+      _skillPanelResizeObserver.disconnect();
+    }
+    _skillPanelResizeObserver = new ResizeObserver(() => {
+      if (_skillPanelVisible) {
+        scheduleReposition();
+      }
+    });
+    _skillPanelResizeObserver.observe(_skillPanel);
+    return _skillPanel;
+  }
+
+  function _positionSkillPanel() {
+    if (!_skillPanel || !trackedInput) return;
+    const container = getInputContainer(trackedInput);
+    const rect = container.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+
+    // 2026-04-13 修复：使用面板实际高度做 bottom-anchor 定位，避免
+    //   过滤结果变少时仍按旧估算高度顶边对齐，导致面板漂移离开输入框。
+    // [参数与返回值] 无外部参数；直接更新 panel 的 top/left/transformOrigin。
+    // [影响范围] browser/content/content.js skill panel 绝对定位。
+    // [潜在风险] 无已知风险。
+    const panelRect = _skillPanel.getBoundingClientRect();
+    const panelHeight = panelRect.height || 240;
+    const panelWidth = panelRect.width || 300;
+    const gap = 4;
+    let top = rect.top - panelHeight - gap;
+    let left = rect.left;
+    let placeBelow = false;
+
+    // 若上方空间不足，放到下方
+    if (top < 4) {
+      top = rect.bottom + gap;
+      placeBelow = true;
+    }
+    // 限制在视口内
+    top = Math.max(4, Math.min(top, window.innerHeight - panelHeight - 4));
+    left = Math.max(4, Math.min(left, window.innerWidth - panelWidth - 4));
+
+    _skillPanel.style.top = `${top}px`;
+    _skillPanel.style.left = `${left}px`;
+    _skillPanel.style.transformOrigin = placeBelow ? "left top" : "left bottom";
+  }
+
+  function _showSkillPanel() {
+    const panel = _createSkillPanel();
+    if (!panel) return; // 依赖未就绪，静默跳过
+    panel.style.display = "";
+    _skillPanelVisible = true;
+    panel.setAttribute("visible", "true");
+    _positionSkillPanel();
+  }
+
+  // 2026-04-14 优化：skill 浮窗已打开后，字符过滤更新走轻量 trailing debounce，
+  //   降低高频输入时的重渲染密度，保持首次 "/" 唤起仍然即时。
+  // [参数与返回值] 无参数；清理待执行的过滤同步计时器。
+  // [影响范围] browser/content/content.js skill 过滤输入体验与性能。
+  // [潜在风险] 无已知风险。
+  function _clearSkillFilterDebounce() {
+    if (_skillFilterDebounceTimer) {
+      clearTimeout(_skillFilterDebounceTimer);
+      _skillFilterDebounceTimer = null;
+    }
+  }
+
+  function _scheduleSkillTriggerCheck() {
+    if (!_skillPanelVisible) {
+      _checkSkillTrigger();
+      return;
+    }
+    _clearSkillFilterDebounce();
+    _skillFilterDebounceTimer = setTimeout(() => {
+      _skillFilterDebounceTimer = null;
+      _checkSkillTrigger();
+    }, SKILL_FILTER_DEBOUNCE_MS);
+  }
+
+  function _hideSkillPanel() {
+    if (!_skillPanel) return;
+    _clearSkillFilterDebounce();
+    _skillPanelVisible = false;
+    _skillPanel.removeAttribute("visible");
+    _skillPanel.style.display = "none";
+  }
+
+  /**
+   * 获取输入元素中光标在纯文本中的偏移位置
+   * 2026-04-13 新增：支持 textarea/input（selectionStart）和 contenteditable（Selection API）
+   * @param {HTMLElement} el - 输入元素
+   * @returns {number} 光标偏移，-1 表示无法获取
+   */
+  function _getCursorOffset(el) {
+    if (!el) return -1;
+    const tag = el.tagName;
+    if (tag === "TEXTAREA" || tag === "INPUT") {
+      return el.selectionStart ?? -1;
+    }
+    // contenteditable: 通过 Selection API 计算光标在 innerText 中的等效偏移
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return -1;
+    try {
+      const range = sel.getRangeAt(0);
+      const preRange = document.createRange();
+      preRange.selectNodeContents(el);
+      preRange.setEnd(range.startContainer, range.startOffset);
+      return preRange.toString().length;
+    } catch {
+      return -1;
+    }
+  }
+
+  /**
+   * "/" 触发检测：基于光标位置检测输入框中的 "/"
+   * 支持 textarea/input 和 contenteditable 两类输入元素
+   * 2026-04-13 修复两个 bug：
+   *   (1) 原 startsWith("/") 导致"输入文字后键入 /"不触发；
+   *   (2) 原 substring(1) 导致光标在行首键入 "/" 时 filter 包含光标后全部文本。
+   * [设计思路] 从光标位置向前查找最近的 "/"，取 slash→cursor 之间文本作为 filter。
+   *            排除 "://" URL 模式防止误触发。
+   * [影响范围] content.js（_checkSkillTrigger + skill-select 事件）
+   * [潜在风险] contenteditable Selection API 在极端 DOM 结构下可能返回 -1，此时不触发（安全降级）
+   */
+  function _checkSkillTrigger() {
+    if (!trackedInput) return;
+    const text = extractText(trackedInput);
+    const cursorPos = _getCursorOffset(trackedInput);
+
+    // 无法获取光标位置时，回退到检查全文末尾（兼容极端情况）
+    const effectiveCursor = cursorPos >= 0 ? cursorPos : text.length;
+    const textBeforeCursor = text.substring(0, effectiveCursor);
+    const slashPos = textBeforeCursor.lastIndexOf("/");
+    const hasValidSlash =
+      slashPos >= 0 && !(slashPos > 0 && text[slashPos - 1] === ":");
+
+    if (hasValidSlash) {
+      // 找到 "/"，且不是 "://" URL 模式 → 触发 skill 浮窗
+      const filter = textBeforeCursor.substring(slashPos + 1);
+      _skillSlashIndex = slashPos;
+      if (!_skillPanelVisible) {
+        _showSkillPanel();
+      }
+      if (_skillPanel) {
+        const currentFilter = _skillPanel.getAttribute("filter") || "";
+        // 2026-04-14 修复：Gemini 等 contenteditable 编辑器会在同一次交互中连续触发
+        //   input + keyup。若重复写入相同 filter，会导致 skill panel 无意义重渲染，
+        //   进而表现为过滤闪烁、方向键高亮被立即重置。
+        // [参数与返回值] 比较当前/新 filter，相同则仅做定位，不写 attribute。
+        // [影响范围] browser/content/content.js → skill panel 过滤与键盘导航链路。
+        // [潜在风险] 无已知风险。
+        if (currentFilter !== filter) {
+          _skillPanel.setAttribute("filter", filter);
+        }
+        _positionSkillPanel();
+      }
+    } else {
+      // 未找到有效 "/" → 关闭浮窗
+      _skillSlashIndex = -1;
+      if (_skillPanelVisible) {
+        _hideSkillPanel();
+      }
+    }
+  }
+
   /* ═══════════════════════════════
    * Core Enhance Trigger
    * ═══════════════════════════════ */
@@ -873,7 +1372,10 @@
     // Set trigger icon to loading state
     if (triggerIcon) {
       triggerIcon.classList.add("is-loading");
-      triggerIcon.replaceChildren(..._parseSVG(ICON_LOADER));
+      _setIconNode(triggerIcon, ICON_LOADER, {
+        size: 16,
+        className: "ep-spin",
+      });
     }
 
     try {
@@ -897,7 +1399,7 @@
       // Reset trigger icon
       if (triggerIcon) {
         triggerIcon.classList.remove("is-loading");
-        triggerIcon.replaceChildren(..._parseSVG(ICON_SPARKLES_SM));
+        _setIconNode(triggerIcon, ICON_SPARKLES_SM, { size: 14 });
         updateTriggerIconState();
       }
     }
@@ -929,6 +1431,7 @@
     updateTriggerIconState();
     positionTriggerIcon();
     scheduleNudge();
+    _scheduleSkillTriggerCheck(); // 2026-04-13 Skill 浮窗 "/" 触发检测
   }
 
   function attachInputListeners(el) {
@@ -960,6 +1463,9 @@
           undoBar.style.left = `${r.left + r.width / 2}px`;
         }
       }
+      if (_skillPanelVisible) {
+        _positionSkillPanel();
+      }
     });
     inputResizeObserver.observe(el);
 
@@ -973,6 +1479,7 @@
     trackedInput.removeEventListener("keyup", onInputActivity);
     trackedInput.removeEventListener("focus", onFocusInput);
     trackedInput.removeEventListener("blur", onBlurInput);
+    _clearSkillFilterDebounce();
     if (inputResizeObserver) {
       inputResizeObserver.disconnect();
       inputResizeObserver = null;
@@ -983,6 +1490,7 @@
     hidePreviewPanel();
     hideUndoBar();
     hideNudgeBubble();
+    _hideSkillPanel(); // 2026-04-13 Skill 浮窗清理
     if (nudgeTimer) {
       clearTimeout(nudgeTimer);
       nudgeTimer = null;
@@ -1024,6 +1532,9 @@
       }
       if (nudgeBubble?.classList.contains("is-visible")) {
         positionNudgeBubble();
+      }
+      if (_skillPanelVisible) {
+        _positionSkillPanel();
       }
       repositionRaf = null;
     });
@@ -1110,9 +1621,14 @@
     });
   }
 
-  /* ─── Close preview on Escape ─── */
+  /* ─── Close preview / skill panel on Escape ─── */
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
+      if (_skillPanelVisible) {
+        e.preventDefault();
+        _hideSkillPanel();
+        return;
+      }
       if (previewPanel?.classList.contains("is-visible")) {
         e.preventDefault();
         hidePreviewPanel();
@@ -1120,8 +1636,18 @@
     }
   });
 
-  /* ─── Close preview on click outside ─── */
+  /* ─── Close preview / skill panel on click outside ─── */
   document.addEventListener("mousedown", (e) => {
+    // Skill panel click-outside
+    if (
+      _skillPanelVisible &&
+      _skillPanel &&
+      !_skillPanel.contains(e.target) &&
+      e.target !== trackedInput
+    ) {
+      _hideSkillPanel();
+    }
+    // Preview panel click-outside
     if (
       previewPanel?.classList.contains("is-visible") &&
       !previewPanel.contains(e.target) &&
