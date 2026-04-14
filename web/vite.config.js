@@ -21,6 +21,10 @@ export default defineConfig({
   server: {
     port: 5174,
     open: true,
+    // 2026-04-13 允许访问父目录（shared-ui/、core/）用于 Skill 面板集成
+    fs: {
+      allow: [".."],
+    },
   },
 
   build: {

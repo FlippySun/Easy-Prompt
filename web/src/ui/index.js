@@ -53,6 +53,14 @@ import {
 
 import { SCENES, SCENE_NAMES } from "../scenes.js";
 
+// --- 2026-04-13 Skill 浮窗：导入 skill 数据层（含 WC 注册 + CSS 注入）---
+import {
+  SKILLS,
+  SKILL_TYPE_MAP,
+  SKILL_ICON_MAP,
+  FOLDER_ICON_SVG,
+} from "../skill.js";
+
 import { testApiConfig, fetchModels, detectApiMode } from "../api.js";
 
 import {
@@ -72,6 +80,10 @@ let isGenerating = false;
 let currentAbortController = null;
 let selectedScene = null;
 let activePersona = "all";
+
+// --- 2026-04-13 Skill 浮窗状态 ---
+let _skillPanel = null; // <ep-skill-panel> 实例引用
+let _skillSlashIndex = -1; // 2026-04-13 修复：记录触发 "/" 在文本中的位置（光标感知）
 
 /* ─── Init ─── */
 
@@ -106,6 +118,9 @@ export function initApp() {
   initCardSpotlight();
   initScrollReveal();
   initCardTilt();
+
+  // 2026-04-13 Skill 浮窗初始化
+  initSkillPanel();
 
   // 2026-04-10 B9: SSO 回调处理 + UI 初始化 + 定时刷新恢复
   handleSsoCallbackOnLoad();
@@ -160,6 +175,9 @@ function bindInputEvents() {
     clearBtn.hidden = len === 0;
     // Toggle has-content class for visual state
     textarea.closest(".input-box").classList.toggle("has-content", len > 0);
+
+    // --- 2026-04-13 Skill 浮窗："/" 触发检测 ---
+    handleSkillTrigger(textarea);
   });
 
   clearBtn.addEventListener("click", handleClear);
@@ -182,6 +200,161 @@ function bindInputEvents() {
       inputBox.classList.remove("tilt-resetting");
     }
   });
+}
+
+/* ─── Skill Panel ─── */
+
+// --- 2026-04-13 Skill 浮窗初始化 ---
+// [类型]     新增
+// [描述]     创建 <ep-skill-panel> 实例，设置数据，绑定事件，定位在输入框上方。
+// [思路]     复用 Web Component，通过 JS 属性传入 SKILLS 数据和 SKILL_TYPE_MAP。
+//            监听 skill-select 事件：将 instructions 拼接到输入框内容前。
+//            监听 panel-close 事件：隐藏浮窗。
+// [影响范围] web/src/ui/index.js
+// [潜在风险] 无已知风险（仅增不删）
+function initSkillPanel() {
+  const inputBox = $("#input-box");
+  if (!inputBox) return;
+
+  // 创建 <ep-skill-panel> 元素
+  _skillPanel = document.createElement("ep-skill-panel");
+  _skillPanel.skills = SKILLS;
+  _skillPanel.skillTypeMap = SKILL_TYPE_MAP;
+  _skillPanel.iconMap = SKILL_ICON_MAP;
+  _skillPanel.folderIcon = FOLDER_ICON_SVG;
+
+  // 2026-04-13 修复：绝对定位到输入框左上角，不挤占文档流
+  // z-index 足够高以盖住页面文字（hero 标题等）
+  _skillPanel.style.cssText =
+    "position:absolute;bottom:100%;left:0;z-index:999999;margin-bottom:8px;";
+
+  // 同步深色/浅色主题 + 背景色对齐 input-box
+  // 2026-04-13 修复：skill 浮窗背景必须与 input-box 一致（使用页面 CSS 变量）
+  // CSS custom properties 通过 Shadow DOM 继承，可在 host 上 set 后供内部使用
+  const syncTheme = () => {
+    const isDark =
+      document.documentElement.getAttribute("data-theme") === "dark";
+    _skillPanel.classList.toggle("dark", isDark);
+
+    if (isDark) {
+      // 对齐 .input-box.has-content 的背景色：color-mix(in srgb, --bg-elevated 97%, --accent 3%)
+      _skillPanel.style.setProperty(
+        "--ep-panel-bg",
+        "color-mix(in srgb, var(--bg-elevated) 97%, var(--accent) 3%)",
+      );
+      _skillPanel.style.setProperty("--ep-panel-border", "var(--border-hover)");
+      _skillPanel.style.setProperty(
+        "--ep-panel-shadow",
+        "inset 0 1px 0 rgba(255,255,255,0.2), inset 0 -1px 0 rgba(0,0,0,0.15), inset 0 0 0 0.5px rgba(255,255,255,0.08), 0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.1)",
+      );
+    } else {
+      // 浅色模式：对齐 [data-theme=light] .input-box 的背景
+      _skillPanel.style.setProperty(
+        "--ep-panel-bg",
+        "rgba(255, 255, 255, 0.98)",
+      );
+      _skillPanel.style.setProperty(
+        "--ep-panel-border",
+        "rgba(255, 255, 255, 0.5)",
+      );
+      _skillPanel.style.removeProperty("--ep-panel-shadow");
+    }
+  };
+  syncTheme();
+  // 监听主题切换
+  const observer = new MutationObserver(syncTheme);
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-theme"],
+  });
+
+  // 插入到 .input-section 容器中（input-box 有 overflow:hidden 会裁剪）
+  const inputSection = inputBox.closest(".input-section");
+  if (!inputSection) return;
+  inputSection.style.position = "relative";
+  inputSection.style.zIndex = "10"; // 2026-04-13 提升层级，使 skill 浮窗能盖住 hero 文字
+  inputSection.insertBefore(_skillPanel, inputBox);
+
+  // 监听 skill-select：移除 "/" + filter 文本，注入 instructions
+  // 2026-04-13 修复：使用 _skillSlashIndex 精确定位 "/" 位置，
+  //   保留 "/" 前的文本 + "/" 后 filter 之后的文本，中间插入 instructions。
+  _skillPanel.addEventListener("skill-select", (e) => {
+    const skill = e.detail;
+    const textarea = $("#input-textarea");
+    if (!textarea) return;
+
+    const currentVal = textarea.value;
+    let before = "";
+    let after = "";
+
+    if (_skillSlashIndex >= 0) {
+      before = currentVal.substring(0, _skillSlashIndex);
+      // filter 长度 = 当前面板的 filter 值长度
+      const filterLen = _skillPanel.filter ? _skillPanel.filter.length : 0;
+      after = currentVal.substring(_skillSlashIndex + 1 + filterLen);
+    } else {
+      before = currentVal;
+    }
+
+    // 拼接：before + instructions + after
+    let newVal = before.trimEnd();
+    if (skill.instructions) {
+      newVal = (newVal ? newVal + "\n" : "") + skill.instructions;
+    }
+    if (after.trimStart()) {
+      newVal += "\n" + after.trimStart();
+    }
+    textarea.value = newVal;
+    _skillSlashIndex = -1;
+
+    // 触发 input 事件以更新计数器等状态
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    textarea.focus();
+
+    // 设置 placeholder 提示（如果有）
+    if (skill.placeholder) {
+      textarea.setAttribute("placeholder", skill.placeholder);
+    }
+  });
+
+  // 监听 panel-close
+  _skillPanel.addEventListener("panel-close", () => {
+    // 浮窗已自行隐藏，无需额外操作
+  });
+}
+
+// --- 2026-04-13 Skill 浮窗触发检测 ---
+// [描述]     检测输入框中光标前是否存在 "/"，触发或关闭 Skill 浮窗。
+// [思路]     基于光标位置向前查找最近的 "/"，取 slash→cursor 之间文本作为 filter。
+//            排除 "://" URL 模式防止误触发。
+// [修复]     2026-04-13 修复两个 bug：
+//            (1) 原 startsWith("/") 导致"输入文字后键入 /"不触发；
+//            (2) 原 substring(1) 导致光标在行首键入 "/" 时 filter 包含光标后全部文本。
+// [影响范围] web/src/ui/index.js（handleSkillTrigger + skill-select 事件）
+// [潜在风险] 无已知风险
+function handleSkillTrigger(textarea) {
+  if (!_skillPanel) return;
+
+  const val = textarea.value;
+  const cursorPos = textarea.selectionStart;
+
+  // 从光标位置向前查找最近的 "/"
+  const textBeforeCursor = val.substring(0, cursorPos);
+  const slashPos = textBeforeCursor.lastIndexOf("/");
+
+  if (slashPos >= 0 && !(slashPos > 0 && val[slashPos - 1] === ":")) {
+    // 找到 "/"，且不是 "://" URL 模式 → 触发 skill 浮窗
+    const filterText = textBeforeCursor.substring(slashPos + 1);
+    _skillSlashIndex = slashPos;
+    _skillPanel.filter = filterText;
+    _skillPanel.visible = true;
+  } else {
+    // 未找到有效 "/" → 关闭浮窗
+    if (_skillPanel.visible) {
+      _skillPanel.visible = false;
+    }
+    _skillSlashIndex = -1;
+  }
 }
 
 function handleClear() {
