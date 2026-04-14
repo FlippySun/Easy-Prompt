@@ -573,13 +573,25 @@
       if (!structure) return;
       const { container, scroll } = structure;
 
+      // 2026-04-14 修复：共享 skill-panel 为消除过滤闪烁会稳定复用 container。
+      //   但 Web 端会在初始化阶段提前把 <ep-skill-panel> 挂进 DOM；若 !visible 时仅清空
+      //   scroll 而不隐藏 container，则 border / padding / 背景仍会渲染成一个空白浮窗。
+      // [类型]     修复
+      // [描述]     将不可见态从“空内容”升级为“真正隐藏复用外壳”，仅在 visible=true 时显示。
+      // [思路]     继续复用同一个 container / scroll 节点，避免回退到整块外壳重建引发闪烁。
+      // [参数与返回值] 读取 this._visible 控制 container.hidden；无新增参数与返回值。
+      // [影响范围] shared-ui/skill-panel.js；Web / Browser 两端未唤起态与唤起态显示路径。
+      // [潜在风险] 无已知风险。
       // 不可见时隐藏
       if (!this._visible) {
         this._filteredItems = [];
+        container.hidden = true;
         container.classList.remove("is-opening");
         scroll.replaceChildren();
         return;
       }
+
+      container.hidden = false;
 
       const filtered = this._getFilteredSkills();
       const grouped = this._groupByType(filtered);

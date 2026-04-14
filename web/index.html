@@ -30,7 +30,17 @@
       type="image/svg+xml"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b5cf6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z'/%3E%3C/svg%3E"
     />
-    <!-- Vite 会处理 src/style.css 的导入，此处仅保留外部字体 -->
+    <!-- ========================== 变更记录 ==========================
+         [日期]     2026-04-14
+         [类型]     修复
+         [描述]     将 Web 首屏主样式前置到 HTML Head，避免刷新时短暂显示未样式化骨架
+         [思路]     Vite dev 模式下经由入口脚本 import 的 CSS 会在脚本执行后注入；改为 Head 直链可让浏览器在首次绘制前完成样式解析
+         [参数]     无
+         [返回]     无
+         [影响范围] web/index.html, web/src/main.js, web/src/style.css, Web 首屏渲染时序
+         [潜在风险] 若后续拆分新的首屏关键样式文件，需同步评估是否也应前置加载
+         ============================================================= -->
+    <link rel="stylesheet" href="/src/style.css" />
   </head>
 
   <body>
