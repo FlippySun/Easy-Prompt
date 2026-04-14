@@ -417,3 +417,66 @@
 **优化文件数:** 12 个核心文件 + 8 个新文档
 **修复问题数:** 9 个（7 个代码问题 + 2 个文档问题）
 **测试通过率:** 100% (8/8 核心功能测试)
+
+---
+
+## 📎 2026-04 Browser Extension Skill Panel Compatibility Addendum
+
+> 说明：本节为后续版本补遗，记录浏览器扩展 `skill panel` 在 Gemini / 豆包等站点上的兼容性修复。其结论适用于当前代码，不改变本报告主体“基于 v3.1.0 的历史审计”定位。
+
+### 涉及文件
+
+- `browser/content/content.js`
+- `shared-ui/skill-panel.js`
+- `shared-ui/skill-panel.css`
+
+### 问题根因
+
+#### 1. 重复事件导致的无效重置
+
+在 Gemini 等 `contenteditable` 编辑器中，一次输入可能连续触发 `input + keyup`。若 `content.js` 重复把相同 `filter` 写回 panel attribute，`shared-ui/skill-panel.js` 会再次重置 `_activeIndex` 并 `_render()`，从而导致方向键高亮被抹掉、过滤过程出现无意义刷新。
+
+#### 2. 整块 panel 外壳重建导致整窗闪烁
+
+旧实现会在每次过滤时重新创建 `style`、`.skill-container`、`.skill-scroll`，再通过 `shadowRoot.replaceChildren(style, container)` 整体替换 Shadow DOM。由于 panel 外壳包含背景、阴影以及暗色下的 `backdrop-filter`，浏览器会把整块浮窗重新挂载和重绘，最终表现为“整个浮窗闪一下”。
+
+### 最终保留方案
+
+#### 1. `filter` 幂等化，消除重复状态提交与重复消费
+
+- `browser/content/content.js::_checkSkillTrigger()` 先比较当前 `filter`，仅在值发生变化时写回 attribute
+- `shared-ui/skill-panel.js` 在 `attributeChangedCallback("filter")` 与 `set filter(...)` 中都保留相同值短路
+- 结果：避免相同状态重复触发 `_activeIndex` 重置与重复 `_render()`
+
+#### 2. 保持 Shadow 外壳稳定，仅更新滚动区内容
+
+- `shared-ui/skill-panel.js` 引入 `_ensureStructure()`，复用 `_styleNode`、`_containerNode`、`_scrollNode`
+- 过滤更新时仅执行 `scroll.replaceChildren(...nextNodes)`
+- 不再在 `filter` 更新路径重建整个 panel 外壳
+
+#### 3. 打开动画与过滤更新解耦
+
+- `.skill-container` 默认不再自带反复播放的入场动画
+- 打开浮窗时通过 `is-opening` 只触发一次开场动画
+- 过滤更新不再重播“开场效果”
+
+#### 4. 浮窗打开后的字符过滤采用轻量 trailing debounce
+
+- 首次输入 `/` 仍然即时唤起浮窗
+- 浮窗已打开后的字符过滤采用 `160ms` trailing debounce
+- 关闭浮窗、切换输入框或解绑监听时清理 `_skillFilterDebounceTimer`
+
+### 解决结果
+
+- Gemini / 豆包 上的 skill 浮窗过滤输入已不再整窗闪烁
+- `ArrowUp` / `ArrowDown` / `Enter` 已恢复正常
+- Trusted Types 页面不再回退到 `innerHTML` 或运行时 SVG 解析链路
+- 最终方案已通过实际手动回归验证
+
+### 防回归规则
+
+- 不要移除 `filter` 幂等判断
+- 不要在过滤路径恢复整块 `shadowRoot.replaceChildren(style, container)`
+- 不要回退到 `innerHTML` 或运行时 SVG 字符串解析
+- 保持 parser-free `mask-image + data URL` 图标链路与 SVG `xmlns` 归一化逻辑
+- 若后续调整过滤体感，应优先调 debounce 时间窗，而不是恢复高频无界重渲染

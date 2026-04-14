@@ -29,26 +29,26 @@ npm install
 
 ### 最常用命令
 
-| 命令 | 作用 |
-| --- | --- |
-| `npm run dev` | 启动 Chrome MV3 开发模式 |
-| `npm run dev:firefox` | 启动 Firefox MV3 开发模式 |
-| `npm run dev:safari` | 启动 Safari MV3 开发模式 |
-| `npm run dev:edge` | 启动 Edge MV3 开发模式 |
-| `npm run build` | 构建 Chrome MV3 产物 |
-| `npm run build:firefox` | 构建 Firefox MV3 产物 |
-| `npm run build:safari` | 构建 Safari MV3 产物 |
-| `npm run build:edge` | 构建 Edge MV3 产物 |
-| `npm run build:all` | 一次性构建 Chrome / Firefox / Safari / Edge 四端 |
-| `npm run zip:chrome` | 打包 Chrome ZIP |
-| `npm run zip:firefox` | 打包 Firefox ZIP |
-| `npm run zip:safari` | 打包 Safari ZIP |
-| `npm run zip:edge` | 打包 Edge ZIP |
-| `npm run zip:all` | 一次性输出四端 ZIP 包 |
-| `npm run typecheck` | 执行 TypeScript 类型检查 |
-| `npm run safari:convert` | 先构建 Safari，再生成 Xcode 工程 |
-| `npm run safari:convert:dry-run` | 仅打印 Safari converter 实际命令，不执行 |
-| `node build.js [target]` | 兼容旧调用方式，内部转发到 WXT 构建脚本 |
+| 命令                             | 作用                                             |
+| -------------------------------- | ------------------------------------------------ |
+| `npm run dev`                    | 启动 Chrome MV3 开发模式                         |
+| `npm run dev:firefox`            | 启动 Firefox MV3 开发模式                        |
+| `npm run dev:safari`             | 启动 Safari MV3 开发模式                         |
+| `npm run dev:edge`               | 启动 Edge MV3 开发模式                           |
+| `npm run build`                  | 构建 Chrome MV3 产物                             |
+| `npm run build:firefox`          | 构建 Firefox MV3 产物                            |
+| `npm run build:safari`           | 构建 Safari MV3 产物                             |
+| `npm run build:edge`             | 构建 Edge MV3 产物                               |
+| `npm run build:all`              | 一次性构建 Chrome / Firefox / Safari / Edge 四端 |
+| `npm run zip:chrome`             | 打包 Chrome ZIP                                  |
+| `npm run zip:firefox`            | 打包 Firefox ZIP                                 |
+| `npm run zip:safari`             | 打包 Safari ZIP                                  |
+| `npm run zip:edge`               | 打包 Edge ZIP                                    |
+| `npm run zip:all`                | 一次性输出四端 ZIP 包                            |
+| `npm run typecheck`              | 执行 TypeScript 类型检查                         |
+| `npm run safari:convert`         | 先构建 Safari，再生成 Xcode 工程                 |
+| `npm run safari:convert:dry-run` | 仅打印 Safari converter 实际命令，不执行         |
+| `node build.js [target]`         | 兼容旧调用方式，内部转发到 WXT 构建脚本          |
 
 > 如果你习惯在仓库根目录操作，也可以使用 `package.json` 中的代理命令，例如 `npm run browser:build`、`npm run browser:safari:convert`。
 
@@ -80,13 +80,13 @@ browser/
 
 ## 3. 构建产物说明
 
-| 浏览器 | 目录 | 用途 |
-| --- | --- | --- |
-| Chrome MV3 | `browser/dist/chrome-mv3/` | 本地加载 / 手动验证 |
-| Firefox MV3 | `browser/dist/firefox-mv3/` | 本地临时加载 / 手动验证 |
-| Safari MV3 | `browser/dist/safari-mv3/` | 提供给 `safari-web-extension-converter` 输入 |
-| Edge MV3 | `browser/dist/edge-mv3/` | 本地加载 / Microsoft Add-ons 上传 |
-| Safari Xcode 工程 | `browser/dist/safari-xcode/` | `npm run safari:convert` 生成 |
+| 浏览器            | 目录                         | 用途                                         |
+| ----------------- | ---------------------------- | -------------------------------------------- |
+| Chrome MV3        | `browser/dist/chrome-mv3/`   | 本地加载 / 手动验证                          |
+| Firefox MV3       | `browser/dist/firefox-mv3/`  | 本地临时加载 / 手动验证                      |
+| Safari MV3        | `browser/dist/safari-mv3/`   | 提供给 `safari-web-extension-converter` 输入 |
+| Edge MV3          | `browser/dist/edge-mv3/`     | 本地加载 / Microsoft Add-ons 上传            |
+| Safari Xcode 工程 | `browser/dist/safari-xcode/` | `npm run safari:convert` 生成                |
 
 ZIP 包默认输出到 `browser/dist/` 根目录。
 
@@ -257,3 +257,54 @@ npm run safari:convert:dry-run
 ### 3) Firefox 背景脚本行为与 Chrome 不一致
 
 这是 Firefox MV3 的已知差异之一；项目已在 `wxt.config.ts` 中对 `background.scripts` 做兼容修正。如果后续升级 WXT 或 Firefox manifest 策略，请同时回看该 hook。
+
+## 10. Skill Panel 兼容性与防回归说明
+
+### 维护范围
+
+本轮兼容性修复最终落在以下文件：
+
+- `browser/content/content.js`
+- `shared-ui/skill-panel.js`
+- `shared-ui/skill-panel.css`
+
+### 核心根因
+
+#### 1) 重复事件导致无效重置
+
+在 Gemini 等 `contenteditable` 站点，一次输入可能连续触发 `input + keyup`。如果 `content.js` 对相同 `filter` 重复写回，`shared-ui/skill-panel.js` 会重复重置 `_activeIndex` 并再次 `_render()`，表现为高亮丢失、方向键切换失效或交互不稳。
+
+**当前保留实现：**
+
+- `browser/content/content.js::_checkSkillTrigger()` 先比较当前 `filter`，仅在值变化时写入 attribute
+- `shared-ui/skill-panel.js` 在 `attributeChangedCallback("filter")` 与 `set filter(...)` 中都保留相同值短路
+
+**防回归要求：**
+
+- 不要移除上述 `filter` 幂等判断
+- 如果后续新增新的输入事件监听，必须先确认不会对相同 `filter` 重复提交状态
+
+#### 2) 整块 panel 外壳重建导致整窗闪烁
+
+旧实现会在每次过滤时重新创建 `style`、`.skill-container`、`.skill-scroll`，再执行 `shadowRoot.replaceChildren(style, container)`。由于 panel 外壳包含背景、阴影与暗色 `backdrop-filter`，浏览器会把整块浮窗重新挂载和重绘，表现为“整窗闪烁”。
+
+**当前保留实现：**
+
+- `shared-ui/skill-panel.js` 通过 `_ensureStructure()` 复用 `_styleNode`、`_containerNode`、`_scrollNode`
+- 过滤更新时仅执行 `scroll.replaceChildren(...nextNodes)`，不再重建 panel 外壳
+
+**防回归要求：**
+
+- 不要在 `filter` 更新路径中恢复整块 `shadowRoot.replaceChildren(style, container)` 的做法
+- 允许替换列表内容，但必须保持外层 `style/container/scroll` 稳定复用
+
+### 输入体感约定
+
+- 首次输入 `/` 唤起 skill 浮窗必须保持即时
+- 浮窗已打开后的字符过滤采用 `160ms` trailing debounce
+- 关闭浮窗、切换输入框或解绑监听时，必须清理 `_skillFilterDebounceTimer`
+
+### 兼容性补充
+
+- Trusted Types 页面禁止回退到 `innerHTML` / 运行时 SVG 解析链路
+- 图标渲染保持 parser-free `mask-image + data URL` 路径，并继续保留缺失 `xmlns` 的 SVG 归一化逻辑
