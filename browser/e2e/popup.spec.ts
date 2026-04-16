@@ -36,17 +36,13 @@ test.describe("Popup UI", () => {
       }
     });
 
-    await extensionPage.goto(
-      `chrome-extension://${extensionId}/popup.html`,
-    );
+    await extensionPage.goto(`chrome-extension://${extensionId}/popup.html`);
     await extensionPage.waitForLoadState("load");
     // Verify the page title loaded correctly.
     await expect(extensionPage).toHaveTitle("Easy Prompt");
 
     const realErrors = errors.filter(
-      (e) =>
-        !e.includes("favicon") &&
-        !e.includes("ERR_FILE_NOT_FOUND"),
+      (e) => !e.includes("favicon") && !e.includes("ERR_FILE_NOT_FOUND"),
     );
     expect(realErrors).toHaveLength(0);
   });
@@ -95,9 +91,20 @@ test.describe("Popup UI", () => {
     const bodyHTML = await extensionPage.evaluate(
       () => document.body.innerHTML,
     );
+    // ========================== 变更记录 ==========================
+    // [日期]     2026-04-14
+    // [类型]     修复
+    // [描述]     修复 popup 占位区域断言将两个 void 断言表达式用逻辑或串联导致的 TS1345
+    // [思路]     改为先计算 bodyHTML 是否包含任一兼容标识，再做单次布尔断言，保持测试语义不变
+    // [参数]     bodyHTML: popup 页面 body.innerHTML 字符串
+    // [返回]     无
+    // [影响范围] browser/e2e/popup.spec.ts、browser 子项目 typecheck
+    // [潜在风险] 若 popup DOM 标识再次重命名，需同步调整此兼容断言
+    // ==============================================================
     // The input textarea area is part of the main-view structure.
-    expect(bodyHTML).toContain("input-text") ||
-    expect(bodyHTML).toContain("input-area");
+    expect(
+      bodyHTML.includes("input-text") || bodyHTML.includes("input-area"),
+    ).toBe(true);
   });
 
   test("should have the character count display", async ({

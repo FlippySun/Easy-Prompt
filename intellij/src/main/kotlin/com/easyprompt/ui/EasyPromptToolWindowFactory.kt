@@ -31,16 +31,23 @@ import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.JScrollPane
 
-private const val ZHIZ_CHAT_HOME_URL = "https://zhiz.chat"
+private const val ZHIZ_CHAT_PROFILE_URL = "https://zhiz.chat/profile"
 
 // ========================== 变更记录 ==========================
 // [日期]     2026-04-10
 // [类型]     修复
-// [描述]     修复 IDEA ToolWindow 欢迎页与 JCEF 降级面板的 zhiz.chat CTA 在登录后不刷新的问题，并将已登录按钮改为打开 zhiz.chat。
+// [描述]     修复 IDEA ToolWindow 欢迎页与 JCEF 降级面板的 zhiz.chat CTA 在登录后不刷新的问题，并将已登录按钮改为打开 Web-Hub 个人页。
 // [思路]     继续复用 SsoAuthClient.startLogin() 作为唯一登录触发点，同时通过 SsoAuthClient 登录态监听器重绘 JCEF Welcome HTML / Swing fallback 组件，避免欢迎页停留在旧登录态。
 // [参数与返回值] createFallbackPanel(project, parentDisposable) / buildWelcomeHtml(jsQuery) / buildWelcomeLoginPresentation() 会根据当前登录态返回最新 CTA 文案与行为。
 // [影响范围] Easy Prompt 右侧欢迎页、JCEF 不可用时的 fallback 面板、登录成功后返回 IDE 的欢迎页 CTA。
 // [潜在风险] 登录态变化时会重绘欢迎页内容；当前仅在登录/退出等有限时机触发，风险可控。
+// [日期]     2026-04-15
+// [类型]     修复/交互
+// [描述]     将 IntelliJ ToolWindow 已登录用户名入口统一改为直达 Web-Hub 个人页，避免与 VS Code/Web-Hub 的“点击用户名”语义分叉。
+// [思路]     已登录后的第一目标是验证当前账号资料与登录态，因此 ToolWindow 主 CTA 与 fallback CTA 一律跳到 /profile；退出能力继续保留在独立入口。
+// [参数与返回值] buildWelcomeLoginPresentation() 已登录时返回 openZhizProfile 命令；handleCommand()/fallback 按钮据此打开 https://zhiz.chat/profile。
+// [影响范围] IntelliJ ToolWindow Welcome、JCEF 不可用时的 fallback 登录 CTA、跨端 SSO 体验一致性。
+// [潜在风险] 若系统默认浏览器与完成登录时使用的浏览器配置文件不同，个人页可能仍需重新识别登录态；无代码层已知风险。
 // ==============================================================
 
 class EasyPromptToolWindowFactory : ToolWindowFactory {
@@ -74,12 +81,12 @@ class EasyPromptToolWindowFactory : ToolWindowFactory {
             "登录 zhiz.chat"
         }
         val loginHintPlainText = if (isLoggedIn) {
-            "当前已登录：$safeAccountName。点击下方按钮可直接打开 zhiz.chat。"
+            "当前已登录：$safeAccountName。点击下方按钮可直接打开 zhiz.chat 个人主页。"
         } else {
             "想快捷登录账号？点击下方“登录 zhiz.chat”即可拉起浏览器授权。"
         }
         val loginHintHtml = if (isLoggedIn) {
-            "当前已登录：<strong>${escapeHtml(safeAccountName)}</strong>。点击下方按钮可直接打开 zhiz.chat。"
+            "当前已登录：<strong>${escapeHtml(safeAccountName)}</strong>。点击下方按钮可直接打开 zhiz.chat 个人主页。"
         } else {
             "需要快捷登录入口？点击下方“登录 zhiz.chat”即可直接拉起浏览器授权。"
         }
@@ -89,7 +96,7 @@ class EasyPromptToolWindowFactory : ToolWindowFactory {
             buttonLabel = loginButtonLabel,
             hintPlainText = loginHintPlainText,
             hintHtml = loginHintHtml,
-            command = if (isLoggedIn) "openZhizHome" else "loginZhiz"
+            command = if (isLoggedIn) "openZhizProfile" else "loginZhiz"
         )
     }
 
@@ -149,7 +156,7 @@ class EasyPromptToolWindowFactory : ToolWindowFactory {
                 "showScenes" -> executeAction(project, "EasyPrompt.ShowScenes", contextComponent)
                 "showHistory" -> executeAction(project, "EasyPrompt.ShowHistory", contextComponent)
                 "loginZhiz" -> SsoAuthClient.startLogin()
-                "openZhizHome" -> BrowserUtil.browse(ZHIZ_CHAT_HOME_URL)
+                "openZhizProfile" -> BrowserUtil.browse(ZHIZ_CHAT_PROFILE_URL)
                 "openSettings", "configureApi" -> {
                     ShowSettingsUtil.getInstance().showSettingsDialog(project, "Easy Prompt")
                 }
@@ -183,7 +190,7 @@ class EasyPromptToolWindowFactory : ToolWindowFactory {
             loginHintLabel.text = loginPresentation.hintPlainText
             loginButton.text = loginPresentation.buttonLabel
             loginButton.toolTipText = if (loginPresentation.isLoggedIn) {
-                "打开 zhiz.chat"
+                "打开 zhiz.chat 个人主页"
             } else {
                 "登录 zhiz.chat"
             }
@@ -192,7 +199,7 @@ class EasyPromptToolWindowFactory : ToolWindowFactory {
             }
             loginButton.addActionListener {
                 if (loginPresentation.isLoggedIn) {
-                    BrowserUtil.browse(ZHIZ_CHAT_HOME_URL)
+                    BrowserUtil.browse(ZHIZ_CHAT_PROFILE_URL)
                 } else {
                     SsoAuthClient.startLogin()
                 }

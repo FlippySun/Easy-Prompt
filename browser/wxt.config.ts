@@ -30,6 +30,21 @@ export default defineConfig({
   entrypointsDir: "wxt-entrypoints",
   publicDir: "public",
   outDir: "dist",
+  // ========================== 变更记录 ==========================
+  // [日期]     2026-04-14
+  // [类型]     配置变更
+  // [描述]     固定浏览器扩展 WXT 开发服务端口为 3002，避免与 backend 3000 和其他本地 Vite 服务冲突
+  // [思路]     使用 WXT 的 dev.server.port 作为单一权威配置源，让 scripts/browser-dev.sh 与 browser/package.json dev:* 脚本共用同一端口
+  // [参数]     dev.server.port = 3002
+  // [返回]     无
+  // [影响范围] browser/wxt.config.ts、scripts/browser-dev.sh、browser/package.json 启动链路
+  // [潜在风险] 若本机已有其他服务占用 3002，浏览器扩展开发服务仍会启动失败，需释放端口或调整配置
+  // ==============================================================
+  dev: {
+    server: {
+      port: 3002,
+    },
+  },
   manifest: ({ browser, manifestVersion }) => ({
     name:
       browser === "chrome"

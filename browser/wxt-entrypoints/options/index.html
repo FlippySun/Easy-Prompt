@@ -233,9 +233,15 @@
           <!-- 2026-04-10 SSO B1: SSO 登录区域 -->
           <div class="form-group">
             <label class="form-label">账号</label>
-            <!-- 已登录状态：显示用户名 + 退出按钮 -->
+            <!-- 已登录状态：显示个人页入口 + 退出按钮 -->
             <div id="sso-logged-in" class="sso-status" hidden>
-              <span id="sso-user-display" class="sso-user-badge">
+              <button
+                id="btn-sso-profile"
+                class="sso-user-badge"
+                type="button"
+                title="打开 zhiz.chat 个人主页"
+                aria-label="打开 zhiz.chat 个人主页"
+              >
                 <svg
                   width="14"
                   height="14"
@@ -250,7 +256,7 @@
                   <path d="M20 21a8 8 0 0 0-16 0" />
                 </svg>
                 <span id="sso-username">—</span>
-              </span>
+              </button>
               <button id="btn-sso-logout" class="btn btn--secondary btn--sm">
                 退出登录
               </button>

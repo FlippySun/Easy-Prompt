@@ -2267,6 +2267,19 @@ async function ssoLogin() {
 }
 
 /**
+ * 2026-04-15 修复 — SSO 已登录用户名点击改为打开个人主页
+ * 变更类型：修复/交互
+ * 功能描述：将 VS Code 中已登录用户名/状态栏点击行为从隐式退出登录改为打开 Web-Hub 个人主页，避免用户误触登出。
+ * 设计思路：继续保留显式 `easy-prompt.ssoLogout` 命令用于退出，但把高频点击入口统一改为 `/profile`，与 Web-Hub 已登录用户菜单语义一致。
+ * 参数与返回值：`ssoOpenProfile()` 无入参；成功时打开外部浏览器到 `https://zhiz.chat/profile`，无同步返回值。
+ * 影响范围：VS Code 状态栏 SSO 用户名点击、登录完成后的主入口跳转体验。
+ * 潜在风险：依赖系统浏览器沿用刚完成 OAuth 的同一浏览器资料；若用户切换到不同浏览器配置文件，Web-Hub 可能仍需重新识别登录态。
+ */
+async function ssoOpenProfile() {
+  await vscode.env.openExternal(vscode.Uri.parse(`${SSO_HUB_BASE}/profile`));
+}
+
+/**
  * SSO 退出 — 清除所有 SSO tokens 和用户信息
  */
 async function ssoLogout() {
@@ -2502,8 +2515,8 @@ function updateSsoStatusBar() {
   if (user) {
     const name = user.displayName || user.username || user.email;
     _ssoStatusBarItem.text = `$(account) ${name}`;
-    _ssoStatusBarItem.tooltip = `Easy Prompt — 已登录: ${name}\n点击退出`;
-    _ssoStatusBarItem.command = "easy-prompt.ssoLogout";
+    _ssoStatusBarItem.tooltip = `Easy Prompt — 已登录: ${name}\n点击打开 zhiz.chat 个人主页`;
+    _ssoStatusBarItem.command = "easy-prompt.ssoOpenProfile";
   } else {
     _ssoStatusBarItem.text = "$(sign-in) 登录";
     _ssoStatusBarItem.tooltip = "Easy Prompt — 点击登录 zhiz.chat";
@@ -2567,6 +2580,10 @@ function activate(context) {
   // 2026-04-10 B4: SSO 登录/退出命令 + URI handler
   context.subscriptions.push(
     vscode.commands.registerCommand("easy-prompt.ssoLogin", ssoLogin),
+    vscode.commands.registerCommand(
+      "easy-prompt.ssoOpenProfile",
+      ssoOpenProfile,
+    ),
     vscode.commands.registerCommand("easy-prompt.ssoLogout", ssoLogout),
     vscode.window.registerUriHandler({ handleUri: handleSsoCallback }),
   );

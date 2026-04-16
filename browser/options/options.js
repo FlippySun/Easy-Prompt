@@ -22,6 +22,17 @@ import { Api } from "../shared/api.js";
 // 2026-04-10 SSO B1: SSO 登录/退出/状态管理
 import { Sso } from "../shared/sso.js";
 
+/**
+ * 2026-04-15
+ * 变更类型：修复/交互
+ * 功能描述：为浏览器扩展 options 页已登录用户名徽标增加点击直达 Web-Hub 个人页能力，统一“点击用户名”语义。
+ * 设计思路：继续保留独立退出按钮，只把用户名徽标作为高频正向入口；避免用户在扩展端登录后找不到个人资料页。
+ * 参数与返回值：常量 `SSO_PROFILE_URL` 指向 `https://zhiz.chat/profile`；`handleSsoOpenProfile()` 无入参，成功时新开标签页到个人页。
+ * 影响范围：browser/options/options.js、browser/wxt-entrypoints/options/index.html、browser/options/options.css。
+ * 潜在风险：若浏览器使用的站点登录上下文与当前扩展触发时所在 profile 不一致，个人页仍可能需要重新识别登录态。
+ */
+const SSO_PROFILE_URL = "https://zhiz.chat/profile";
+
 const $ = (sel) => document.querySelector(sel);
 
 /* ─── Safe DOM Helper (avoids innerHTML for Firefox AMO compliance) ─── */
@@ -162,6 +173,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   const btnSsoLogout = $("#btn-sso-logout");
   if (btnSsoLogout) {
     btnSsoLogout.addEventListener("click", handleSsoLogout);
+  }
+
+  const btnSsoProfile = $("#btn-sso-profile");
+  if (btnSsoProfile) {
+    btnSsoProfile.addEventListener("click", handleSsoOpenProfile);
   }
 
   // 旧版手动 Token 迁移检测（B1a）
@@ -392,7 +408,7 @@ function showToast(message, type = "info") {
 
 /**
  * 读取 SSO 登录状态并更新 UI
- * 已登录 → 显示用户名 + 退出按钮
+ * 已登录 → 显示个人页入口 + 退出按钮
  * 未登录 → 显示登录按钮
  */
 async function updateSsoStatus() {
@@ -400,14 +416,15 @@ async function updateSsoStatus() {
   const loggedOutEl = $("#sso-logged-out");
   const usernameEl = $("#sso-username");
 
-  if (!loggedInEl || !loggedOutEl) return;
+  if (!loggedInEl || !loggedOutEl || !usernameEl) return;
 
   const user = await Sso.getSsoUser();
   const token = await Sso.getAccessToken();
 
   if (user && token) {
     // 已登录
-    usernameEl.textContent = user.displayName || user.username || user.email;
+    usernameEl.textContent =
+      user.displayName || user.username || user.email || "当前账号";
     loggedInEl.hidden = false;
     loggedOutEl.hidden = true;
   } else {
@@ -431,7 +448,9 @@ async function handleSsoLogin() {
 
     if (user) {
       // 路径 A：同步完成，直接更新 UI
-      showToast(`登录成功：${user.displayName || user.username}`, "success");
+      const displayName =
+        user.displayName || user.username || user.email || "当前账号";
+      showToast(`登录成功：${displayName}`, "success");
       await updateSsoStatus();
     } else {
       // 路径 B（Safari Tab redirect）：异步完成
@@ -455,5 +474,22 @@ async function handleSsoLogout() {
     await updateSsoStatus();
   } catch (err) {
     showToast("退出失败: " + err.message, "error");
+  }
+}
+
+/**
+ * 2026-04-15 修复 — Browser options 已登录用户名点击直达个人页
+ * 变更类型：修复/交互
+ * 功能描述：用户在扩展 options 页登录成功后，点击用户名徽标直接打开 Web-Hub 个人页。
+ * 设计思路：不复用退出按钮，避免误操作；通过 `chrome.tabs.create(...)` 新开标签，保持当前配置页上下文不丢失。
+ * 参数与返回值：无入参；成功时创建新标签页到 `SSO_PROFILE_URL`，失败时通过 toast 暴露错误。
+ * 影响范围：浏览器扩展 options 登录状态区域。
+ * 潜在风险：若浏览器限制创建标签页或站点登录态已过期，用户仍可能在目标页看到未登录态。
+ */
+async function handleSsoOpenProfile() {
+  try {
+    await chrome.tabs.create({ url: SSO_PROFILE_URL });
+  } catch (err) {
+    showToast("打开个人主页失败: " + (err?.message || "未知错误"), "error");
   }
 }
