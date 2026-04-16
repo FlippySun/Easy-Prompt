@@ -25,6 +25,57 @@ export const ERROR_CODES = {
   AUTH_CODE_INVALID: { httpStatus: 401, defaultMessage: 'Authorization code is invalid' },
   AUTH_CODE_EXPIRED: { httpStatus: 401, defaultMessage: 'Authorization code has expired' },
   AUTH_PROVIDER_ERROR: { httpStatus: 502, defaultMessage: 'OAuth provider error' },
+  // 2026-04-14 新增 — Zhiz OAuth Superpowers Execute T3/T5
+  // 变更类型：新增/安全
+  // 功能描述：补齐 Zhiz continuation ticket 生命周期与 OAuth token 加/解密失败的基础错误码。
+  // 设计思路：将 provider 通讯错误与本地票据/加密错误拆分，便于 complete 页面做细粒度错误提示。
+  // 参数与返回值：错误码常量供 AppError(code) 与 errorHandler 使用，返回统一 HTTP 状态与默认消息。
+  // 影响范围：Zhiz callback、后续 status/finish/password-setup 链路。
+  // 潜在风险：无已知风险。
+  AUTH_ZHIZ_TICKET_INVALID: {
+    httpStatus: 401,
+    defaultMessage: 'Zhiz continuation ticket is invalid',
+  },
+  AUTH_ZHIZ_TICKET_EXPIRED: {
+    httpStatus: 401,
+    defaultMessage: 'Zhiz continuation ticket has expired',
+  },
+  AUTH_ZHIZ_TICKET_CONSUMED: {
+    httpStatus: 409,
+    defaultMessage: 'Zhiz continuation ticket has already been consumed',
+  },
+  AUTH_ZHIZ_EMAIL_VERIFICATION_REQUIRED: {
+    httpStatus: 409,
+    defaultMessage: 'Zhiz account requires email verification before it can be bound',
+  },
+  AUTH_ZHIZ_PASSWORD_SETUP_REQUIRED: {
+    httpStatus: 409,
+    defaultMessage: 'Zhiz account requires password setup before it can be bound',
+  },
+  AUTH_ZHIZ_EMAIL_CODE_INVALID: {
+    httpStatus: 400,
+    defaultMessage: 'Zhiz email verification code is invalid',
+  },
+  AUTH_ZHIZ_EMAIL_CODE_EXPIRED: {
+    httpStatus: 400,
+    defaultMessage: 'Zhiz email verification code has expired',
+  },
+  AUTH_ZHIZ_EMAIL_CODE_RATE_LIMITED: {
+    httpStatus: 429,
+    defaultMessage: 'Zhiz email verification requests are too frequent',
+  },
+  AUTH_ZHIZ_EMAIL_SEND_FAILED: {
+    httpStatus: 502,
+    defaultMessage: 'Failed to send Zhiz verification email',
+  },
+  AUTH_ZHIZ_TOKEN_ENCRYPT_FAILED: {
+    httpStatus: 500,
+    defaultMessage: 'Failed to encrypt Zhiz OAuth token',
+  },
+  AUTH_ZHIZ_TOKEN_DECRYPT_FAILED: {
+    httpStatus: 500,
+    defaultMessage: 'Failed to decrypt Zhiz OAuth token',
+  },
 
   // ── VALIDATION（输入校验）──
   VALIDATION_FAILED: { httpStatus: 400, defaultMessage: 'Input validation failed' },

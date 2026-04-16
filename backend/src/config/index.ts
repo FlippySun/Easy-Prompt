@@ -11,6 +11,14 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+const optionalHex64String = z
+  .string()
+  .default('')
+  .refine(
+    (value) => value === '' || /^[0-9a-f]{64}$/i.test(value),
+    '必须是 64 个 hex 字符，或留空表示暂未启用',
+  );
+
 // ── Zod Schema ──────────────────────────────────────────
 const configSchema = z.object({
   // 基础
@@ -63,6 +71,31 @@ const configSchema = z.object({
   OAUTH_GOOGLE_CLIENT_SECRET: z.string().default(''),
   // OAuth 回调基准 URL（如 https://api.zhiz.chat）
   OAUTH_CALLBACK_BASE_URL: z.string().default(''),
+  // 2026-04-15 优化 — Zhiz OAuth Superpowers T4 发信通道切换为腾讯云 SES API
+  // 变更类型：优化/配置
+  // 功能描述：补齐 Zhiz OAuth 起始链路、前端回跳基准、OAuth token 加密与方案 B 腾讯云 SES 发信配置入口。
+  // 设计思路：
+  //   1. OAUTH_CALLBACK_BASE_URL 仅用于 provider redirect_uri。
+  //   2. AUTH_WEB_BASE_URL 仅用于前端登录页/complete 页回跳。
+  //   3. OAuth token 加密 key 与 Provider API key 加密 key 分离，便于后续 T5 独立轮换。
+  //   4. 邮件验证码改走腾讯云 SES API，避免继续依赖已下线的旧邮件发信路径。
+  // 参数与返回值：环境变量解析后统一暴露到 config 对象，供 OAuth 与邮件验证链路读取。
+  // 影响范围：OAuth start/callback、后续 continuation ticket、方案 B 邮箱验证码子流程。
+  // 潜在风险：若生产环境遗漏新变量，相关 Zhiz/邮件分支将在运行时按“未配置”处理。
+  OAUTH_ZHIZ_CLIENT_ID: z.string().default(''),
+  OAUTH_ZHIZ_CLIENT_SECRET: z.string().default(''),
+  OAUTH_ZHIZ_BASE_URL: z.string().default('https://8060.zhiz.chat'),
+  OAUTH_ZHIZ_AUTH_PAGE_URL: z.string().default('https://3001.zhiz.chat/#/oauth/authorize'),
+  OAUTH_TOKEN_ENCRYPTION_KEY: optionalHex64String,
+  AUTH_WEB_BASE_URL: z.string().default(''),
+  TENCENTCLOUD_SECRET_ID: z.string().default(''),
+  TENCENTCLOUD_SECRET_KEY: z.string().default(''),
+  TENCENTCLOUD_REGION: z.string().default(''),
+  TENCENTCLOUD_SES_FROM_EMAIL: z.string().default(''),
+  TENCENTCLOUD_SES_TEMPLATE_ID: z.coerce.number().int().nonnegative().default(0),
+  AUTH_EMAIL_CODE_TTL_SEC: z.coerce.number().int().positive().default(600),
+  AUTH_EMAIL_CODE_RESEND_COOLDOWN_SEC: z.coerce.number().int().positive().default(60),
+  AUTH_EMAIL_CODE_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
 });
 
 // ── 类型导出 ──────────────────────────────────────────

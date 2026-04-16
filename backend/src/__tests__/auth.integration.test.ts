@@ -152,6 +152,95 @@ describe('POST /api/v1/auth/refresh', () => {
   });
 });
 
+/**
+ * 2026-04-15 修复 — SSO redirect 白名单多端回归测试
+ * 变更类型：修复/测试
+ * 功能描述：验证 zhiz.chat 全子域名、浏览器扩展、VS Code、IntelliJ 的代表性回调 URI 都能通过白名单，同时未登记域名仍会带 redirectUri 细节被拒绝。
+ * 设计思路：
+ *   1. 复用前面注册/登录流程拿到的 accessToken，直连真实 `/api/v1/auth/sso/authorize` 路由。
+ *   2. 允许样本按客户端类型分组挑选代表 URI，避免测试只绑定某个单独子域名或单一端。
+ *   3. 同时覆盖 allow 和 reject 两个方向，避免只放宽白名单却意外放行任意外部地址。
+ * 参数与返回值：无；断言接口分别返回 HTTP 200 / 400 与对应 payload。
+ * 影响范围：`generateSsoCode()` redirect_uri 白名单校验、多端 SSO 登录成功后的授权码回跳。
+ * 潜在风险：无已知风险。
+ */
+describe('POST /api/v1/auth/sso/authorize', () => {
+  it('should generate an SSO code for representative allowed redirect URIs across all supported clients', async () => {
+    const allowedRedirectUris = [
+      'https://zhiz.chat/',
+      'https://5174.zhiz.chat/',
+      'https://prompt.zhiz.chat/callback',
+      'https://alpha.beta.zhiz.chat/sso/complete',
+      'chrome-extension://abcdefghijklmnopabcdefghijklmnop/auth-callback/index.html',
+      'https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/callback',
+      'https://01234567-89ab-cdef-0123-456789abcdef.extensions.allizom.org/callback',
+      'safari-web-extension://com.flippysun.easy-prompt/auth-callback/index.html',
+      'moz-extension://12345678-1234-1234-1234-123456789abc/auth-callback/index.html',
+      'vscode://flippysun.easy-prompt-ai/auth-callback',
+      'http://localhost:45678/callback',
+      'http://127.0.0.1:45678/callback',
+    ];
+
+    for (const redirectUri of allowedRedirectUris) {
+      const res = await request(app)
+        .post('/api/v1/auth/sso/authorize')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ redirectUri })
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.code).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      );
+    }
+  });
+
+  it('should reject an unregistered SSO redirect URI and echo redirectUri details for diagnostics', async () => {
+    const res = await request(app)
+      .post('/api/v1/auth/sso/authorize')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ redirectUri: 'https://evil.example.com/' })
+      .expect(400);
+
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.code).toBe('VALIDATION_FAILED');
+    expect(res.body.error.details).toMatchObject({
+      redirectUri: 'https://evil.example.com/',
+    });
+  });
+});
+
+/**
+ * 2026-04-15 修复 — SSO token exchange CORS 回归测试
+ * 变更类型：修复/测试
+ * 功能描述：验证 `/api/v1/auth/sso/token` 的预检请求会为受控 Web 子域名与浏览器扩展 origin 返回允许头，防止 redirect allowlist 已放行但浏览器换 token 仍被 CORS 拦截。
+ * 设计思路：
+ *   1. 直接对真实 Express app 发送 `OPTIONS` 预检，覆盖浏览器最先失败的链路。
+ *   2. 选用 `5174.zhiz.chat` 与 `chrome-extension://...` 代表 Web / Browser 两类客户端，避免只修单一来源。
+ * 参数与返回值：无；断言预检返回 204 与 `access-control-allow-origin/credentials` 头。
+ * 影响范围：全局 CORS、`/api/v1/auth/sso/token` 跨域换 token、Web 与 Browser SSO 登录成功态落地。
+ * 潜在风险：若未来某类客户端改为不同 origin 方案，需要同步更新样本值。
+ */
+describe('OPTIONS /api/v1/auth/sso/token', () => {
+  it('should allow trusted SSO client origins during token exchange preflight', async () => {
+    const allowedOrigins = [
+      'https://5174.zhiz.chat',
+      'chrome-extension://abcdefghijklmnopabcdefghijklmnop',
+    ];
+
+    for (const origin of allowedOrigins) {
+      const res = await request(app)
+        .options('/api/v1/auth/sso/token')
+        .set('Origin', origin)
+        .set('Access-Control-Request-Method', 'POST')
+        .expect(204);
+
+      expect(res.headers['access-control-allow-origin']).toBe(origin);
+      expect(res.headers['access-control-allow-credentials']).toBe('true');
+    }
+  });
+});
+
 describe('GET /api/v1/auth/me', () => {
   it('should return current user profile with valid token', async () => {
     const res = await request(app)

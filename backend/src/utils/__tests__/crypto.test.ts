@@ -3,8 +3,15 @@
  * 2026-04-07 新增 — P1.25 验证
  */
 
-import { describe, it, expect } from 'vitest';
-import { encrypt, decrypt } from '../crypto';
+import { beforeAll, describe, it, expect } from 'vitest';
+import { config } from '../../config';
+import { decrypt, decryptOAuthToken, encrypt, encryptOAuthToken } from '../crypto';
+
+beforeAll(() => {
+  if (!config.OAUTH_TOKEN_ENCRYPTION_KEY) {
+    config.OAUTH_TOKEN_ENCRYPTION_KEY = config.PROVIDER_ENCRYPTION_KEY;
+  }
+});
 
 describe('encrypt / decrypt', () => {
   it('should round-trip a plaintext string', () => {
@@ -39,5 +46,13 @@ describe('encrypt / decrypt', () => {
 
   it('should throw on invalid ciphertext format', () => {
     expect(() => decrypt('invalid')).toThrow('Invalid ciphertext format');
+  });
+
+  it('should round-trip an OAuth token with the dedicated OAuth key', () => {
+    const plaintext = 'zhiz-access-token-1234567890';
+    const ciphertext = encryptOAuthToken(plaintext);
+    expect(ciphertext).not.toBe(plaintext);
+    expect(ciphertext).toContain(':');
+    expect(decryptOAuthToken(ciphertext)).toBe(plaintext);
   });
 });

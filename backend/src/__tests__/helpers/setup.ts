@@ -43,7 +43,15 @@ export async function cleanupTestData() {
  * 清理 Redis 测试 key（按前缀）
  */
 export async function cleanupRedis() {
-  const patterns = ['sso:code:*', 'bl:*', 'rl:*'];
+  const patterns = [
+    'sso:code:*',
+    'oauth:state:*',
+    'oauth:zhiz:ticket:*',
+    'oauth:zhiz:replay:*',
+    'oauth:zhiz:email-verify:*',
+    'bl:*',
+    'rl:*',
+  ];
   for (const pattern of patterns) {
     const keys = await redis.keys(pattern);
     if (keys.length > 0) {

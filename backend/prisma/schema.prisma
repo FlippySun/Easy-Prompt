@@ -468,12 +468,12 @@ model EnhanceHistory {
 model OAuthAccount {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId       String   @map("user_id") @db.Uuid
-  provider     String   @db.VarChar(20)    // github / google
+  provider     String   @db.VarChar(20)    // github / google / zhiz
   providerId   String   @map("provider_id") @db.VarChar(255) // 第三方用户 ID
   email        String?  @db.VarChar(255)   // 第三方邮箱
   displayName  String?  @map("display_name") @db.VarChar(100)
   avatarUrl    String?  @map("avatar_url") @db.VarChar(500)
-  accessToken  String?  @map("access_token") @db.VarChar(500) // 加密存储（可选保留用于 API 调用）
+  accessToken  String?  @map("access_token") @db.Text // 加密存储（可选保留用于 API 调用）
   rawProfile   Json?    @map("raw_profile") @db.JsonB // 原始 profile（调试用）
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()

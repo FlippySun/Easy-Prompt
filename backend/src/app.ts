@@ -41,6 +41,47 @@ import historyRouter from './routes/history';
 import oauthRouter from './routes/oauth';
 // 2026-04-09 新增 — P6.05 Admin Dashboard 统计路由
 import dashboardRouter from './routes/dashboard';
+import { SSO } from './config/constants';
+
+/**
+ * 2026-04-15 修复 — SSO 多端受控源 CORS 统一校验
+ * 变更类型：修复/安全/兼容
+ * 功能描述：让 backend CORS 与受控 SSO 客户端边界对齐，避免 `*.zhiz.chat`、浏览器扩展回调页等已允许完成 SSO 跳回的客户端，随后在 `/api/v1/auth/sso/token` 预检或换 token 阶段被 CORS 拦截。
+ * 设计思路：
+ *   1. `development` 环境继续允许任意 Origin，保留本地联调效率；`test/production` 改为精确判断。
+ *   2. 先匹配 `CORS_ORIGINS` 的显式配置，再复用 `SSO.ALLOWED_REDIRECT_PATTERNS` 识别受控 Web / Browser / IDE 客户端来源。
+ *   3. 对 Origin 做无尾斜杠归一化，再补 `/` 喂给 redirect pattern，兼容 `localhost`、`*.zhiz.chat` 与扩展 scheme 的既有正则写法。
+ * 参数与返回值：`isCorsOriginAllowed(origin, configuredOrigins, allowAllOrigins)` 返回布尔值，无副作用。
+ * 影响范围：全局 CORS、`/api/v1/auth/*` 跨域访问、Web / Web-Hub / Browser Extension SSO code exchange。
+ * 潜在风险：CORS 可访问面与 SSO redirect allowlist 绑定；后续若新增客户端协议，需要同步评估“允许跳回”与“允许跨域调用”是否仍应保持一致。
+ */
+function normalizeOrigin(origin: string): string {
+  return origin.endsWith('/') ? origin.slice(0, -1) : origin;
+}
+
+function isConfiguredCorsOrigin(origin: string, configuredOrigins: string[]): boolean {
+  const normalizedOrigin = normalizeOrigin(origin);
+  return configuredOrigins.some(
+    (configuredOrigin) => normalizeOrigin(configuredOrigin) === normalizedOrigin,
+  );
+}
+
+function isSsoClientOrigin(origin: string): boolean {
+  const normalizedOrigin = `${normalizeOrigin(origin)}/`;
+  return SSO.ALLOWED_REDIRECT_PATTERNS.some((pattern) => pattern.test(normalizedOrigin));
+}
+
+function isCorsOriginAllowed(
+  origin: string,
+  configuredOrigins: string[],
+  allowAllOrigins: boolean,
+): boolean {
+  if (allowAllOrigins) {
+    return true;
+  }
+
+  return isConfiguredCorsOrigin(origin, configuredOrigins) || isSsoClientOrigin(origin);
+}
 
 export function createApp() {
   const app = express();
@@ -49,17 +90,25 @@ export function createApp() {
   app.use(helmet());
 
   // ── CORS ──
-  // 2026-04-10 安全修复 — SSO Plan v2 C3.7
-  // 变更类型：安全
-  // 设计思路：生产环境下 CORS_ORIGINS 为空时拒绝跨域（不回退到 '*'），
-  //   开发环境允许 '*' 方便本地调试
-  // 影响范围：全局 CORS 策略
-  // 潜在风险：若生产环境 CORS_ORIGINS 未配置会阻断所有跨域请求（fail-safe）
+  // 2026-04-15 修复 — Zhiz/Web/Browser SSO token exchange CORS 边界对齐
+  // 变更类型：修复/安全/兼容
+  // 功能描述：在保留显式 `CORS_ORIGINS` 配置的同时，允许受控 `*.zhiz.chat`、Browser Extension、VS Code / IntelliJ 回调源完成跨域换 token。
+  // 设计思路：开发环境放宽到任意 Origin；测试/生产环境统一走 `isCorsOriginAllowed()` 精确判定，避免再次出现 redirect allowlist 已放行但 CORS 仍拦截的链路分叉。
+  // 参数与返回值：`origin` 回调根据请求 Origin 返回 allow / deny；无业务返回值。
+  // 影响范围：全局 CORS 策略、SSO `/api/v1/auth/sso/token` 与 `/api/v1/auth/refresh` 的浏览器跨域访问。
+  // 潜在风险：若未来某类客户端只应允许 redirect 不应允许跨域 API，需要把其协议从共享判断中拆出。
   const origins = getCorsOrigins();
-  const isProd = process.env.NODE_ENV === 'production';
+  const allowAllOrigins = process.env.NODE_ENV === 'development';
   app.use(
     cors({
-      origin: origins.length > 0 ? origins : isProd ? false : '*',
+      origin: (origin, callback) => {
+        if (!origin) {
+          callback(null, true);
+          return;
+        }
+
+        callback(null, isCorsOriginAllowed(origin, origins, allowAllOrigins));
+      },
       credentials: true,
       maxAge: 86400,
     }),

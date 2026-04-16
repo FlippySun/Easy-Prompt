@@ -33,6 +33,24 @@ export const ERROR_MESSAGES: Record<SupportedLocale, Record<ErrorCode, string>> 
     AUTH_CODE_INVALID: '授权码无效，请重新登录',
     AUTH_CODE_EXPIRED: '授权码已过期，请重新登录',
     AUTH_PROVIDER_ERROR: '第三方登录服务暂时不可用，请稍后再试',
+    // 2026-04-14 新增 — Zhiz OAuth Superpowers Execute T3/T5
+    // 变更类型：新增/文案对齐
+    // 功能描述：同步 errors.ts 中新增的 Zhiz continuation ticket 与 OAuth token 加解密错误码的中英文文案映射。
+    // 设计思路：保持前端用户提示与后端错误码注册表一一对应，避免编译期枚举缺口与运行时回退到裸错误码。
+    // 参数与返回值：ERROR_MESSAGES[locale][errorCode] 返回 string；本区块补齐新增 errorCode 的 zh-CN 文案。
+    // 影响范围：Web-Hub / 浏览器扩展 / 其他前端消费者的错误展示。
+    // 潜在风险：无已知风险。
+    AUTH_ZHIZ_TICKET_INVALID: 'Zhiz 登录票据无效，请重新发起登录',
+    AUTH_ZHIZ_TICKET_EXPIRED: 'Zhiz 登录票据已过期，请重新发起登录',
+    AUTH_ZHIZ_TICKET_CONSUMED: 'Zhiz 登录票据已使用，请重新发起登录',
+    AUTH_ZHIZ_EMAIL_VERIFICATION_REQUIRED: '首次绑定前需要先完成邮箱验证码校验',
+    AUTH_ZHIZ_PASSWORD_SETUP_REQUIRED: '该账号还未设置本地密码，请先完成密码设置',
+    AUTH_ZHIZ_EMAIL_CODE_INVALID: '邮箱验证码错误，请检查后重试',
+    AUTH_ZHIZ_EMAIL_CODE_EXPIRED: '邮箱验证码已过期，请重新获取',
+    AUTH_ZHIZ_EMAIL_CODE_RATE_LIMITED: '验证码发送过于频繁，请稍后再试',
+    AUTH_ZHIZ_EMAIL_SEND_FAILED: '验证码发送失败，请稍后再试',
+    AUTH_ZHIZ_TOKEN_ENCRYPT_FAILED: 'Zhiz 登录安全处理失败，请稍后重试',
+    AUTH_ZHIZ_TOKEN_DECRYPT_FAILED: 'Zhiz 登录安全校验失败，请稍后重试',
 
     // ── VALIDATION（输入校验）——5 个 ──
     VALIDATION_FAILED: '输入验证失败，请检查后重试',
@@ -96,6 +114,21 @@ export const ERROR_MESSAGES: Record<SupportedLocale, Record<ErrorCode, string>> 
     AUTH_CODE_INVALID: 'Authorization code is invalid, please login again',
     AUTH_CODE_EXPIRED: 'Authorization code has expired, please login again',
     AUTH_PROVIDER_ERROR: 'Third-party login service is temporarily unavailable',
+    AUTH_ZHIZ_TICKET_INVALID: 'Zhiz login ticket is invalid, please start login again',
+    AUTH_ZHIZ_TICKET_EXPIRED: 'Zhiz login ticket has expired, please start login again',
+    AUTH_ZHIZ_TICKET_CONSUMED: 'Zhiz login ticket has already been used, please start login again',
+    AUTH_ZHIZ_EMAIL_VERIFICATION_REQUIRED:
+      'Email verification is required before the first Zhiz binding can continue',
+    AUTH_ZHIZ_PASSWORD_SETUP_REQUIRED:
+      'This account has no local password yet, please complete password setup first',
+    AUTH_ZHIZ_EMAIL_CODE_INVALID: 'The email verification code is incorrect, please try again',
+    AUTH_ZHIZ_EMAIL_CODE_EXPIRED:
+      'The email verification code has expired, please request a new one',
+    AUTH_ZHIZ_EMAIL_CODE_RATE_LIMITED:
+      'Verification code requests are too frequent, please try again later',
+    AUTH_ZHIZ_EMAIL_SEND_FAILED: 'Failed to send the verification email, please try again later',
+    AUTH_ZHIZ_TOKEN_ENCRYPT_FAILED: 'Zhiz login security processing failed, please try again later',
+    AUTH_ZHIZ_TOKEN_DECRYPT_FAILED: 'Zhiz login security validation failed, please try again later',
 
     // ── VALIDATION（输入校验）——5 个 ──
     VALIDATION_FAILED: 'Input validation failed, please check and try again',
