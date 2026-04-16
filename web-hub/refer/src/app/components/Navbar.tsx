@@ -1,15 +1,26 @@
-import { Search, Plus, Sun, Moon, Sparkles, X, User, Command } from 'lucide-react';
+import { Search, Plus, Sun, Moon, X, User, Command } from 'lucide-react';
 import { Link } from 'react-router';
 import { CreatePromptDrawer } from './CreatePromptDrawer';
 import { useState } from 'react';
+import logoWhite from '../../assets/icon/logo-white.svg';
 
 interface NavbarProps {
   darkMode: boolean;
   onToggleDark: () => void;
   searchValue: string;
-  onSearchChange: (v: string) => void;
+  onSearchChange?: (v: string) => void;
   onOpenCmdPalette?: () => void;
 }
+
+/**
+ * 2026-04-15 优化 — refer 导航品牌 Logo 资源同步
+ * 变更类型：优化
+ * 功能描述：将 refer 导航栏品牌角标从 Sparkles 图标替换为白色 SVG Logo。
+ * 设计思路：保持参考实现与主 `web-hub/src` 品牌入口一致，紫色渐变底继续搭配 `logo-white.svg` 保证视觉统一。
+ * 参数与返回值：使用静态资源 `logoWhite`，不改变 `NavbarProps` 入参与组件返回结构。
+ * 影响范围：web-hub/refer 顶部导航品牌入口。
+ * 潜在风险：无已知风险。
+ */
 
 export function Navbar({ darkMode, onToggleDark, searchValue, onSearchChange, onOpenCmdPalette }: NavbarProps) {
   const [localSearch, setLocalSearch] = useState('');
@@ -26,11 +37,11 @@ export function Navbar({ darkMode, onToggleDark, searchValue, onSearchChange, on
 
   return (
     <nav className={`sticky top-0 z-50 w-full border-b ${darkMode ? 'border-gray-800 bg-gray-900/95' : 'border-gray-200/80 bg-white/95'} backdrop-blur-xl shadow-sm`}>
-      <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between gap-4 px-4 sm:px-6">
+      <div className="mx-auto flex h-16 max-w-350 items-center justify-between gap-4 px-4 sm:px-6">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2.5 flex-shrink-0">
-          <div className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 shadow-lg shadow-indigo-500/30">
-            <Sparkles size={16} className="text-white" />
+          <div className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-linear-to-br from-violet-500 to-indigo-600 shadow-lg shadow-indigo-500/30">
+            <img src={logoWhite} alt="" aria-hidden="true" className="h-4 w-4 object-contain" />
           </div>
           <div className="flex flex-col leading-none">
             <span className={`text-[15px] font-bold tracking-tight ${darkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -101,7 +112,7 @@ export function Navbar({ darkMode, onToggleDark, searchValue, onSearchChange, on
 
           {/* Submit Button */}
           <CreatePromptDrawer darkMode={darkMode}>
-            <button className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-500 to-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-indigo-500/25 transition-all hover:shadow-lg hover:shadow-indigo-500/40 hover:scale-[1.02] active:scale-[0.98]">
+            <button className="flex items-center gap-1.5 rounded-xl bg-linear-to-r from-violet-500 to-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-indigo-500/25 transition-all hover:shadow-lg hover:shadow-indigo-500/40 hover:scale-[1.02] active:scale-[0.98]">
               <Plus size={16} />
               <span className="hidden sm:inline">提交 Prompt</span>
             </button>

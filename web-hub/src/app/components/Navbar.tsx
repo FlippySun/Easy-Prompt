@@ -1,12 +1,23 @@
-import { Search, Plus, Sun, Moon, Sparkles, X, Command, Wand2, ExternalLink } from 'lucide-react';
+import { Search, Plus, Sun, Moon, X, Command, Wand2, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router';
 import { AnimatePresence, motion } from 'motion/react';
 import { CreatePromptDrawer } from './CreatePromptDrawer';
 import { AuthButton } from './AuthButton';
 import { unlockAchievementAction } from '../hooks/usePromptStore';
 import { useState, useEffect } from 'react';
+import logoWhite from '@/assets/icon/logo-white.svg';
 
 const BUBBLE_KEY = 'prompthub_enhance_bubble_dismissed';
+
+/**
+ * 2026-04-15 优化 — PromptHub 导航品牌 Logo 资源替换
+ * 变更类型：优化
+ * 功能描述：将导航栏品牌角标从临时 Sparkles 图标切换为白色 SVG Logo。
+ * 设计思路：导航品牌位使用紫色渐变底容器，白色 `logo-white.svg` 与品牌主资源一致且对比度稳定。
+ * 参数与返回值：使用静态资源 `logoWhite`，不改变 `NavbarProps` 入参与组件返回结构。
+ * 影响范围：web-hub 顶部导航品牌入口。
+ * 潜在风险：无已知风险。
+ */
 
 interface NavbarProps {
   darkMode: boolean;
@@ -42,11 +53,11 @@ export function Navbar({ darkMode, onToggleDark, searchValue, onSearchChange, on
     <nav
       className={`sticky top-0 z-50 w-full border-b ${darkMode ? 'border-gray-800 bg-gray-900/95' : 'border-gray-200/80 bg-white/95'} backdrop-blur-xl shadow-sm`}
     >
-      <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between gap-4 px-4 sm:px-6">
+      <div className="mx-auto flex h-16 max-w-350 items-center justify-between gap-4 px-4 sm:px-6">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2.5 shrink-0">
           <div className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-linear-to-br from-violet-500 to-indigo-600 shadow-lg shadow-indigo-500/30">
-            <Sparkles size={16} className="text-white" />
+            <img src={logoWhite} alt="" aria-hidden="true" className="h-4 w-4 object-contain" />
           </div>
           <div className="flex flex-col leading-none">
             <span className={`text-[15px] font-bold tracking-tight ${darkMode ? 'text-white' : 'text-gray-900'}`}>

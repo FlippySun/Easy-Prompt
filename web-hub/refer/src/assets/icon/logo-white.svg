@@ -1,0 +1,23 @@
+<!-- 2026-04-15 新增 — refer 品牌白色 Logo 资源同步
+     变更类型：新增
+     功能描述：为 web-hub/refer 独立补齐可直接引用的白色 SVG Logo 资源。
+     设计思路：与 refer/logo.svg 保持完全一致的图形结构，仅改为白色描边，用于紫色渐变品牌底上的高对比展示。
+     参数与返回值：静态 SVG 资源，无运行时参数与返回值。
+     影响范围：web-hub/refer 内所有紫色底品牌入口。
+     潜在风险：无已知风险。
+-->
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="#FFFFFF"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
+  <path d="M20 3v4" />
+  <path d="M22 5h-4" />
+</svg>

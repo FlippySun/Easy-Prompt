@@ -20,6 +20,7 @@ import { User, Mail, Lock, Eye, EyeOff, UserPlus, Loader2, Check, X } from 'luci
 import { authApi, ApiError } from '@/lib/api';
 // 2026-04-10 — SSO Plan v2 A4：注册成功后生成 SSO code 再 redirect
 import { handleSsoRedirect } from '@/lib/api/sso';
+import logoWhite from '@/assets/icon/logo-white.svg';
 
 /** 密码强度等级 */
 type StrengthLevel = 'weak' | 'fair' | 'good' | 'strong';
@@ -45,6 +46,16 @@ const STRENGTH_CONFIG: Record<StrengthLevel, { label: string; color: string; wid
   good: { label: '良好', color: 'bg-blue-500', width: 'w-3/4' },
   strong: { label: '强', color: 'bg-green-500', width: 'w-full' },
 };
+
+/**
+ * 2026-04-15 优化 — 注册页品牌 Logo 资源替换
+ * 变更类型：优化
+ * 功能描述：将注册页顶部的 `✨` 品牌占位替换为白色 SVG Logo。
+ * 设计思路：顶部品牌容器为紫色渐变底，复用 `logo-white.svg` 保持与登录页一致的品牌识别与对比度。
+ * 参数与返回值：使用静态资源 `logoWhite`，不改变注册页业务参数、校验逻辑与返回结构。
+ * 影响范围：web-hub `/auth/register` 顶部品牌展示位。
+ * 潜在风险：无已知风险。
+ */
 
 export function RegisterPage() {
   const [searchParams] = useSearchParams();
@@ -156,7 +167,7 @@ export function RegisterPage() {
         {/* Logo + 标题 */}
         <div className="mb-8 text-center">
           <div className="mb-3 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-linear-to-br from-purple-500 to-indigo-600 text-2xl shadow-lg shadow-purple-500/20">
-            ✨
+            <img src={logoWhite} alt="" aria-hidden="true" className="h-7 w-7 object-contain" />
           </div>
           <h1 className="text-2xl font-bold text-white">创建账号</h1>
           <p className="mt-1.5 text-sm text-gray-400">注册以使用 PromptHub 完整功能</p>

@@ -1,0 +1,356 @@
+<!--
+2026-04-16
+变更类型：新增/优化/模板
+功能描述：新增 Zhiz 登录邮箱验证码 HTML 富文本邮件模板，用于腾讯云 SES 控制台上传与 Web-Hub 预览。
+设计思路：
+1. 使用 640px 居中 table 布局与 inline styles，兼容常见邮件客户端并降低样式失真风险。
+2. 主视觉聚焦验证码卡片、有效期提示与安全提醒，不依赖外链图片、脚本或复杂动效。
+3. 仅保留腾讯云模板变量 {{verifyCode}}，确保与现有后端 SES 模板入参直接兼容。
+2026-04-16（品牌增强）
+变更类型：优化/品牌
+功能描述：在邮件头部 `Easy Prompt` 品牌位加入现有项目 Logo，提高品牌辨识度，同时保持第一版已确认的整体样式不变。
+设计思路：腾讯云模板预览与邮件客户端对内联 SVG 兼容性不稳定，因此改为引用由 `logo-white.svg` 正确转换得到的公网 PNG 资源 `https://zhiz.chat/email/easy-prompt-logo-white.png`，兼顾品牌准确性、腾讯云模板预览与真实邮件渲染稳定性。
+参数与返回值：模板仅消费 verifyCode 变量，不包含脚本执行与运行时返回值。
+影响范围：腾讯云 SES 邮件模板上传、Zhiz 登录邮箱验证码视觉呈现、Web-Hub 模板预览页。
+潜在风险：若后续需要新增模板变量或调整品牌主题色，需同步更新此 HTML 文件与预览页。
+-->
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="x-ua-compatible" content="ie=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Easy Prompt 验证码邮件</title>
+    <style>
+      @media only screen and (max-width: 640px) {
+        .email-shell {
+          border-radius: 20px !important;
+        }
+
+        .email-header,
+        .email-body,
+        .email-footer {
+          padding-left: 24px !important;
+          padding-right: 24px !important;
+        }
+
+        .verification-code {
+          font-size: 30px !important;
+          letter-spacing: 6px !important;
+        }
+
+        .security-grid-column {
+          display: block !important;
+          width: 100% !important;
+          padding-bottom: 12px !important;
+        }
+      }
+    </style>
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 0;
+      background-color: #f3f5fb;
+      font-family:
+        -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial,
+        sans-serif;
+      color: #1f2937;
+    "
+  >
+    <div style="display: none; max-height: 0; overflow: hidden; opacity: 0; mso-hide: all">
+      您的 Zhiz 登录邮箱验证码是 {{verifyCode}}，10 分钟内有效。为保护账号安全，请勿向任何人泄露。
+    </div>
+
+    <table
+      role="presentation"
+      cellpadding="0"
+      cellspacing="0"
+      border="0"
+      width="100%"
+      style="width: 100%; border-collapse: collapse; background-color: #f3f5fb"
+    >
+      <tr>
+        <td align="center" style="padding: 32px 16px">
+          <table
+            role="presentation"
+            cellpadding="0"
+            cellspacing="0"
+            border="0"
+            width="100%"
+            class="email-shell"
+            style="
+              max-width: 640px;
+              width: 100%;
+              border-collapse: separate;
+              background-color: #ffffff;
+              border: 1px solid #e5e7eb;
+              border-radius: 24px;
+              overflow: hidden;
+              box-shadow: 0 18px 40px rgba(91, 92, 240, 0.08);
+            "
+          >
+            <tr>
+              <td class="email-header" style="padding: 36px 40px 28px; background-color: #5b5cf0; color: #ffffff">
+                <table
+                  role="presentation"
+                  cellpadding="0"
+                  cellspacing="0"
+                  border="0"
+                  width="100%"
+                  style="width: 100%; border-collapse: collapse"
+                >
+                  <tr>
+                    <td style="padding-bottom: 18px">
+                      <div
+                        style="
+                          display: inline-block;
+                          padding: 7px 12px;
+                          border-radius: 999px;
+                          background-color: rgba(255, 255, 255, 0.16);
+                          font-size: 12px;
+                          line-height: 1;
+                          font-weight: 700;
+                          letter-spacing: 0.08em;
+                          text-transform: uppercase;
+                        "
+                      >
+                        <span
+                          style="
+                            display: inline-block;
+                            vertical-align: middle;
+                            width: 16px;
+                            height: 16px;
+                            margin-right: 8px;
+                          "
+                        >
+                          <img
+                            src="https://zhiz.chat/email/easy-prompt-logo-white.png"
+                            alt="Easy Prompt"
+                            width="16"
+                            height="16"
+                            border="0"
+                            style="
+                              display: block;
+                              width: 16px;
+                              height: 16px;
+                              border: 0;
+                              outline: none;
+                              text-decoration: none;
+                            "
+                          />
+                        </span>
+                        <span style="display: inline-block; vertical-align: middle">Easy Prompt</span>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="font-size: 28px; line-height: 1.3; font-weight: 800; color: #ffffff">
+                      Zhiz 登录邮箱验证码
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding-top: 10px; font-size: 15px; line-height: 1.8; color: rgba(255, 255, 255, 0.92)">
+                      我们检测到你正在进行 Zhiz 账号登录验证，请在登录页面输入下面的验证码完成身份确认。
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="email-body" style="padding: 36px 40px 20px; background-color: #ffffff">
+                <table
+                  role="presentation"
+                  cellpadding="0"
+                  cellspacing="0"
+                  border="0"
+                  width="100%"
+                  style="width: 100%; border-collapse: collapse"
+                >
+                  <tr>
+                    <td style="font-size: 15px; line-height: 1.9; color: #475467">
+                      你好，<br />
+                      为了保护你的账号安全，请使用以下验证码继续登录。验证码仅在当前验证流程中生效。
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding-top: 26px">
+                      <table
+                        role="presentation"
+                        cellpadding="0"
+                        cellspacing="0"
+                        border="0"
+                        width="100%"
+                        style="
+                          width: 100%;
+                          border-collapse: separate;
+                          border-spacing: 0;
+                          background-color: #f8f9ff;
+                          border: 1px solid #dfe3ff;
+                          border-radius: 20px;
+                        "
+                      >
+                        <tr>
+                          <td
+                            style="
+                              padding: 24px 24px 8px;
+                              text-align: center;
+                              font-size: 13px;
+                              line-height: 1.6;
+                              font-weight: 700;
+                              color: #5b5cf0;
+                              letter-spacing: 0.06em;
+                              text-transform: uppercase;
+                            "
+                          >
+                            邮箱验证码
+                          </td>
+                        </tr>
+                        <tr>
+                          <td
+                            class="verification-code"
+                            style="
+                              padding: 0 24px 14px;
+                              text-align: center;
+                              font-size: 38px;
+                              line-height: 1.2;
+                              font-weight: 800;
+                              letter-spacing: 10px;
+                              color: #1d2939;
+                            "
+                          >
+                            {{verifyCode}}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td
+                            style="
+                              padding: 0 24px 24px;
+                              text-align: center;
+                              font-size: 13px;
+                              line-height: 1.8;
+                              color: #667085;
+                            "
+                          >
+                            验证码 <strong style="color: #111827">10 分钟内有效</strong>，请输入完整 6 位数字。
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding-top: 24px">
+                      <table
+                        role="presentation"
+                        cellpadding="0"
+                        cellspacing="0"
+                        border="0"
+                        width="100%"
+                        style="width: 100%; border-collapse: collapse"
+                      >
+                        <tr>
+                          <td
+                            class="security-grid-column"
+                            width="50%"
+                            valign="top"
+                            style="width: 50%; padding-right: 8px"
+                          >
+                            <table
+                              role="presentation"
+                              cellpadding="0"
+                              cellspacing="0"
+                              border="0"
+                              width="100%"
+                              style="
+                                width: 100%;
+                                border-collapse: separate;
+                                border-spacing: 0;
+                                background-color: #f8fafc;
+                                border: 1px solid #e5e7eb;
+                                border-radius: 16px;
+                              "
+                            >
+                              <tr>
+                                <td style="padding: 16px 18px">
+                                  <div style="font-size: 13px; line-height: 1.6; font-weight: 700; color: #111827">
+                                    使用说明
+                                  </div>
+                                  <div style="padding-top: 6px; font-size: 13px; line-height: 1.8; color: #667085">
+                                    仅用于本次 Zhiz 登录校验；请勿重复转发或截图发送给他人。
+                                  </div>
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                          <td
+                            class="security-grid-column"
+                            width="50%"
+                            valign="top"
+                            style="width: 50%; padding-left: 8px"
+                          >
+                            <table
+                              role="presentation"
+                              cellpadding="0"
+                              cellspacing="0"
+                              border="0"
+                              width="100%"
+                              style="
+                                width: 100%;
+                                border-collapse: separate;
+                                border-spacing: 0;
+                                background-color: #fffaf5;
+                                border: 1px solid #fde7d3;
+                                border-radius: 16px;
+                              "
+                            >
+                              <tr>
+                                <td style="padding: 16px 18px">
+                                  <div style="font-size: 13px; line-height: 1.6; font-weight: 700; color: #9a3412">
+                                    安全提醒
+                                  </div>
+                                  <div style="padding-top: 6px; font-size: 13px; line-height: 1.8; color: #9a3412">
+                                    Easy Prompt 不会向你索取验证码；若非本人操作，请直接忽略此邮件。
+                                  </div>
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding-top: 28px; font-size: 13px; line-height: 1.9; color: #667085">
+                      若你未发起此次验证，无需执行任何操作。为了避免误判，请确认邮件地址、登录设备与发起时间是否符合预期。
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="email-footer" style="padding: 0 40px 36px; background-color: #ffffff">
+                <table
+                  role="presentation"
+                  cellpadding="0"
+                  cellspacing="0"
+                  border="0"
+                  width="100%"
+                  style="width: 100%; border-collapse: collapse; border-top: 1px solid #eaecf0"
+                >
+                  <tr>
+                    <td style="padding-top: 20px; font-size: 12px; line-height: 1.8; color: #98a2b3">
+                      此邮件由 Easy Prompt 系统自动发送，请勿直接回复。<br />
+                      如果你需要重新获取验证码，请回到验证页面重新发送。
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

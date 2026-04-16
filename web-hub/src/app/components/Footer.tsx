@@ -1,20 +1,31 @@
-import { Sparkles, Github, Twitter, Heart, Wand2 } from 'lucide-react';
+import { Github, Twitter, Heart, Wand2 } from 'lucide-react';
+import logoWhite from '@/assets/icon/logo-white.svg';
 
 interface FooterProps {
   darkMode: boolean;
 }
+
+/**
+ * 2026-04-15 优化 — PromptHub 页脚品牌 Logo 资源替换
+ * 变更类型：优化
+ * 功能描述：将页脚品牌角标从临时 Sparkles 图标切换为白色 SVG Logo。
+ * 设计思路：页脚品牌角标同样位于紫色渐变底中，复用 `logo-white.svg` 以统一品牌识别并保证深色对比度。
+ * 参数与返回值：使用静态资源 `logoWhite`，不改变 `FooterProps` 入参与组件返回结构。
+ * 影响范围：web-hub 页脚品牌入口。
+ * 潜在风险：无已知风险。
+ */
 
 export function Footer({ darkMode }: FooterProps) {
   const dm = darkMode;
 
   return (
     <footer className={`mt-auto border-t py-8 ${dm ? 'border-gray-800 bg-gray-900' : 'border-gray-100 bg-white'}`}>
-      <div className="mx-auto max-w-[1400px] px-6">
+      <div className="mx-auto max-w-350 px-6">
         <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
           {/* Logo */}
           <div className="flex items-center gap-2.5">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-linear-to-br from-violet-500 to-indigo-600">
-              <Sparkles size={14} className="text-white" />
+              <img src={logoWhite} alt="" aria-hidden="true" className="h-4 w-4 object-contain" />
             </div>
             <span className={`text-sm font-bold ${dm ? 'text-white' : 'text-gray-900'}`}>
               Prompt<span className="text-indigo-500">Hub</span>
