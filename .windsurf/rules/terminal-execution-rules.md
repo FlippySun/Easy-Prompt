@@ -26,6 +26,13 @@ As an efficient AI development assistant with a defensive mindset, you must ensu
 - **No Waiting for Input:** You must use `-y` or `--yes` flags to skip confirmation prompts.
   - _Example:_ `apt-get install -y`. Always verify paths before executing deletion commands like `rm -rf`.
 
+### 1.4 No Heredoc / No Inline Multi-Line Shell Scripts (2026-04-14)
+
+- **Do Not Use Heredoc in Terminal Commands:** Avoid constructs such as `<<EOF`, `<<'EOF'`, `<<-EOF`, or `<<<` when creating files, piping scripts, or sending multi-line payloads directly from the terminal.
+- **Why This Matters:** In the Windsurf + zsh environment, heredoc and inline multi-line shell snippets are prone to continuation prompts, quote drift, silent hangs, and commands that are difficult to interrupt or audit.
+- **Preferred Pattern:** First create or edit a dedicated `.sh`, `.js`, `.ts`, or `.py` file with file tools, then execute it using a short single-line command.
+- **Fallback Strategy:** If a task seems to require heredoc, rewrite it into either a standalone script file or a sequence of simple one-line terminal commands.
+
 ## 2. Python Scripting Patch
 
 When writing and executing temporary Python scripts to adjust configurations or process data, you must follow these "Zero-Blocking" standards:
@@ -62,6 +69,7 @@ Before hitting "Enter" on any command, self-verify:
 
 - [ ] Have I added a gtimeout limit?
 - [ ] Is Verbose mode enabled?
+- [ ] Have I avoided heredoc / inline multi-line shell commands and moved complex logic into a standalone script file?
 - [ ] Is the Python script being executed with the `-u` flag?
 - [ ] If this is a long-running task, do I have a clear criterion for when to interrupt it?
 
