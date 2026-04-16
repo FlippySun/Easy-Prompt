@@ -37,6 +37,25 @@ const ERROR_CODE_MESSAGES: Record<string, string> = {
   AUTH_CODE_INVALID: '授权码无效，请重新登录',
   AUTH_CODE_EXPIRED: '授权码已过期，请重新登录',
   AUTH_PROVIDER_ERROR: '第三方登录服务异常，请稍后重试',
+  // 2026-04-15 修复 — SSO redirect 白名单失败错误码映射
+  // 变更类型：修复/前端
+  // 功能描述：补齐前端自定义错误码 `AUTH_SSO_REDIRECT_URI_NOT_ALLOWED` 的友好提示，避免 Zhiz complete / 登录 / 注册在 SSO 回调地址未登记时回退成泛化输入错误。
+  // 设计思路：该错误码由 `lib/api/sso.ts` 在捕获后端 `VALIDATION_FAILED + details.redirectUri` 时二次归因生成。
+  // 参数与返回值：仅影响 `getErrorMessage()` 的 code → message 映射，无单独返回值。
+  // 影响范围：LoginPage、RegisterPage、ZhizCompletePage 的 SSO 跳转失败提示。
+  // 潜在风险：若调用方绕过 `lib/api/sso.ts` 直接消费后端原始错误，仍会落回通用 `VALIDATION_FAILED` 提示。
+  AUTH_SSO_REDIRECT_URI_NOT_ALLOWED: 'SSO 回调地址未被允许，请联系管理员检查客户端 redirect_uri 配置',
+  AUTH_ZHIZ_TICKET_INVALID: 'Zhiz 登录票据无效，请重新发起登录',
+  AUTH_ZHIZ_TICKET_EXPIRED: 'Zhiz 登录票据已过期，请重新发起登录',
+  AUTH_ZHIZ_TICKET_CONSUMED: 'Zhiz 登录票据已使用，请重新发起登录',
+  AUTH_ZHIZ_EMAIL_VERIFICATION_REQUIRED: '首次绑定前需要先完成邮箱验证码校验',
+  AUTH_ZHIZ_PASSWORD_SETUP_REQUIRED: '该账号还未设置本地密码，请先完成密码设置',
+  AUTH_ZHIZ_EMAIL_CODE_INVALID: '邮箱验证码错误，请检查后重试',
+  AUTH_ZHIZ_EMAIL_CODE_EXPIRED: '邮箱验证码已过期，请重新获取',
+  AUTH_ZHIZ_EMAIL_CODE_RATE_LIMITED: '验证码发送过于频繁，请稍后再试',
+  AUTH_ZHIZ_EMAIL_SEND_FAILED: '验证码发送失败，请稍后再试',
+  AUTH_ZHIZ_TOKEN_ENCRYPT_FAILED: 'Zhiz 登录安全处理失败，请稍后重试',
+  AUTH_ZHIZ_TOKEN_DECRYPT_FAILED: 'Zhiz 登录安全校验失败，请稍后重试',
   // ── VALIDATION ──
   VALIDATION_FAILED: '输入格式有误，请检查后重试',
   VALIDATION_INPUT_TOO_LONG: '输入内容超出长度限制',

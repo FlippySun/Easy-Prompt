@@ -66,6 +66,60 @@ export interface RegisterRequest {
   displayName?: string;
 }
 
+export type ZhizContinuationStatus = 'ready' | 'needs_email';
+export type ZhizContinuationStep = 'collect_email' | 'verify_email' | 'verify_email_and_set_password';
+export type ZhizVerificationMode = 'create_user' | 'bind_existing_user' | 'set_password_and_bind';
+
+export interface ZhizContinuationStatusResult {
+  status: ZhizContinuationStatus;
+  step?: ZhizContinuationStep;
+  profile: {
+    displayName: string | null;
+    avatarUrl: string | null;
+  };
+  clientRedirectUri: string;
+  clientState: string;
+  webReturnTo: string;
+  maskedEmail?: string;
+  verificationMode?: ZhizVerificationMode;
+  requiresNewPassword?: boolean;
+  resendAfterSec?: number;
+  challengeExpiresInSec?: number;
+}
+
+export interface ZhizFinishRequest {
+  ticket: string;
+  email?: string;
+  password?: string;
+}
+
+/**
+ * 2026-04-15 更新 — Zhiz 首绑验邮前后端契约
+ * 变更类型：修复/前后端契约
+ * 功能描述：补齐 Zhiz 邮箱验证码子流程的前端请求/响应类型，供 complete 页面区分“仅验邮箱”与“验邮箱 + 设置密码”两类 verify 分支。
+ * 设计思路：将 start/complete 请求与 challenge 元信息单独建模，避免复用 finish 类型导致字段语义混淆。
+ * 参数与返回值：start 返回 challenge 元信息；complete 发送 ticket + code + 可选 newPassword。
+ * 影响范围：`authApi`、`ZhizCompletePage`。
+ * 潜在风险：无已知风险。
+ */
+export interface ZhizPasswordSetupChallengeResult {
+  maskedEmail: string;
+  verificationMode?: ZhizVerificationMode;
+  requiresNewPassword?: boolean;
+  resendAfterSec: number;
+  challengeExpiresInSec: number;
+}
+
+export interface ZhizPasswordSetupStartRequest {
+  ticket: string;
+}
+
+export interface ZhizPasswordSetupCompleteRequest {
+  ticket: string;
+  code: string;
+  newPassword?: string;
+}
+
 // 2026-04-09 修复 — avatar → avatarUrl，对齐后端 Prisma 字段名
 export interface AuthUser {
   id: string;

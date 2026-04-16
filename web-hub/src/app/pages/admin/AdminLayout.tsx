@@ -12,6 +12,16 @@
  * 潜在风险：无已知风险
  */
 
+/**
+ * 2026-04-15
+ * 变更类型：修复/交互
+ * 功能描述：将管理后台侧边栏底部的用户名信息区改为可点击直达 `/profile`，与其他端“点击用户名进入个人页”的语义保持一致。
+ * 设计思路：用户信息区承担主入口职责，退出继续保留在独立按钮；这样管理员在后台也能快速返回自己的个人主页，同时避免把高频点击与登出混在一起。
+ * 参数与返回值：`AdminLayout` 无新增外部参数；点击底部用户信息块时由路由跳转到 `/profile`。
+ * 影响范围：/admin/* 侧边栏用户信息区、个人页入口一致性、显式退出入口保留。
+ * 潜在风险：若管理员习惯旧版仅静态展示用户信息，需要适应可点击卡片；无已知功能性风险。
+ */
+
 import { useState } from 'react';
 import { NavLink, Outlet, Navigate, useLocation } from 'react-router';
 import { useAuth } from '../../hooks/useAuth';
@@ -147,7 +157,11 @@ export function AdminLayout() {
 
         {/* 底部用户信息 */}
         <div className="border-t border-slate-100 p-2">
-          <div className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 ${collapsed ? 'justify-center px-0' : ''}`}>
+          <NavLink
+            to="/profile"
+            title="打开个人主页"
+            className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 transition-colors hover:bg-slate-50 ${collapsed ? 'justify-center px-0' : ''}`}
+          >
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-teal-400 to-teal-500 text-xs font-semibold text-white shadow-sm">
               {(user.displayName?.[0] || user.username[0]).toUpperCase()}
             </div>
@@ -157,7 +171,7 @@ export function AdminLayout() {
                 <div className="truncate text-[10px] text-slate-400">{user.email}</div>
               </div>
             )}
-          </div>
+          </NavLink>
 
           {/* 返回前台 + 登出 */}
           <div className={`mt-1 flex gap-1 ${collapsed ? 'flex-col items-center' : ''}`}>

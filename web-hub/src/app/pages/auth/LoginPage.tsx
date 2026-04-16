@@ -15,7 +15,7 @@
  * 潜在风险：SSO 核心入口，需严格校验 redirect_uri 防止开放重定向
  */
 
-import { useState, useCallback, type FormEvent } from 'react';
+import { useState, useEffect, useMemo, useCallback, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { motion } from 'motion/react';
 import { Mail, Lock, Eye, EyeOff, LogIn, Github, Loader2 } from 'lucide-react';
@@ -23,21 +23,71 @@ import { Mail, Lock, Eye, EyeOff, LogIn, Github, Loader2 } from 'lucide-react';
 import { authApi, ApiError } from '@/lib/api';
 // 2026-04-10 — SSO Plan v2 A3：登录成功后生成 SSO code 再 redirect
 import { handleSsoRedirect } from '@/lib/api/sso';
+import logoWhite from '@/assets/icon/logo-white.svg';
+import zhizLogo from '@/assets/icon/zhiz-logo.png';
 
 // 2026-04-10 — SSO Plan v2 A3：移除前端 ALLOWED_REDIRECT_DOMAINS 白名单
 // redirect_uri 校验统一由后端 /sso/authorize → ALLOWED_REDIRECT_PATTERNS 负责
 // 前端仅判断是否存在 redirectUri，不做域名过滤
 
+/**
+ * 2026-04-14 新增 — 登录页新增 Zhiz OAuth 入口
+ * 变更类型：新增
+ * 功能描述：在 /auth/login 展示可用的 Zhiz 第三方登录入口并复用项目内 SVG Logo 资源
+ * 设计思路：
+ *   1. 入口直接跳转后端 `/api/v1/auth/oauth/zhiz`，由后端维护 OAuth state 与前端 complete 页面回跳
+ *   2. 将现有 SSO `redirect_uri/state` 转换为后端约定的 `clientRedirectUri/clientState`
+ *   3. 同步读取 `?error=` 回跳参数，承接 OAuth 回调失败后的登录页错误提示
+ * 参数与返回值：无（纯展示配置）
+ * 影响范围：web-hub 登录页第三方登录区域
+ * 潜在风险：无已知风险
+ */
+const API_BASE = import.meta.env.VITE_API_BASE ?? '';
+const ZHIZ_LOGIN_LABEL = 'Zhiz 登录';
+
+/**
+ * 2026-04-15 优化 — 登录页品牌 Logo 资源替换
+ * 变更类型：优化
+ * 功能描述：将登录页顶部的 `✨` 品牌占位替换为白色 SVG Logo。
+ * 设计思路：顶部品牌容器本身为紫色渐变底，因此使用 `logo-white.svg` 保持品牌识别一致并确保对比度稳定。
+ * 参数与返回值：使用静态资源 `logoWhite`，不改变登录页业务参数、提交逻辑与返回结构。
+ * 影响范围：web-hub `/auth/login` 顶部品牌展示位。
+ * 潜在风险：无已知风险。
+ */
+
 export function LoginPage() {
   const [searchParams] = useSearchParams();
   const redirectUri = searchParams.get('redirect_uri') ?? '';
   const state = searchParams.get('state') ?? '';
+  const oauthError = searchParams.get('error') ?? '';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const zhizLoginUrl = useMemo(() => {
+    const url = new URL('/api/v1/auth/oauth/zhiz', API_BASE || window.location.origin);
+    if (redirectUri) {
+      url.searchParams.set('clientRedirectUri', redirectUri);
+    }
+    if (state) {
+      url.searchParams.set('clientState', state);
+    }
+    return url.toString();
+  }, [redirectUri, state]);
+
+  useEffect(() => {
+    if (oauthError) {
+      setError(oauthError);
+    }
+  }, [oauthError]);
+
+  const handleZhizLogin = useCallback(() => {
+    setError('');
+    window.location.href = zhizLoginUrl;
+  }, [zhizLoginUrl]);
 
   const handleSubmit = useCallback(
     async (e: FormEvent) => {
@@ -122,7 +172,7 @@ export function LoginPage() {
         {/* Logo + 标题 */}
         <div className="mb-8 text-center">
           <div className="mb-3 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-linear-to-br from-indigo-500 to-purple-600 text-2xl shadow-lg shadow-indigo-500/20">
-            ✨
+            <img src={logoWhite} alt="" aria-hidden="true" className="h-7 w-7 object-contain" />
           </div>
           <h1 className="text-2xl font-bold text-white">登录 Easy Prompt</h1>
           <p className="mt-1.5 text-sm text-gray-400">登录以使用 PromptHub 完整功能</p>
@@ -210,6 +260,17 @@ export function LoginPage() {
 
           {/* OAuth 按钮（预留 Phase 6） */}
           <div className="space-y-3">
+            <button
+              type="button"
+              onClick={handleZhizLogin}
+              disabled={loading}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-indigo-500/30 bg-indigo-500/10 py-2.5 text-sm text-gray-100 transition-colors hover:border-indigo-400/60 hover:bg-indigo-500/15 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-white/95 p-0.5 shadow-sm">
+                <img src={zhizLogo} alt="" className="h-4 w-4 object-contain" />
+              </span>
+              {ZHIZ_LOGIN_LABEL}
+            </button>
             <button
               type="button"
               disabled

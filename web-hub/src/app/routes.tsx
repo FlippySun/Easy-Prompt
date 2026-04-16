@@ -14,6 +14,22 @@ const CollectionDetail = lazy(() => import('./pages/CollectionDetail'));
 const LoginPage = lazy(() => import('./pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
 const CallbackPage = lazy(() => import('./pages/auth/CallbackPage').then((m) => ({ default: m.CallbackPage })));
 const RegisterPage = lazy(() => import('./pages/auth/RegisterPage').then((m) => ({ default: m.RegisterPage })));
+const ZhizCompletePage = lazy(() =>
+  import('./pages/auth/ZhizCompletePage').then((m) => ({ default: m.ZhizCompletePage })),
+);
+
+/**
+ * 2026-04-16 新增 — 腾讯云 SES 邮件模板公开预览路由
+ * 变更类型：新增/前端/路由
+ * 功能描述：新增公开访问的 Zhiz 登录验证码邮件模板预览页懒加载入口，供邮件视觉验收与腾讯云 HTML 模板交付自检使用。
+ * 设计思路：采用独立 public route，避免将纯预览能力耦合到 `/admin/*` 权限体系，同时继续复用现有路由级懒加载策略控制首屏体积。
+ * 参数与返回值：无新增路由参数；访问固定路径 `/preview/email/zhiz-verification` 时返回预览页面组件。
+ * 影响范围：Web-Hub 路由表、邮件模板验收入口、公开可访问测试页面。
+ * 潜在风险：公开路由可被直接访问，但页面仅展示静态模板与本地预览，不暴露敏感业务数据。
+ */
+const EmailTemplatePreviewPage = lazy(() =>
+  import('./pages/EmailTemplatePreviewPage').then((m) => ({ default: m.EmailTemplatePreviewPage })),
+);
 
 // 2026-04-09 新增 — P6.05~P6.08 Admin 页面（lazy load）
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout').then((m) => ({ default: m.AdminLayout })));
@@ -139,6 +155,22 @@ export const router = createBrowserRouter([
     element: (
       <SuspenseWrapper>
         <CallbackPage />
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: '/auth/zhiz/complete',
+    element: (
+      <SuspenseWrapper>
+        <ZhizCompletePage />
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: '/preview/email/zhiz-verification',
+    element: (
+      <SuspenseWrapper>
+        <EmailTemplatePreviewPage />
       </SuspenseWrapper>
     ),
   },

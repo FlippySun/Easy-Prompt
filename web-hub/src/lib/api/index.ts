@@ -23,6 +23,11 @@ import type {
   AuthUser,
   LoginRequest,
   RegisterRequest,
+  ZhizContinuationStatusResult,
+  ZhizFinishRequest,
+  ZhizPasswordSetupChallengeResult,
+  ZhizPasswordSetupCompleteRequest,
+  ZhizPasswordSetupStartRequest,
   PromptListParams,
   PromptItem,
   PromptDetail,
@@ -83,6 +88,43 @@ export const authApi = {
   async refresh(refreshToken: string) {
     const res = await postPublic<ApiSuccessResponse<AuthTokens>>('/api/v1/auth/refresh', { refreshToken });
     setTokens(res.data.accessToken, res.data.refreshToken);
+    return res.data;
+  },
+
+  /** Zhiz continuation status → 返回当前 complete 页面状态快照 */
+  async zhizStatus(ticket: string) {
+    const res = await get<ApiSuccessResponse<ZhizContinuationStatusResult>>('/api/v1/auth/oauth/zhiz/status', {
+      ticket,
+    });
+    return res.data;
+  },
+
+  /** Zhiz continuation finish → 返回 tokens + user，自动存储 token */
+  async zhizFinish(data: ZhizFinishRequest) {
+    const res = await postPublic<ApiSuccessResponse<{ user: AuthUser; tokens: AuthTokens }>>(
+      '/api/v1/auth/oauth/zhiz/finish',
+      data,
+    );
+    setTokens(res.data.tokens.accessToken, res.data.tokens.refreshToken);
+    return res.data;
+  },
+
+  /** Zhiz password setup start → 发送/重发邮箱验证码 challenge */
+  async zhizPasswordSetupStart(data: ZhizPasswordSetupStartRequest) {
+    const res = await postPublic<ApiSuccessResponse<ZhizPasswordSetupChallengeResult>>(
+      '/api/v1/auth/oauth/zhiz/password-setup/start',
+      data,
+    );
+    return res.data;
+  },
+
+  /** Zhiz password setup complete → 验证验证码并返回 tokens + user，自动存储 token */
+  async zhizPasswordSetupComplete(data: ZhizPasswordSetupCompleteRequest) {
+    const res = await postPublic<ApiSuccessResponse<{ user: AuthUser; tokens: AuthTokens }>>(
+      '/api/v1/auth/oauth/zhiz/password-setup/complete',
+      data,
+    );
+    setTokens(res.data.tokens.accessToken, res.data.tokens.refreshToken);
     return res.data;
   },
 
