@@ -18,7 +18,19 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { motion } from 'motion/react';
-import { AlertCircle, ArrowLeft, CheckCircle2, Loader2, Lock, Mail, ShieldAlert } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowLeft,
+  Check,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  Loader2,
+  Lock,
+  Mail,
+  ShieldAlert,
+  X,
+} from 'lucide-react';
 import {
   ApiError,
   authApi,
@@ -60,9 +72,53 @@ interface ZhizFieldErrors {
   password?: string;
   verificationCode?: string;
   newPassword?: string;
+  // 2026-04-17 新增 — Zhiz 首绑密码二次确认字段级错误
+  // 变更类型：新增/前端
+  // 功能描述：承载确认密码字段独立的客户端校验错误（不匹配、为空等），与后端 PASSWORD_POLICY 错误分离。
+  // 设计思路：后端契约不接收 confirmPassword，因此此字段错误始终来自前端 onBlur / onSubmit 校验，与其它字段错误在类型上同构，复用既有渲染通路。
+  // 参数与返回值：可选字符串；不存在即代表未发现不一致。
+  // 影响范围：ZhizCompletePage verify + requiresNewPassword 分支的字段级渲染与 hasZhizFieldErrors 判定。
+  // 潜在风险：无已知风险。
+  confirmNewPassword?: string;
 }
 
 const ZHIZ_PASSWORD_RULE_HINT = '至少 8 位，包含大写字母、小写字母和数字';
+
+/**
+ * 2026-04-17 新增 — Zhiz 首绑新密码客户端策略校验 helper
+ * 变更类型：新增/前端
+ * 功能描述：将后端 PASSWORD_POLICY（MIN_LENGTH=8 + 大写 + 小写 + 数字）同步到前端，用于 requirements
+ *   checklist 的即时反馈与提交前拦截，避免无谓往返后端才发现弱密码。
+ * 设计思路：
+ *   1. 逐项返回 boolean，便于 UI 以 ✓/✗ 形式细粒度展示，而不是单一“合法/非法”二元态；
+ *   2. isZhizNewPasswordPolicyValid() 复用同一套判定，保证 UI 与提交闸门口径一致；
+ *   3. 仅覆盖本地密码策略；邮箱验证码与 confirmPassword 的匹配性校验在组件内处理。
+ * 参数与返回值：
+ *   - evaluateZhizNewPasswordRequirements(pw): { minLength, hasUppercase, hasLowercase, hasDigit }
+ *   - isZhizNewPasswordPolicyValid(pw): boolean
+ * 影响范围：ZhizCompletePage requirements checklist、提交前拦截。
+ * 潜在风险：若后端 PASSWORD_POLICY 未来调整需同步此处；当前与 backend/src/services/oauth.service.ts 的 isPasswordPolicyValid 口径一致。
+ */
+interface ZhizNewPasswordRequirements {
+  minLength: boolean;
+  hasUppercase: boolean;
+  hasLowercase: boolean;
+  hasDigit: boolean;
+}
+
+function evaluateZhizNewPasswordRequirements(pw: string): ZhizNewPasswordRequirements {
+  return {
+    minLength: pw.length >= 8,
+    hasUppercase: /[A-Z]/.test(pw),
+    hasLowercase: /[a-z]/.test(pw),
+    hasDigit: /\d/.test(pw),
+  };
+}
+
+function isZhizNewPasswordPolicyValid(pw: string): boolean {
+  const r = evaluateZhizNewPasswordRequirements(pw);
+  return r.minLength && r.hasUppercase && r.hasLowercase && r.hasDigit;
+}
 
 function extractZhizValidationDetails(error: unknown): ZhizValidationDetails {
   if (!(error instanceof ApiError) || !error.details || typeof error.details !== 'object') {
@@ -103,7 +159,13 @@ function mapZhizValidationField(field: string): keyof ZhizFieldErrors | null {
 }
 
 function hasZhizFieldErrors(fieldErrors: ZhizFieldErrors): boolean {
-  return Boolean(fieldErrors.email || fieldErrors.password || fieldErrors.verificationCode || fieldErrors.newPassword);
+  return Boolean(
+    fieldErrors.email ||
+    fieldErrors.password ||
+    fieldErrors.verificationCode ||
+    fieldErrors.newPassword ||
+    fieldErrors.confirmNewPassword,
+  );
 }
 
 function buildZhizFieldErrors(error: unknown): ZhizFieldErrors {
@@ -295,6 +357,19 @@ export function ZhizCompletePage() {
   const [email, setEmail] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  // 2026-04-17 新增 — Zhiz 首绑密码二次确认 + 新密码明文查看 state
+  // 变更类型：新增/交互修复
+  // 功能描述：
+  //   1. confirmNewPassword：用户二次输入的新密码，用于与 newPassword 进行本地一致性校验；
+  //   2. showNewPassword：控制“新的本地密码”输入框的 type=password/text 切换。
+  // 设计思路：
+  //   - confirmNewPassword 不会随请求发送到后端（后端契约仅接收 newPassword），仅用于本地“两次一致”断言；
+  //   - 本轮采用方案 A（确认字段不提供眼睛），因此只声明 showNewPassword；
+  //   - 状态内聚于组件内部，避免污染 ZhizFieldErrors 之外的既有类型或 URL query。
+  // 影响范围：requiresNewPassword 分支的输入框与提交闸门；其它 step 不受影响。
+  // 潜在风险：若未来后端接收 confirmPassword，需要同步到 ZhizPasswordSetupCompleteRequest。
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
   const [status, setStatus] = useState<'loading' | 'form' | 'verify' | 'error'>('loading');
   const [submitting, setSubmitting] = useState(false);
   const [sendingCode, setSendingCode] = useState(false);
@@ -325,6 +400,23 @@ export function ZhizCompletePage() {
       ? '请先发送验证码，再输入验证码和新密码完成绑定。'
       : '请先发送验证码，再输入邮件中的验证码完成绑定。';
   const verifySubmitLabel = requiresNewPassword ? '验证并完成登录' : '验证邮箱并完成绑定';
+
+  // 2026-04-17 新增 — Zhiz 首绑新密码 requirements 实时派生与“两次一致”正反馈
+  // 变更类型：新增/交互
+  // 功能描述：
+  //   1. newPasswordRequirements：逐项派生密码是否满足 ≥8 位 / 含大写 / 含小写 / 含数字，驱动 requirements checklist；
+  //   2. passwordsMatch：两次输入非空且完全相等，用于在确认密码下方即时展示绿色 ✓“密码一致”，以及 checklist 的第 5 项。
+  // 设计思路：
+  //   - 遵循 Smashing Magazine 2022 “Reward Early, Punish Late”：正向反馈（✓）即时呈现；负向反馈（红字）留到 onBlur/onSubmit；
+  //   - 全部走 useMemo，避免每次渲染重复执行正则；依赖数组仅覆盖真实变更源。
+  // 参数与返回值：无入参；返回上述派生态。
+  // 影响范围：checklist UI、两次一致正反馈 UI；提交闸门直接调用 isZhizNewPasswordPolicyValid()。
+  // 潜在风险：无已知风险。
+  const newPasswordRequirements = useMemo(() => evaluateZhizNewPasswordRequirements(newPassword), [newPassword]);
+  const passwordsMatch = useMemo(
+    () => newPassword.length > 0 && newPassword === confirmNewPassword,
+    [newPassword, confirmNewPassword],
+  );
 
   const syncVerifyState = useCallback(
     (baseSnapshot: ZhizContinuationStatusResult, details: Partial<ZhizChallengeDetails> = {}) => {
@@ -431,8 +523,30 @@ export function ZhizCompletePage() {
       if (!/^\d{6}$/.test(normalizedCode)) {
         nextFieldErrors.verificationCode = '请输入 6 位邮箱验证码';
       }
-      if (requiresNewPassword && !newPassword.trim()) {
-        nextFieldErrors.newPassword = '请设置新的本地密码';
+      if (requiresNewPassword) {
+        // 2026-04-17 新增 — Zhiz 首绑新密码提交前闸门校验
+        // 变更类型：新增/安全/交互
+        // 功能描述：发送 /password-setup/complete 前，客户端按顺序校验
+        //   (a) 新密码非空；
+        //   (b) 新密码满足后端 PASSWORD_POLICY（8+大小写+数字）；
+        //   (c) 用户二次输入非空；
+        //   (d) 两次输入完全一致。
+        // 设计思路：
+        //   - 失败时只写 fieldErrors，不清空输入，用户可继续修正；
+        //   - 新密码与确认密码错误可同时出现（如弱密码 + 不一致），避免 UI 分次反馈；
+        //   - 即便客户端校验漏放，后端仍以 PASSWORD_POLICY 与必填校验作为第二道闸。
+        // 影响范围：提交前路径；不影响邮箱验证码校验。
+        // 潜在风险：无已知风险。
+        if (!newPassword.trim()) {
+          nextFieldErrors.newPassword = '请设置新的本地密码';
+        } else if (!isZhizNewPasswordPolicyValid(newPassword)) {
+          nextFieldErrors.newPassword = `密码格式要求：${ZHIZ_PASSWORD_RULE_HINT}`;
+        }
+        if (!confirmNewPassword.trim()) {
+          nextFieldErrors.confirmNewPassword = '请再次输入密码以确认';
+        } else if (confirmNewPassword !== newPassword) {
+          nextFieldErrors.confirmNewPassword = '两次密码不一致，请重新确认';
+        }
       }
       if (hasZhizFieldErrors(nextFieldErrors)) {
         setFieldErrors(nextFieldErrors);
@@ -462,7 +576,16 @@ export function ZhizCompletePage() {
         setSubmitting(false);
       }
     },
-    [finalizeRedirect, newPassword, requiresNewPassword, snapshot, syncVerifyState, ticket, verificationCode],
+    [
+      confirmNewPassword,
+      finalizeRedirect,
+      newPassword,
+      requiresNewPassword,
+      snapshot,
+      syncVerifyState,
+      ticket,
+      verificationCode,
+    ],
   );
 
   useEffect(() => {
@@ -753,33 +876,149 @@ export function ZhizCompletePage() {
                 </div>
 
                 {requiresNewPassword && (
-                  <div>
-                    <label htmlFor="zhiz-new-password" className="mb-1.5 block text-sm font-medium text-gray-300">
-                      新的本地密码
-                    </label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-                      <input
-                        id="zhiz-new-password"
-                        type="password"
-                        autoComplete="new-password"
-                        value={newPassword}
-                        onChange={(event) => {
-                          setNewPassword(event.target.value);
-                          setFieldErrors((current) => ({ ...current, newPassword: undefined }));
-                        }}
-                        disabled={submitting}
-                        placeholder="至少 8 位，包含大小写字母和数字"
-                        className="w-full rounded-xl border border-gray-700 bg-gray-800/60 py-2.5 pl-10 pr-4 text-sm text-white placeholder-gray-500 transition-colors focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/50 disabled:opacity-50"
-                      />
+                  <>
+                    {/*
+                      2026-04-17 新增/修复 — Zhiz 首绑新密码字段组重构
+                      变更类型：新增 / 交互 / 无障碍
+                      功能描述：
+                        1. “新的本地密码”字段：增加眼睛 toggle（aria-pressed + 动态 aria-label），错误态红边框，aria-invalid/aria-describedby 联动；
+                        2. 新增“再次输入新密码”字段（方案 A：不提供眼睛，避免照抄绕过 confirm 设计意图），onBlur 即时报不匹配错；
+                        3. Requirements checklist：实时反馈 4 项密码策略 + 两次一致性，满足时绿色 ✓，未满足灰色 ✗；
+                        4. 正向反馈：两次输入相等且非空时，确认字段下方显示绿色 ✓“密码一致”。
+                      设计思路：
+                        - 参考 NN/g《Password Creation》+ Smashing《Live Validation UX》+ Bargas-Avila 2007：打字时不报红错，blur/submit 才报；
+                        - 眼睛按钮 tabIndex={-1} 与 LoginPage/RegisterPage 保持一致，键盘 Tab 流不被干扰；aria-pressed 与动态 aria-label 符合 WAI-ARIA 实践；
+                        - confirmNewPassword 不通过 API 发送；后端 completeZhizPasswordSetupChallenge 仍仅接收 newPassword。
+                      影响范围：仅 verify + requiresNewPassword 分支；其它 step 渲染不变。
+                      潜在风险：无已知风险。
+                    */}
+                    <div>
+                      <label htmlFor="zhiz-new-password" className="mb-1.5 block text-sm font-medium text-gray-300">
+                        新的本地密码
+                      </label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+                        <input
+                          id="zhiz-new-password"
+                          type={showNewPassword ? 'text' : 'password'}
+                          autoComplete="new-password"
+                          value={newPassword}
+                          onChange={(event) => {
+                            setNewPassword(event.target.value);
+                            setFieldErrors((current) => ({
+                              ...current,
+                              newPassword: undefined,
+                              confirmNewPassword: undefined,
+                            }));
+                          }}
+                          onBlur={() => {
+                            if (newPassword.length > 0 && !isZhizNewPasswordPolicyValid(newPassword)) {
+                              setFieldErrors((current) => ({
+                                ...current,
+                                newPassword: `密码格式要求：${ZHIZ_PASSWORD_RULE_HINT}`,
+                              }));
+                            }
+                          }}
+                          disabled={submitting}
+                          placeholder="至少 8 位，包含大小写字母和数字"
+                          aria-invalid={Boolean(fieldErrors.newPassword)}
+                          aria-describedby={
+                            fieldErrors.newPassword ? 'zhiz-new-password-error' : 'zhiz-new-password-hint'
+                          }
+                          className={`w-full rounded-xl border ${
+                            fieldErrors.newPassword ? 'border-red-500/60' : 'border-gray-700'
+                          } bg-gray-800/60 py-2.5 pl-10 pr-10 text-sm text-white placeholder-gray-500 transition-colors focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/50 disabled:opacity-50`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword((prev) => !prev)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 transition-colors hover:text-gray-300"
+                          tabIndex={-1}
+                          aria-pressed={showNewPassword}
+                          aria-label={showNewPassword ? '隐藏密码' : '显示密码'}
+                          title={showNewPassword ? '隐藏密码' : '显示密码'}
+                        >
+                          {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                      <p id="zhiz-new-password-hint" className="mt-1.5 text-xs text-gray-500">
+                        格式要求：{ZHIZ_PASSWORD_RULE_HINT}。设置完成后，此邮箱可继续使用本地密码和 Zhiz 两种方式登录。
+                      </p>
+                      {fieldErrors.newPassword && (
+                        <p id="zhiz-new-password-error" className="mt-1.5 text-xs text-red-400">
+                          {fieldErrors.newPassword}
+                        </p>
+                      )}
                     </div>
-                    <p className="mt-1.5 text-xs text-gray-500">
-                      格式要求：{ZHIZ_PASSWORD_RULE_HINT}。设置完成后，此邮箱可继续使用本地密码和 Zhiz 两种方式登录。
-                    </p>
-                    {fieldErrors.newPassword && (
-                      <p className="mt-1.5 text-xs text-red-400">{fieldErrors.newPassword}</p>
-                    )}
-                  </div>
+
+                    <div>
+                      <label
+                        htmlFor="zhiz-confirm-new-password"
+                        className="mb-1.5 block text-sm font-medium text-gray-300"
+                      >
+                        再次输入新密码
+                      </label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+                        <input
+                          id="zhiz-confirm-new-password"
+                          type="password"
+                          autoComplete="new-password"
+                          value={confirmNewPassword}
+                          onChange={(event) => {
+                            setConfirmNewPassword(event.target.value);
+                            setFieldErrors((current) => ({ ...current, confirmNewPassword: undefined }));
+                          }}
+                          onBlur={() => {
+                            if (confirmNewPassword.length > 0 && confirmNewPassword !== newPassword) {
+                              setFieldErrors((current) => ({
+                                ...current,
+                                confirmNewPassword: '两次密码不一致，请重新确认',
+                              }));
+                            }
+                          }}
+                          disabled={submitting}
+                          placeholder="再次输入以确认"
+                          aria-invalid={Boolean(fieldErrors.confirmNewPassword)}
+                          aria-describedby={
+                            fieldErrors.confirmNewPassword ? 'zhiz-confirm-new-password-error' : undefined
+                          }
+                          className={`w-full rounded-xl border ${
+                            fieldErrors.confirmNewPassword ? 'border-red-500/60' : 'border-gray-700'
+                          } bg-gray-800/60 py-2.5 pl-10 pr-4 text-sm text-white placeholder-gray-500 transition-colors focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/50 disabled:opacity-50`}
+                        />
+                      </div>
+                      {fieldErrors.confirmNewPassword ? (
+                        <p id="zhiz-confirm-new-password-error" className="mt-1.5 text-xs text-red-400">
+                          {fieldErrors.confirmNewPassword}
+                        </p>
+                      ) : passwordsMatch ? (
+                        <p className="mt-1.5 flex items-center gap-1.5 text-xs text-green-400">
+                          <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                          密码一致
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <ul className="space-y-1.5" aria-live="polite">
+                      {[
+                        { label: '至少 8 位', ok: newPasswordRequirements.minLength },
+                        { label: '包含大写字母', ok: newPasswordRequirements.hasUppercase },
+                        { label: '包含小写字母', ok: newPasswordRequirements.hasLowercase },
+                        { label: '包含数字', ok: newPasswordRequirements.hasDigit },
+                        { label: '两次密码一致', ok: passwordsMatch },
+                      ].map((item) => (
+                        <li key={item.label} className="flex items-center gap-2 text-xs">
+                          {item.ok ? (
+                            <Check className="h-3.5 w-3.5 text-green-400" aria-hidden="true" />
+                          ) : (
+                            <X className="h-3.5 w-3.5 text-gray-600" aria-hidden="true" />
+                          )}
+                          <span className={item.ok ? 'text-green-400' : 'text-gray-500'}>{item.label}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
                 )}
 
                 <button
