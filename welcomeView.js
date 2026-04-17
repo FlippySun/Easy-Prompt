@@ -5,15 +5,20 @@
 
 const vscode = require("vscode");
 const { SCENES, SCENE_NAMES } = require("./core");
+const {
+  getVscodeRuntimeEnv,
+  PRODUCTION_WEB_APP_BASE_URL,
+  PRODUCTION_WEB_HUB_BASE_URL,
+} = require("./vscode-runtime-env");
 
 const WELCOME_STATE_KEY = "easyPrompt.welcomed.v4.0";
 
 /**
  * 2026-04-10
  * 变更类型：修复
- * 功能描述：让 VS Code Welcome Webview 的 zhiz.chat CTA 在登录完成后自动刷新，并将已登录按钮改为展示当前账号后跳转 Web-Hub 用户页。
+ * 功能描述：让 VS Code Welcome Webview 的 PromptHub CTA 在登录完成后自动刷新，并将已登录按钮改为展示当前账号后跳转当前环境的 Web-Hub 用户页。
  * 设计思路：继续复用 extension.js 已注册的 easy-prompt.ssoLogin 命令，但把欢迎页渲染抽象为可重复调用的 renderWelcomePanel(context)；登录态变化时重绘已打开的欢迎页，避免静态 HTML 长时间停留在旧状态。
- * 参数与返回值：showWelcomePage(context) / refreshWelcomePanels(context) 会根据 globalState 中的 SSO 用户信息重绘 Webview；getWelcomeHtml(options) 接收登录态展示参数并返回 HTML 字符串。
+ * 参数与返回值：showWelcomePage(context) / refreshWelcomePanels(context) 会根据 globalState 中的 SSO 用户信息与运行时环境重绘 Webview；getWelcomeHtml(options) 接收登录态与环境参数并返回 HTML 字符串。
  * 影响范围：VS Code 首次安装欢迎页、手动打开 welcome 页入口、登录成功后返回 IDE 的欢迎页 CTA。
  * 潜在风险：重绘欢迎页会重置页面滚动位置；当前仅在登录态变化或欢迎页重新可见时触发，风险可控。
  */
@@ -21,13 +26,12 @@ const SSO_USER_STATE_KEY = "easy-prompt.ssoUser";
 /**
  * 2026-04-15 修复 — Welcome 已登录 CTA 改为打开个人主页
  * 变更类型：修复/交互
- * 功能描述：将 Welcome 页面登录成功后的主按钮从打开 zhiz.chat 首页改为打开 Web-Hub 个人主页，避免与 VS Code 状态栏用户名点击语义不一致。
- * 设计思路：登录成功后的高频入口统一指向 `/profile`，让用户在刚完成 SSO 后可直接验证 Web-Hub 已登录态与个人信息展示。
- * 参数与返回值：常量 `ZHIZ_CHAT_PROFILE_URL` 提供外链目标；已登录 CTA 点击后通过 `vscode.env.openExternal(...)` 打开外部浏览器，无同步返回值。
+ * 功能描述：将 Welcome 页面登录成功后的主按钮从固定生产首页改为打开当前运行环境的 Web-Hub 个人主页，避免与 VS Code 状态栏用户名点击语义不一致。
+ * 设计思路：登录成功后的高频入口统一指向当前环境的 `/profile`，让用户在刚完成 SSO 后可直接验证 Web-Hub 已登录态与个人信息展示。
+ * 参数与返回值：已登录 CTA 点击后通过 `vscode.env.openExternal(...)` 打开外部浏览器，无同步返回值。
  * 影响范围：VS Code Welcome Webview 已登录 CTA、SSO 完成后的再次访问体验。
  * 潜在风险：若用户系统默认浏览器与 OAuth 登录完成时使用的浏览器配置文件不同，打开个人主页时仍可能需要重新识别登录态。
  */
-const ZHIZ_CHAT_PROFILE_URL = "https://zhiz.chat/profile";
 const _welcomePanels = new Set();
 
 /**
@@ -53,7 +57,10 @@ function getWelcomeLoginState(context) {
 }
 
 function renderWelcomePanel(panel, context) {
-  panel.webview.html = getWelcomeHtml(getWelcomeLoginState(context));
+  panel.webview.html = getWelcomeHtml({
+    ...getWelcomeLoginState(context),
+    runtimeEnv: getVscodeRuntimeEnv(context),
+  });
 }
 
 function refreshWelcomePanels(context) {
@@ -120,7 +127,9 @@ function showWelcomePage(context) {
           vscode.commands.executeCommand("easy-prompt.ssoLogin");
           break;
         case "openZhizProfile":
-          vscode.env.openExternal(vscode.Uri.parse(ZHIZ_CHAT_PROFILE_URL));
+          vscode.env.openExternal(
+            vscode.Uri.parse(getVscodeRuntimeEnv(context).webHubProfileUrl),
+          );
           break;
       }
     },
@@ -129,7 +138,11 @@ function showWelcomePage(context) {
   );
 }
 
-function getWelcomeHtml({ isLoggedIn = false, accountName = "" } = {}) {
+function getWelcomeHtml({
+  isLoggedIn = false,
+  accountName = "",
+  runtimeEnv = {},
+} = {}) {
   // 构建场景分类
   const categories = {
     "🚀 需求 & 规划": ["optimize", "split-task", "techstack", "api-design"],
@@ -215,6 +228,9 @@ function getWelcomeHtml({ isLoggedIn = false, accountName = "" } = {}) {
     "🎓 学习教育": ["study-plan", "summary", "essay", "quiz-gen"],
   };
 
+  const webAppBaseUrl = runtimeEnv.webAppBaseUrl || PRODUCTION_WEB_APP_BASE_URL;
+  const webHubBaseUrl = runtimeEnv.webHubBaseUrl || PRODUCTION_WEB_HUB_BASE_URL;
+
   function _esc(str) {
     return String(str)
       .replace(/&/g, "&amp;")
@@ -223,14 +239,14 @@ function getWelcomeHtml({ isLoggedIn = false, accountName = "" } = {}) {
       .replace(/"/g, "&quot;");
   }
 
-  const safeAccountName = _esc(accountName || "zhiz.chat 账号");
+  const safeAccountName = _esc(accountName || "PromptHub 账号");
   const loginButtonLabel = isLoggedIn
     ? `当前登录用户：${safeAccountName}`
-    : "登录 zhiz.chat";
+    : "登录 PromptHub";
   const loginButtonCommand = isLoggedIn ? "openZhizProfile" : "loginZhiz";
   const loginHint = isLoggedIn
-    ? `当前已登录：<strong>${safeAccountName}</strong>。点击下方按钮可直接打开 zhiz.chat 个人主页。`
-    : "想直接用账号体系登录？点击下方“登录 zhiz.chat”即可快速进入登录流程。";
+    ? `当前已登录：<strong>${safeAccountName}</strong>。点击下方按钮可直接打开当前环境个人主页。`
+    : "想直接用账号体系登录？点击下方“登录 PromptHub”即可快速进入登录流程。";
 
   const sceneSections = Object.entries(categories)
     .map(([cat, ids]) => {
@@ -649,7 +665,7 @@ kbd {
 
     <!-- Footer -->
     <div class="footer">
-        <p>Easy Prompt v5.3.8 · Made with ❤️ · <a href="https://github.com/FlippySun/Easy-Prompt">GitHub</a> · <a href="https://prompt.zhiz.chat">Web 在线版</a> · <a href="https://zhiz.chat">PromptHub 精选库</a></p>
+        <p>Easy Prompt v5.3.8 · Made with ❤️ · <a href="https://github.com/FlippySun/Easy-Prompt">GitHub</a> · <a href="${_esc(webAppBaseUrl)}">Web 在线版</a> · <a href="${_esc(webHubBaseUrl)}">PromptHub 精选库</a></p>
         <p style="margin-top:8px;">💡 状态栏右侧 ✨ 图标可随时打开快捷菜单</p>
     </div>
 </div>

@@ -17,6 +17,7 @@ const {
   showWelcomePage,
   refreshWelcomePanels,
 } = require("./welcomeView");
+const { getVscodeRuntimeEnv } = require("./vscode-runtime-env");
 
 // ============ 场景命中计数 ============
 
@@ -24,6 +25,19 @@ const SCENE_STATS_KEY = "easyPrompt.sceneStats";
 
 /** 全局上下文引用，在 activate 中赋值 */
 let _context = null;
+
+/**
+ * 2026-04-17 新增 — VS Code 运行时环境解析入口
+ * 变更类型：新增/配置/重构
+ * 功能描述：为 VS Code 扩展中的增强请求、SSO 登录、SSO token 兑换/刷新、个人主页跳转提供统一的运行时环境解析结果。
+ * 设计思路：复用共享 `vscode-runtime-env.js`，避免 `backendUrl`、`extensionMode` 与 Web-Hub/profile 链接规则在 `extension.js` 内部分叉失配。
+ * 参数与返回值：`getRuntimeEnv()` 无入参；返回共享 helper 解析出的 `{ backendBaseUrl, webAppBaseUrl, webHubBaseUrl, ssoHubBaseUrl, webHubProfileUrl, isDevelopmentLike }`。
+ * 影响范围：runSmartRoute、ssoLogin、ssoOpenProfile、exchangeSsoCode、refreshSsoToken、状态栏 SSO 提示。
+ * 潜在风险：若未来在 activate 前新增调用点，需要确保 `_context` 已可用；当前无已知风险。
+ */
+function getRuntimeEnv() {
+  return getVscodeRuntimeEnv(_context);
+}
 
 /** configureApi 面板复用引用 */
 let _configPanel = null;
@@ -401,8 +415,7 @@ async function runSmartRoute(config, text, progress) {
   };
 
   // 2026-04-10 B4: 改用 SSO token（SecretStorage），保留 backendUrl 自定义后端支持
-  const backendCfg = vscode.workspace.getConfiguration("easyPrompt");
-  const backendUrl = backendCfg.get("backendUrl", "");
+  const { backendBaseUrl } = getRuntimeEnv();
   const ssoToken = await getSsoAccessToken();
 
   let result;
@@ -2224,7 +2237,7 @@ function showHistoryCommand(context) {
    2026-04-10 新增 — SSO Plan v2 B4+B5+B6
    变更类型：新增
    设计思路：
-     1. vscode.env.openExternal 打开浏览器到 zhiz.chat 登录
+     1. vscode.env.openExternal 打开浏览器到当前运行环境的 PromptHub 登录入口
      2. registerUriHandler 接收 vscode://flippysun.easy-prompt-ai/auth-callback?code=xxx&state=yyy
      3. SecretStorage 存 accessToken/refreshToken（安全存储）
      4. globalState 存 expiresAt + user（非敏感）
@@ -2234,9 +2247,6 @@ function showHistoryCommand(context) {
    影响范围：extension.js activate/runSmartRoute/statusBar
    潜在风险：URI handler 回调依赖浏览器正确 redirect；SecretStorage 依赖 VS Code keychain
    ═══════════════════════════════════════════════════ */
-
-const SSO_HUB_BASE = "https://zhiz.chat";
-const SSO_BACKEND_BASE = "https://api.zhiz.chat";
 const SSO_URI_SCHEME = "vscode://flippysun.easy-prompt-ai/auth-callback";
 const SSO_STATE_KEY = "easy-prompt.ssoState";
 const SSO_USER_KEY = "easy-prompt.ssoUser";
@@ -2251,16 +2261,17 @@ let _ssoStatusBarItem = null;
 let _ssoRefreshTimer = null;
 
 /**
- * SSO 登录 — 打开浏览器到 zhiz.chat 登录页
+ * SSO 登录 — 打开浏览器到当前环境的 PromptHub 登录页
  * 登录完成后浏览器 redirect 回 VS Code URI handler
  */
 async function ssoLogin() {
   const { randomUUID } = require("crypto");
   const state = randomUUID();
   _context.globalState.update(SSO_STATE_KEY, state);
+  const { ssoHubBaseUrl } = getRuntimeEnv();
 
   const loginUrl =
-    `${SSO_HUB_BASE}/auth/login?` +
+    `${ssoHubBaseUrl}/auth/login?` +
     `redirect_uri=${encodeURIComponent(SSO_URI_SCHEME)}&state=${encodeURIComponent(state)}`;
 
   await vscode.env.openExternal(vscode.Uri.parse(loginUrl));
@@ -2271,12 +2282,13 @@ async function ssoLogin() {
  * 变更类型：修复/交互
  * 功能描述：将 VS Code 中已登录用户名/状态栏点击行为从隐式退出登录改为打开 Web-Hub 个人主页，避免用户误触登出。
  * 设计思路：继续保留显式 `easy-prompt.ssoLogout` 命令用于退出，但把高频点击入口统一改为 `/profile`，与 Web-Hub 已登录用户菜单语义一致。
- * 参数与返回值：`ssoOpenProfile()` 无入参；成功时打开外部浏览器到 `https://zhiz.chat/profile`，无同步返回值。
+ * 参数与返回值：`ssoOpenProfile()` 无入参；成功时打开当前运行环境的个人主页 URL，无同步返回值。
  * 影响范围：VS Code 状态栏 SSO 用户名点击、登录完成后的主入口跳转体验。
  * 潜在风险：依赖系统浏览器沿用刚完成 OAuth 的同一浏览器资料；若用户切换到不同浏览器配置文件，Web-Hub 可能仍需重新识别登录态。
  */
 async function ssoOpenProfile() {
-  await vscode.env.openExternal(vscode.Uri.parse(`${SSO_HUB_BASE}/profile`));
+  const { webHubProfileUrl } = getRuntimeEnv();
+  await vscode.env.openExternal(vscode.Uri.parse(webHubProfileUrl));
 }
 
 /**
@@ -2350,9 +2362,10 @@ async function handleSsoCallback(uri) {
 function exchangeSsoCode(code, redirectUri) {
   const https = require("https");
   const postData = JSON.stringify({ code, redirectUri });
+  const { backendBaseUrl } = getRuntimeEnv();
 
   return new Promise((resolve, reject) => {
-    const url = new URL(`${SSO_BACKEND_BASE}/api/v1/auth/sso/token`);
+    const url = new URL(`${backendBaseUrl}/api/v1/auth/sso/token`);
     const req = https.request(
       {
         hostname: url.hostname,
@@ -2433,9 +2446,10 @@ async function refreshSsoToken() {
 
   const https = require("https");
   const postData = JSON.stringify({ refreshToken });
+  const { backendBaseUrl } = getRuntimeEnv();
 
   const tokens = await new Promise((resolve, reject) => {
-    const url = new URL(`${SSO_BACKEND_BASE}/api/v1/auth/refresh`);
+    const url = new URL(`${backendBaseUrl}/api/v1/auth/refresh`);
     const req = https.request(
       {
         hostname: url.hostname,
@@ -2515,11 +2529,11 @@ function updateSsoStatusBar() {
   if (user) {
     const name = user.displayName || user.username || user.email;
     _ssoStatusBarItem.text = `$(account) ${name}`;
-    _ssoStatusBarItem.tooltip = `Easy Prompt — 已登录: ${name}\n点击打开 zhiz.chat 个人主页`;
+    _ssoStatusBarItem.tooltip = `Easy Prompt — 已登录: ${name}\n点击打开个人主页`;
     _ssoStatusBarItem.command = "easy-prompt.ssoOpenProfile";
   } else {
     _ssoStatusBarItem.text = "$(sign-in) 登录";
-    _ssoStatusBarItem.tooltip = "Easy Prompt — 点击登录 zhiz.chat";
+    _ssoStatusBarItem.tooltip = "Easy Prompt — 点击登录 PromptHub";
     _ssoStatusBarItem.command = "easy-prompt.ssoLogin";
   }
 }
@@ -2612,7 +2626,7 @@ function activate(context) {
   migrateLegacyVscodeToken().then((hadLegacy) => {
     if (hadLegacy) {
       vscode.window.showInformationMessage(
-        "Easy Prompt: 旧版 Token 已清除，请使用「登录 zhiz.chat」命令重新登录",
+        "Easy Prompt: 旧版 Token 已清除，请使用「登录 PromptHub」命令重新登录",
       );
     }
   });
@@ -2690,12 +2704,12 @@ function showStatusBarMenu(context) {
       menuItems.push({
         label: `$(sign-out) 退出登录`,
         description: name,
-        detail: "退出 zhiz.chat 账号",
+        detail: "退出当前 PromptHub 账号",
         command: "easy-prompt.ssoLogout",
       });
     } else {
       menuItems.push({
-        label: "$(sign-in) 登录 zhiz.chat",
+        label: "$(sign-in) 登录 PromptHub",
         description: "",
         detail: "SSO 登录以获得更高额度",
         command: "easy-prompt.ssoLogin",
