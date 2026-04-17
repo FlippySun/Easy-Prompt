@@ -7,6 +7,7 @@
 
 // 2026-04-10 SSO B2: 引入 Sso 模块用于 401 自动刷新重试
 import { Sso } from "./sso.js";
+import { BACKEND_API_BASE } from "./env.js";
 
 const MAX_INPUT_LENGTH = 10000;
 const MAX_RETRIES = 3;
@@ -482,15 +483,13 @@ async function fetchModels(config) {
 /* ═══════════════════════════════════════════════════
    Backend API Client (backend-only mode)
    2026-04-08 新增，2026-04-09 架构重构
-   设计思路：所有增强请求统一走后端 API（api.zhiz.chat），
+   设计思路：所有增强请求统一走共享 env 模块解析出的后端 API 基准地址，
      后端做中间转接层（记录信息 + 管理 API Key + 内部转发）。
      客户端不再持有 Provider Key，不再有本地直连回退。
      认证使用 chrome.storage.local 中存储的 access_token。
    影响范围：handleInlineEnhance / popup enhance 流程
    潜在风险：无已知风险
    ═══════════════════════════════════════════════════ */
-
-const BACKEND_API_BASE = "https://api.zhiz.chat";
 // 2026-04-09 修复：30s → 90s，实测 AI provider 响应可达 45s+
 const BACKEND_TIMEOUT_MS = 90000;
 

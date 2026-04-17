@@ -21,19 +21,35 @@ import { Defaults } from "../shared/defaults.js";
 import { Api } from "../shared/api.js";
 // 2026-04-10 SSO B1: SSO 登录/退出/状态管理
 import { Sso } from "../shared/sso.js";
+import { SSO_PROFILE_URL, WEB_APP_BASE_URL } from "../shared/env.js";
 
 /**
  * 2026-04-15
  * 变更类型：修复/交互
  * 功能描述：为浏览器扩展 options 页已登录用户名徽标增加点击直达 Web-Hub 个人页能力，统一“点击用户名”语义。
  * 设计思路：继续保留独立退出按钮，只把用户名徽标作为高频正向入口；避免用户在扩展端登录后找不到个人资料页。
- * 参数与返回值：常量 `SSO_PROFILE_URL` 指向 `https://zhiz.chat/profile`；`handleSsoOpenProfile()` 无入参，成功时新开标签页到个人页。
+ * 参数与返回值：共享 env 模块常量 `SSO_PROFILE_URL` 指向当前环境的个人页；`handleSsoOpenProfile()` 无入参，成功时新开标签页到个人页。
  * 影响范围：browser/options/options.js、browser/wxt-entrypoints/options/index.html、browser/options/options.css。
  * 潜在风险：若浏览器使用的站点登录上下文与当前扩展触发时所在 profile 不一致，个人页仍可能需要重新识别登录态。
  */
-const SSO_PROFILE_URL = "https://zhiz.chat/profile";
 
 const $ = (sel) => document.querySelector(sel);
+
+/**
+ * 2026-04-17 新增 — Browser options 外链环境同步
+ * 变更类型：新增/配置/修复
+ * 功能描述：将 options 页中的 Web 在线版外链同步到当前环境的 Web 基准地址，避免本地调试时静默跳到生产 `prompt.zhiz.chat`。
+ * 设计思路：保留静态 HTML 结构，只在页面初始化后最小化覆盖需要环境感知的 href，避免把 WXT entry HTML 与运行时地址语义再次耦合。
+ * 参数与返回值：`syncEnvAwareLinks()` 无参数；无返回值。
+ * 影响范围：browser/options/options.js、browser/wxt-entrypoints/options/index.html。
+ * 潜在风险：无已知风险。
+ */
+function syncEnvAwareLinks() {
+  const promptWebLink = $("#link-prompt-web");
+  if (promptWebLink) {
+    promptWebLink.href = WEB_APP_BASE_URL;
+  }
+}
 
 /* ─── Safe DOM Helper (avoids innerHTML for Firefox AMO compliance) ─── */
 const _htmlParser = new DOMParser();
@@ -75,6 +91,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     $("#logo-icon"),
     `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/></svg>`,
   );
+
+  syncEnvAwareLinks();
 
   // Load saved config
   const config = await Storage.loadConfig();
@@ -337,7 +355,7 @@ function renderModelsList(models) {
 
 /**
  * 2026-04-08 P9.04: 检测后端健康状态
- * 调用 https://api.zhiz.chat/health 检查后端是否可用
+ * 调用当前环境的 BACKEND_API_BASE/health 检查后端是否可用
  */
 async function handleBackendHealthCheck() {
   const btn = $("#btn-backend-test");

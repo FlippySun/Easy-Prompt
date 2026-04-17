@@ -2,7 +2,7 @@
 // [日期]     2026-04-10
 // [类型]     新增功能
 // [描述]     SSO Plan v2 B1: Safari/fallback Tab redirect 回调页面脚本
-// [思路]     zhiz.chat 登录成功后 redirect 回此页面，URL 中携带 code + state 参数。
+// [思路]     统一 SSO Hub 登录成功后 redirect 回此页面，URL 中携带 code + state 参数。
 //           脚本负责：校验 state（CSRF 防护） → 用 code 换 tokens → 存储 → 显示结果。
 //           Chrome/Firefox 使用 launchWebAuthFlow 不走此页面；Safari 必须走此路径。
 // [参数与返回值] 无外部参数；从 URL search params 读取 code/state
@@ -67,8 +67,7 @@ async function handleCallback() {
     // 3. 用授权码换取 tokens
     // redirectUri 需与 /sso/authorize 时传的 redirect_uri 一致
     // 即当前页面的 URL（不含 query params）
-    const redirectUri =
-      window.location.origin + window.location.pathname;
+    const redirectUri = window.location.origin + window.location.pathname;
 
     const tokenData = await Sso.exchangeSsoCode(code, redirectUri);
 

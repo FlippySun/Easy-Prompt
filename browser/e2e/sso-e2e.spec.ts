@@ -19,9 +19,19 @@
 
 import { test, expect } from "@playwright/test";
 
-const WEB_HUB_URL = "https://zhiz.chat";
-const WEB_SPA_URL = "https://prompt.zhiz.chat";
-const API_BASE = "https://api.zhiz.chat";
+/**
+ * 2026-04-17 新增 — Browser Task 5 生产 E2E fixture 常量
+ * 变更类型：新增/测试
+ * 功能描述：显式声明本套件命中的 Web-Hub / Web SPA / Backend URL 均为生产 acceptance fixture，而不是浏览器扩展运行时默认值。
+ * 设计思路：Task 5 要求运行时代码 env-aware，但这组 Playwright 用例仍专门验证已部署生产环境，因此保留稳定线上地址并通过命名区分语义。
+ * 参数与返回值：`PROD_WEB_HUB_URL_FIXTURE` / `PROD_WEB_SPA_URL_FIXTURE` / `PROD_API_BASE_FIXTURE` 为常量字符串，无运行时副作用。
+ * 影响范围：browser/e2e/sso-e2e.spec.ts。
+ * 潜在风险：无已知风险。
+ */
+const PROD_WEB_HUB_URL_FIXTURE = "https://zhiz.chat";
+const PROD_WEB_SPA_URL_FIXTURE = "https://prompt.zhiz.chat";
+const PROD_API_BASE_FIXTURE = "https://api.zhiz.chat";
+const PROD_WEB_SPA_HOST_FIXTURE = new URL(PROD_WEB_SPA_URL_FIXTURE).hostname;
 
 const TEST_USER = {
   email: "sso_test@zhiz.chat",
@@ -58,7 +68,7 @@ test.describe.serial("SSO E2E Tests", () => {
 
   // ─── T1: Web-Hub 登录页可访问 + 表单元素完整 ───
   test("T1: Web-Hub login page loads with form elements", async ({ page }) => {
-    await page.goto(`${WEB_HUB_URL}/auth/login`, {
+    await page.goto(`${PROD_WEB_HUB_URL_FIXTURE}/auth/login`, {
       waitUntil: "networkidle",
       timeout: 15000,
     });
@@ -74,11 +84,11 @@ test.describe.serial("SSO E2E Tests", () => {
 
   // ─── T4: Web-Hub 注册页 + SSO 参数透传（放在登录前，不消耗 login quota） ───
   test("T4: Web-Hub register page preserves SSO params", async ({ page }) => {
-    const redirectUri = `${WEB_SPA_URL}/`;
+    const redirectUri = `${PROD_WEB_SPA_URL_FIXTURE}/`;
     const state = "e2e-register-state";
 
     await page.goto(
-      `${WEB_HUB_URL}/auth/login?redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`,
+      `${PROD_WEB_HUB_URL_FIXTURE}/auth/login?redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`,
       { waitUntil: "networkidle", timeout: 15000 },
     );
 
@@ -98,12 +108,12 @@ test.describe.serial("SSO E2E Tests", () => {
 
   // ─── T5: Web SPA 主页 + SSO 登录按钮（无需登录） ───
   test("T5: Web SPA home page has SSO login button", async ({ page }) => {
-    await page.goto(WEB_SPA_URL, {
+    await page.goto(PROD_WEB_SPA_URL_FIXTURE, {
       waitUntil: "domcontentloaded",
       timeout: 15000,
     });
 
-    expect(page.url()).toContain("prompt.zhiz.chat");
+    expect(new URL(page.url()).hostname).toBe(PROD_WEB_SPA_HOST_FIXTURE);
 
     const ssoButton = page
       .locator(
@@ -118,17 +128,20 @@ test.describe.serial("SSO E2E Tests", () => {
     page,
   }) => {
     const testState = "e2e-csrf-state-" + Date.now();
-    const redirectUri = `${WEB_SPA_URL}/`;
+    const redirectUri = `${PROD_WEB_SPA_URL_FIXTURE}/`;
 
-    // 模拟真实 SSO 流程：先在 prompt.zhiz.chat 设置 CSRF state（ssoLogin() 做的事）
-    await page.goto(WEB_SPA_URL, { waitUntil: "networkidle", timeout: 15000 });
+    // 模拟真实 SSO 流程：先在生产 Web SPA fixture 设置 CSRF state（ssoLogin() 做的事）
+    await page.goto(PROD_WEB_SPA_URL_FIXTURE, {
+      waitUntil: "networkidle",
+      timeout: 15000,
+    });
     await page.evaluate((state) => {
       localStorage.setItem("ep-sso-state", state);
     }, testState);
 
-    // 然后跳到 zhiz.chat/auth/login（模拟 ssoLogin() 的 redirect）
+    // 然后跳到生产 Web-Hub fixture 登录页（模拟 ssoLogin() 的 redirect）
     await page.goto(
-      `${WEB_HUB_URL}/auth/login?redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(testState)}`,
+      `${PROD_WEB_HUB_URL_FIXTURE}/auth/login?redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(testState)}`,
       { waitUntil: "networkidle", timeout: 15000 },
     );
 
@@ -169,11 +182,11 @@ test.describe.serial("SSO E2E Tests", () => {
     const authorizeResp = await authorizeRespPromise;
     expect(authorizeResp.status()).toBe(200);
 
-    // 等待 redirect 到 prompt.zhiz.chat
-    await page.waitForURL((url) => url.hostname === "prompt.zhiz.chat", {
+    // 等待 redirect 到生产 Web SPA fixture
+    await page.waitForURL((url) => url.hostname === PROD_WEB_SPA_HOST_FIXTURE, {
       timeout: 15000,
     });
-    expect(new URL(page.url()).hostname).toBe("prompt.zhiz.chat");
+    expect(new URL(page.url()).hostname).toBe(PROD_WEB_SPA_HOST_FIXTURE);
 
     // 等待 handleSsoCallbackOnLoad 完成 token exchange
     await page.waitForTimeout(2000);
@@ -189,7 +202,10 @@ test.describe.serial("SSO E2E Tests", () => {
     test.setTimeout(90_000);
 
     // 先到 Web-Hub 获取 SSO code（通过浏览器 fetch，含 429 自动重试）
-    await page.goto(WEB_HUB_URL, { waitUntil: "networkidle", timeout: 15000 });
+    await page.goto(PROD_WEB_HUB_URL_FIXTURE, {
+      waitUntil: "networkidle",
+      timeout: 15000,
+    });
 
     const ssoResult = await page.evaluate(
       async ({ apiBase, token, redirectUri, user }) => {
@@ -233,9 +249,9 @@ test.describe.serial("SSO E2E Tests", () => {
         return { error: "max retries", code: null };
       },
       {
-        apiBase: API_BASE,
+        apiBase: PROD_API_BASE_FIXTURE,
         token: sharedAccessToken,
-        redirectUri: `${WEB_SPA_URL}/`,
+        redirectUri: `${PROD_WEB_SPA_URL_FIXTURE}/`,
         user: TEST_USER,
       },
     );
@@ -245,7 +261,10 @@ test.describe.serial("SSO E2E Tests", () => {
     const ssoCode = ssoResult.code!;
 
     // 在 Web SPA 上设置 state 并模拟回调
-    await page.goto(WEB_SPA_URL, { waitUntil: "networkidle", timeout: 15000 });
+    await page.goto(PROD_WEB_SPA_URL_FIXTURE, {
+      waitUntil: "networkidle",
+      timeout: 15000,
+    });
     await page.evaluate(() => {
       localStorage.setItem("ep-sso-state", "e2e-callback-test");
     });
@@ -257,10 +276,13 @@ test.describe.serial("SSO E2E Tests", () => {
       { timeout: 10000 },
     );
 
-    await page.goto(`${WEB_SPA_URL}/?code=${ssoCode}&state=e2e-callback-test`, {
-      waitUntil: "networkidle",
-      timeout: 15000,
-    });
+    await page.goto(
+      `${PROD_WEB_SPA_URL_FIXTURE}/?code=${ssoCode}&state=e2e-callback-test`,
+      {
+        waitUntil: "networkidle",
+        timeout: 15000,
+      },
+    );
 
     // 验证 token exchange 成功
     const tokenResponse = await tokenExchangePromise;
@@ -282,7 +304,10 @@ test.describe.serial("SSO E2E Tests", () => {
 
   // ─── T6: SSO 安全性 — 非法 redirect_uri 被拒绝（复用 token，0 次额外登录） ───
   test("T6: SSO rejects invalid redirect_uri", async ({ page }) => {
-    await page.goto(WEB_HUB_URL, { waitUntil: "networkidle", timeout: 15000 });
+    await page.goto(PROD_WEB_HUB_URL_FIXTURE, {
+      waitUntil: "networkidle",
+      timeout: 15000,
+    });
 
     const result = await page.evaluate(
       async ({ apiBase, token, user }) => {
@@ -319,7 +344,11 @@ test.describe.serial("SSO E2E Tests", () => {
           body: await res.json(),
         };
       },
-      { apiBase: API_BASE, token: sharedAccessToken, user: TEST_USER },
+      {
+        apiBase: PROD_API_BASE_FIXTURE,
+        token: sharedAccessToken,
+        user: TEST_USER,
+      },
     );
 
     expect(result.error).toBeNull();

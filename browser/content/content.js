@@ -3,6 +3,7 @@ import {
   loadSkillProxyPayload,
 } from "../../core/skill-fetch-client.mjs";
 import { Sso } from "../shared/sso.js";
+import { BACKEND_API_BASE } from "../shared/env.js";
 
 /**
  * Easy Prompt Browser Extension — Content Script
@@ -339,7 +340,7 @@ import { Sso } from "../shared/sso.js";
   let _FOLDER_ICON_SVG = "";
   const SKILL_FILTER_DEBOUNCE_MS = 160;
   let _skillPanelResizeObserver = null;
-  const SKILL_PROXY_URL = "https://api.zhiz.chat/api/v1/auth/oauth/zhiz/skills";
+  const SKILL_PROXY_URL = `${BACKEND_API_BASE}/api/v1/auth/oauth/zhiz/skills`;
   const SKILL_FETCH_TIMEOUT_MS = 15000;
   const SSO_ACCESS_TOKEN_KEY = "ep-sso-access-token";
   const SSO_USER_KEY = "ep-sso-user";

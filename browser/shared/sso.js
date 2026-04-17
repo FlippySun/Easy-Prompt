@@ -16,11 +16,9 @@
  * 影响范围：options 页面登录/退出、service-worker token 刷新、auth-callback 页面
  * 潜在风险：Safari 不支持 identity API，使用 Tab redirect fallback（已验证后端白名单）
  */
+import { BACKEND_API_BASE, SSO_HUB_BASE } from "./env.js";
 
 /* ─── Constants ─── */
-
-const SSO_HUB_BASE = "https://zhiz.chat";
-const BACKEND_API_BASE = "https://api.zhiz.chat";
 
 // Token 存储 key schema（Plan v2 Gap #6）
 const SSO_KEYS = {
@@ -268,7 +266,7 @@ async function loginViaLaunchWebAuth() {
 
 /**
  * 路径 B — Tab redirect（Safari / fallback）
- * 打开新 Tab 到 zhiz.chat 登录页，登录后 redirect 回扩展内 callback 页面
+ * 打开新 Tab 到统一 SSO Hub 登录页，登录后 redirect 回扩展内 callback 页面
  * 注意：此函数在打开 Tab 后立即返回，token 获取由 auth-callback 页面脚本异步完成
  * @returns {Promise<void>}
  */

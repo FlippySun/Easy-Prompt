@@ -18,6 +18,18 @@ import {
   loadSkillProxyPayload,
 } from "../../core/skill-fetch-client.mjs";
 
+/**
+ * 2026-04-17 新增 — Browser Task 5 生产 skill proxy fixture 常量
+ * 变更类型：新增/测试
+ * 功能描述：显式声明本测试中的 skill proxy URL 是生产 fixture，而不是浏览器扩展运行时默认值。
+ * 设计思路：Task 5 仅要求运行时代码 env-aware；这里直接测试共享 helper 的请求/重试语义，因此保留稳定的生产 URL 作为纯字符串夹具更易读。
+ * 参数与返回值：`PROD_SKILL_PROXY_URL_FIXTURE` 为常量字符串，无运行时副作用。
+ * 影响范围：browser/__tests__/skill-fetch-client.test.js。
+ * 潜在风险：无已知风险。
+ */
+const PROD_SKILL_PROXY_URL_FIXTURE =
+  "https://api.zhiz.chat/api/v1/auth/oauth/zhiz/skills";
+
 function createJsonResponse(payload, status = 200) {
   return {
     ok: status >= 200 && status < 300,
@@ -54,7 +66,7 @@ describe("skill-fetch-client shared auth fallback", () => {
       .mockResolvedValue({ accessToken: "fresh-token" });
 
     const result = await loadSkillProxyPayload({
-      requestUrl: "https://api.zhiz.chat/api/v1/auth/oauth/zhiz/skills",
+      requestUrl: PROD_SKILL_PROXY_URL_FIXTURE,
       fetchImpl: fetchMock,
       getAccessToken: () => "expired-token",
       refreshAccessToken: refreshMock,
@@ -97,7 +109,7 @@ describe("skill-fetch-client shared auth fallback", () => {
     const onAuthRetryFailure = vi.fn();
 
     const result = await loadSkillProxyPayload({
-      requestUrl: "https://api.zhiz.chat/api/v1/auth/oauth/zhiz/skills",
+      requestUrl: PROD_SKILL_PROXY_URL_FIXTURE,
       fetchImpl: fetchMock,
       getAccessToken: () => "expired-token",
       refreshAccessToken: vi.fn().mockRejectedValue(refreshError),
@@ -148,7 +160,7 @@ describe("skill-fetch-client shared auth fallback", () => {
       );
 
     const result = await loadSkillProxyPayload({
-      requestUrl: "https://api.zhiz.chat/api/v1/auth/oauth/zhiz/skills",
+      requestUrl: PROD_SKILL_PROXY_URL_FIXTURE,
       fetchImpl: fetchMock,
       getAccessToken: () => "expired-token",
       refreshAccessToken: vi
