@@ -42,6 +42,15 @@ object ApiClient {
 
     private const val DEFAULT_ENHANCE_MODE = "fast"
 
+    // 2026-04-10 修复，2026-04-17 补回
+    // 变更类型：修复
+    // 功能描述：将 IntelliJ 端后端增强请求超时统一保持为 90s，并补回丢失的超时常量定义。
+    // 设计思路：backend /api/v1/ai/enhance 采用 routing + generation 双阶段，30s 易出现“前端超时但后台 success”；IntelliJ 端需与 Web / Browser / Core 保持同一 90s 超时契约。
+    // 参数与返回值：BACKEND_TIMEOUT_MS 仅控制 callBackendEnhance 的 connect/read timeout，不改变请求参数和返回值结构。
+    // 影响范围：IntelliJ 后端增强请求超时、401 刷新重试后的请求等待窗口。
+    // 潜在风险：无已知风险。
+    private const val BACKEND_TIMEOUT_MS = 90000
+
     // 输入长度限制（与 VSCode core/api.js 保持一致）
     private const val MAX_INPUT_LENGTH = 10000
 
@@ -858,29 +867,9 @@ object ApiClient {
         } catch (e: java.net.ConnectException) {
             Triple(false, "无法连接到服务器 · 请检查网络和 API Host", System.currentTimeMillis() - startTime)
         } catch (e: Exception) {
-            Triple(false, "测试失败: ${e.message}", System.currentTimeMillis() - startTime)
+            Triple(false, "连接失败 · ${e.message ?: "Unknown error"}", System.currentTimeMillis() - startTime)
         }
     }
-
-    /* ═══════════════════════════════════════════════════
-       Backend API Client (backend-only mode)
-       2026-04-08 P2.13 新增，2026-04-09 架构重构
-       设计思路：所有增强请求统一走后端 API（api.zhiz.chat），
-         后端做中间转接层（记录信息 + 管理 API Key + 内部转发）。
-         客户端不再持有 Provider Key，不再有本地直连回退。
-       影响范围：smartRoute / directGenerate 调用入口
-       潜在风险：无已知风险
-       ═══════════════════════════════════════════════════ */
-
-    private const val BACKEND_API_BASE = "https://api.zhiz.chat"
-    // 2026-04-10 修复
-    // 变更类型：修复
-    // 功能描述：将 IntelliJ 端后端增强请求超时从 30s 提升到 90s，避免两步增强尚未完成时客户端先报超时
-    // 设计思路：backend /api/v1/ai/enhance 已拆为 routing + generation 两阶段；为避免与浏览器插件/Web 端产生不一致的超时行为，需要统一客户端等待窗口
-    // 参数与返回值：BACKEND_TIMEOUT_MS 仅控制 callBackendEnhance 的 HttpURLConnection connect/read timeout，不改变请求参数或返回值
-    // 影响范围：IntelliJ 插件 smartRoute / directGenerate / 后端增强链路
-    // 潜在风险：无已知风险
-    private const val BACKEND_TIMEOUT_MS = 90000
 
     /** 后端增强结果 */
     data class BackendEnhanceResult(
@@ -923,10 +912,11 @@ object ApiClient {
     // ========================== 变更记录 ==========================
     // [日期]     2026-04-10
     // [类型]     修改
-    // [描述]     B7a+B8: 从手动 backendToken 切换为 SSO token + 401 自动刷新重试
-    // [思路]     读取 SsoAuthClient.getAccessToken()，401 时尝试 refreshToken 并重试一次
-    // [影响范围] callBackendEnhance → 所有后端 API 调用
-    // [潜在风险] 无已知风险
+    // [描述]     B7a+B8 + Task 7：从手动 backendToken 切换为 SSO token + 401 自动刷新重试，并把后端基准地址接入共享 runtime env helper
+    // [思路]     读取 SsoAuthClient.getAccessToken()，401 时尝试 refreshToken 并重试一次；backend URL 统一从 getEasyPromptRuntimeEnv().backendBaseUrl 解析，确保开发沙箱与发布态使用各自环境
+    // [参数与返回值] callBackendEnhance(input, enhanceMode, model, indicator) 参数与返回值契约不变，仅调整运行时 backend 基准地址来源
+    // [影响范围] callBackendEnhance → 所有后端 API 调用、401 刷新后的重试请求、IntelliJ 调试态/发布态环境切换
+    // [潜在风险] 开发态判定依赖 runtime helper 的 sandbox 约定；当前无已知风险
     // ==============================================================
 
     fun callBackendEnhance(
@@ -936,6 +926,7 @@ object ApiClient {
         indicator: ProgressIndicator? = null
     ): BackendEnhanceResult {
         val requestId = generateRequestId()
+        val backendBaseUrl = getEasyPromptRuntimeEnv().backendBaseUrl
 
         // 内部请求函数（支持 token 覆写用于 401 重试）
         // 2026-04-13 修复 — 补发 clientVersion / clientPlatform 供后端日志记录
@@ -960,7 +951,7 @@ object ApiClient {
                 addProperty("clientVersion", pluginVersion)
             }
 
-            val url = URI("$BACKEND_API_BASE/api/v1/ai/enhance").toURL()
+            val url = URI("$backendBaseUrl/api/v1/ai/enhance").toURL()
             val conn = url.openConnection() as HttpURLConnection
             try {
                 conn.requestMethod = "POST"

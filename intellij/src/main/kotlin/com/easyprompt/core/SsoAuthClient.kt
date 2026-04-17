@@ -39,7 +39,7 @@ import java.util.concurrent.TimeUnit
  *
  * 设计思路：
  *   1. LoginAction 调用 startLogin() → 启动 localhost HTTP server → 打开浏览器
- *   2. 用户在 zhiz.chat 登录后 redirect 到 localhost:<port>/callback?code=xxx&state=yyy
+ *   2. 用户在当前运行环境的 PromptHub 登录后 redirect 到 localhost:<port>/callback?code=xxx&state=yyy
  *   3. server 校验 state → POST /sso/token → PasswordSafe 存 tokens → 关闭 server
  *   4. 后台 ScheduledExecutor 在过期前 60s 自动刷新
  *   5. LogoutAction 调用 logout() 清除所有 tokens
@@ -50,8 +50,13 @@ object SsoAuthClient {
     private val gson = Gson()
 
     // ── 常量 ──
-    private const val SSO_HUB_BASE = "https://zhiz.chat"
-    private const val BACKEND_API_BASE = "https://api.zhiz.chat"
+    // 2026-04-17 修复 — 环境分层 Task 7
+    // 变更类型：修复/配置/重构
+    // 功能描述：将 IntelliJ SSO 登录入口、授权码兑换、Token 刷新统一接入共享 runtime env helper，避免在开发沙箱中继续请求生产 PromptHub / 后端。
+    // 设计思路：所有 SSO 运行时 URL 改为按调用时读取 `getEasyPromptRuntimeEnv()`；Development/Test 默认落到 localhost，Production 保持线上。
+    // 参数与返回值：本注释覆盖 startLogin()/refreshToken()/exchangeCode() 三条运行时 URL 解析路径，不改变其对外参数与返回值契约。
+    // 影响范围：IntelliJ 登录入口、PasswordSafe token 生命周期、启动恢复后的 refresh 调度。
+    // 潜在风险：开发态判定依赖 sandbox 约定；helper 已兼容当前与历史 sandbox 目录命名，无已知风险。
     private const val LOGIN_TIMEOUT_MIN = 5L
 
     // ── PasswordSafe credential keys ──
@@ -89,7 +94,7 @@ object SsoAuthClient {
 
     // 2026-04-10 修复
     // 变更类型：修复
-    // 功能描述：在 IntelliJ SSO 登录态变化后主动触发 Action System 刷新，确保启动 Welcome Screen 上的 zhiz.chat CTA 立即更新为最新账号文案。
+    // 功能描述：在 IntelliJ SSO 登录态变化后主动触发 Action System 刷新，确保启动 Welcome Screen 上的 PromptHub CTA 立即更新为最新账号文案。
     // 设计思路：notifyListeners() 除了通知 ToolWindow/fallback 的自定义监听器外，再通过 ActivityTracker.getInstance().inc() 通知 IDE 重新计算 action presentation，避免 WelcomeScreenLoginAction 的 update() 滞后。
     // 参数与返回值：notifyListeners() 无参数、无返回值；在 saveTokens()/clearTokens()/refreshToken() 等统一状态变更路径中调用。
     // 影响范围：IntelliJ 启动 Welcome Screen、ToolWindow 欢迎页、状态依赖 action 的可见性与文案刷新。
@@ -175,7 +180,7 @@ object SsoAuthClient {
      * 启动 SSO 登录流程：
      *   1. 随机端口启动 localhost HTTP server（仅 /callback）
      *   2. 生成 CSRF state
-     *   3. 打开浏览器跳转 zhiz.chat/auth/login
+     *   3. 打开浏览器跳转当前运行环境的 PromptHub /auth/login
      *   4. 等待回调或超时 5 分钟
      */
     // 2026-04-10 修复 — SSO 全端审计 P2-3
@@ -196,6 +201,7 @@ object SsoAuthClient {
         }
         val port = server.address.port
         val redirectUri = "http://localhost:$port/callback"
+        val runtimeEnv = getEasyPromptRuntimeEnv()
 
         server.createContext("/callback") { exchange ->
             try {
@@ -265,7 +271,7 @@ object SsoAuthClient {
         }, LOGIN_TIMEOUT_MIN, TimeUnit.MINUTES)
 
         // 打开浏览器
-        val loginUrl = "$SSO_HUB_BASE/auth/login?" +
+        val loginUrl = "${runtimeEnv.ssoHubBaseUrl}/auth/login?" +
             "redirect_uri=${java.net.URLEncoder.encode(redirectUri, "UTF-8")}" +
             "&state=${java.net.URLEncoder.encode(state, "UTF-8")}"
         try {
@@ -292,8 +298,9 @@ object SsoAuthClient {
      */
     fun refreshToken(): String? {
         val rt = getRefreshToken() ?: return null
+        val backendBaseUrl = getEasyPromptRuntimeEnv().backendBaseUrl
         return try {
-            val url = URI("$BACKEND_API_BASE/api/v1/auth/refresh").toURL()
+            val url = URI("$backendBaseUrl/api/v1/auth/refresh").toURL()
             val conn = url.openConnection() as HttpURLConnection
             try {
                 conn.requestMethod = "POST"
@@ -316,8 +323,8 @@ object SsoAuthClient {
                 if (data.get("success")?.asBoolean != true) return null
 
                 val tokens = data.getAsJsonObject("data")?.getAsJsonObject("tokens") ?: return null
-                val newAccess = tokens.get("accessToken")?.asString ?: return null
-                val newRefresh = tokens.get("refreshToken")?.asString ?: rt
+                val newAccess = tokens.get("accessToken").asString
+                val newRefresh = tokens.get("refreshToken").asString
                 val expiresIn = tokens.get("expiresIn")?.asLong ?: 3600L
 
                 saveTokens(newAccess, newRefresh, expiresIn, null)
@@ -383,7 +390,8 @@ object SsoAuthClient {
      * 用授权码换取 tokens
      */
     private fun exchangeCode(code: String, redirectUri: String): JsonObject {
-        val url = URI("$BACKEND_API_BASE/api/v1/auth/sso/token").toURL()
+        val backendBaseUrl = getEasyPromptRuntimeEnv().backendBaseUrl
+        val url = URI("$backendBaseUrl/api/v1/auth/sso/token").toURL()
         val conn = url.openConnection() as HttpURLConnection
         try {
             conn.requestMethod = "POST"

@@ -49,7 +49,7 @@ class StatusBarMenuAction : AnAction() {
             val name = user?.displayName?.takeIf { it.isNotBlank() } ?: user?.username ?: "用户"
             items.add(MenuItem("退出登录 ($name)", "EasyPrompt.Logout"))
         } else {
-            items.add(MenuItem("登录 zhiz.chat", "EasyPrompt.Login"))
+            items.add(MenuItem("登录 PromptHub", "EasyPrompt.Login"))
         }
 
         val labels = items.map { it.label }

@@ -39,6 +39,15 @@ class EasyPromptSettings : PersistentStateComponent<EasyPromptSettings.State> {
         var language: String = "zh-CN",
         /** 2026-04-08 P9.09: 三模式开关 — auto | backend-only | local-only */
         var backendMode: String = "auto",
+        // 2026-04-17 修复 — 环境区分任务 7：IntelliJ backendUrl 显式 override 持久化
+        // 变更类型：修复/配置/兼容
+        // 功能描述：新增 `backendUrl` 字段，承载 IntelliJ 用户显式设置的 backend API 基准地址 override。
+        // 设计思路：与 VS Code `easyPrompt.backendUrl` 语义对齐，仅覆盖 backend 请求基准地址，不推导/改写 web、web-hub、SSO 页基准，避免把临时联调 backend 误扩散到网页登录域。
+        // 参数与返回值：由 EasyPromptConfigurable 读写、由 getEasyPromptRuntimeEnv() 消费；空字符串表示未显式 override。
+        // 影响范围：IntelliJ Settings 持久化、ApiClient / SsoAuthClient / SSO token 生命周期中的 backend URL 解析。
+        // 潜在风险：若用户填入不可达地址，增强、授权码兑换与 token 刷新都会失败；这是显式 override 的预期结果。
+        /** 显式 backend 基准地址 override（空字符串表示使用运行时默认值） */
+        var backendUrl: String = "",
         /** @deprecated 2026-04-10 B7a: 已由 SSO 替代，保留用于迁移兼容。见 SsoAuthClient.migrateLegacyToken() */
         @Deprecated("Use SSO via SsoAuthClient instead. Kept for migration only.")
         var backendToken: String = "",

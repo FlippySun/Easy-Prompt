@@ -21,6 +21,7 @@ class EasyPromptConfigurable : Configurable {
     private var modelField: JComboBox<String>? = null
     private var enhanceModeCombo: JComboBox<String>? = null
     private var backendModeCombo: JComboBox<String>? = null
+    private var backendUrlField: JTextField? = null
     private var backendTokenField: JPasswordField? = null
     private var statusLabel: JLabel? = null
     private var testPassed = false
@@ -33,6 +34,7 @@ class EasyPromptConfigurable : Configurable {
     private var lastSavedModel = ""
     private var lastSavedEnhanceMode = "fast"
     private var lastSavedBackendMode = "auto"
+    private var lastSavedBackendUrl = ""
     private var lastSavedBackendToken = ""
 
     /** API 模式列表（与 ApiClient.API_MODES 对应） */
@@ -54,6 +56,17 @@ class EasyPromptConfigurable : Configurable {
         "backend-only" to "Backend Only（统一后端增强）"
     )
 
+    /**
+     * 2026-04-17 修复 — 环境区分任务 7：IntelliJ backendUrl 输入归一化
+     * 变更类型：修复/配置/兼容
+     * 功能描述：统一清理 IntelliJ 设置页中 `backendUrl` 的空白与尾斜杠，保证持久化值与 runtime helper 的比较语义一致。
+     * 设计思路：显式 override 只应保留“用户真正输入的 backend 基准地址”，空字符串表示未配置，不能因为尾斜杠差异导致保存值与运行值分叉。
+     * 参数与返回值：`normalizeBackendBaseUrl(value)` 接收任意字符串，返回去空白与尾斜杠后的 backend 基准地址；空白输入返回空字符串。
+     * 影响范围：EasyPromptConfigurable 保存/恢复/重置的 backendUrl 字段、EasyPromptSettings 状态持久化。
+     * 潜在风险：无已知风险。
+     */
+    private fun normalizeBackendBaseUrl(value: String): String = value.trim().trimEnd('/')
+
     override fun getDisplayName(): String = "Easy Prompt"
 
     override fun createComponent(): JComponent {
@@ -67,6 +80,7 @@ class EasyPromptConfigurable : Configurable {
         lastSavedModel = settings.state.model
         lastSavedEnhanceMode = settings.state.enhanceMode.ifBlank { "fast" }
         lastSavedBackendMode = settings.state.backendMode.ifBlank { "auto" }
+        lastSavedBackendUrl = normalizeBackendBaseUrl(settings.state.backendUrl)
         @Suppress("DEPRECATION")
         lastSavedBackendToken = settings.state.backendToken
 
@@ -211,12 +225,30 @@ class EasyPromptConfigurable : Configurable {
         panel!!.add(addField("运行模式:", backendModeCombo!!))
         panel!!.add(Box.createVerticalStrut(8))
 
+        // 2026-04-17 修复 — 环境区分任务 7：补齐 IntelliJ backendUrl 手动 override UI
+        // 变更类型：修复/配置/兼容
+        // 功能描述：在 IntelliJ 设置页提供与 VS Code `easyPrompt.backendUrl` 对齐的 backend API 显式 override 输入框。
+        // 设计思路：只覆盖 IntelliJ 端 backend 请求基准地址；Web / Web-Hub / SSO 登录页链接仍按 runtime env 默认值解析，避免把调试 backend override 扩散到网页登录域。
+        // 参数与返回值：`backendUrlField` 读写 `EasyPromptSettings.State.backendUrl`；留空表示使用调试态 localhost / 发布态生产默认值。
+        // 影响范围：IntelliJ 设置面板、EasyPromptSettings 持久化、EasyPromptRuntimeEnv backend 解析、ApiClient/SsoAuthClient 请求链路。
+        // 潜在风险：若用户填入不可达地址，登录授权码兑换、token 刷新与增强请求都会失败；这是显式 override 的预期结果。
+        backendUrlField = PlaceholderTextField("留空 = 调试态 localhost:3000 / 发布态 https://api.zhiz.chat", 40).apply {
+            text = lastSavedBackendUrl
+        }
+        backendUrlField!!.document.addDocumentListener(SimpleDocListener(resetTestState))
+        panel!!.add(addField("Backend URL:", backendUrlField!!))
+        panel!!.add(Box.createVerticalStrut(4))
+        panel!!.add(JLabel("<html><i>仅覆盖 IntelliJ 端 backend API 请求；PromptHub / Web 在线版 / SSO 登录页链接仍按当前运行环境默认值解析。</i></html>").apply {
+            alignmentX = JPanel.LEFT_ALIGNMENT
+        })
+        panel!!.add(Box.createVerticalStrut(8))
+
         backendTokenField = PlaceholderPasswordField("留空 = 匿名使用（受更严格限流）", 40).apply {
             text = lastSavedBackendToken
         }
         panel!!.add(addField("Access Token:", backendTokenField!!))
         panel!!.add(Box.createVerticalStrut(4))
-        panel!!.add(JLabel("<html><i>登录 zhiz.chat 后在个人设置中获取。留空则以匿名身份使用。</i></html>").apply {
+        panel!!.add(JLabel("<html><i>登录 PromptHub 后在个人设置中获取。留空则以匿名身份使用。</i></html>").apply {
             alignmentX = JPanel.LEFT_ALIGNMENT
         })
 
@@ -344,6 +376,7 @@ class EasyPromptConfigurable : Configurable {
         val path = apiPathField?.text?.trim() ?: ""
         val apiKey = String(apiKeyField?.password ?: charArrayOf()).trim()
         val model = (modelField?.selectedItem?.toString() ?: "").trim()
+        val backendUrl = normalizeBackendBaseUrl(backendUrlField?.text ?: "")
         val modeKey = getSelectedModeKey()
         if (host.isBlank() && apiKey.isBlank() && model.isBlank()) {
             val settings = EasyPromptSettings.getInstance()
@@ -357,6 +390,7 @@ class EasyPromptConfigurable : Configurable {
                 sceneStats = currentStats,
                 historyRecords = currentHistory,
                 backendMode = lastSavedBackendMode,
+                backendUrl = backendUrl,
                 backendToken = lastSavedBackendToken
             ))
             settings.setApiKey("")  // Clear from PasswordSafe
@@ -366,7 +400,12 @@ class EasyPromptConfigurable : Configurable {
             lastSavedApiKey = ""
             lastSavedModel = ""
             lastSavedEnhanceMode = enhanceMode
-            statusLabel?.text = "✅ 已保存 — 当前使用内置免费服务"
+            lastSavedBackendUrl = backendUrl
+            statusLabel?.text = if (backendUrl.isBlank()) {
+                "✅ 已保存 — 当前使用内置免费服务"
+            } else {
+                "✅ 已保存 — 当前使用内置免费服务 + 自定义 Backend URL"
+            }
             statusLabel?.foreground = Color(0x00, 0x88, 0x00)
             testPassed = true
             return
@@ -405,6 +444,7 @@ class EasyPromptConfigurable : Configurable {
                         sceneStats = currentStats,
                         historyRecords = currentHistory,
                         backendMode = lastSavedBackendMode,
+                        backendUrl = backendUrl,
                         backendToken = lastSavedBackendToken
                     ))
                     settings.setApiKey(apiKey)
@@ -414,6 +454,7 @@ class EasyPromptConfigurable : Configurable {
                     lastSavedApiKey = apiKey
                     lastSavedModel = model
                     lastSavedEnhanceMode = enhanceMode
+                    lastSavedBackendUrl = backendUrl
                     statusLabel?.text = "✅ 配置已保存并生效 · 响应耗时 ${latency}ms"
                     statusLabel?.foreground = Color(0x00, 0x88, 0x00)
                     testPassed = true
@@ -437,6 +478,7 @@ class EasyPromptConfigurable : Configurable {
         modelField?.selectedItem = ""
         enhanceModeCombo?.selectedIndex = 0
         backendModeCombo?.selectedIndex = 0  // "auto"
+        backendUrlField?.text = ""
         backendTokenField?.text = ""
         val settings = EasyPromptSettings.getInstance()
         val currentStats = settings.state.sceneStats
@@ -448,6 +490,7 @@ class EasyPromptConfigurable : Configurable {
             sceneStats = currentStats,
             historyRecords = currentHistory,
             backendMode = "auto",
+            backendUrl = "",
             backendToken = ""
         ))
         settings.setApiKey("")  // Clear from PasswordSafe
@@ -458,6 +501,7 @@ class EasyPromptConfigurable : Configurable {
         lastSavedModel = ""
         lastSavedEnhanceMode = "fast"
         lastSavedBackendMode = "auto"
+        lastSavedBackendUrl = ""
         lastSavedBackendToken = ""
 
         statusLabel?.text = "✅ 已恢复为内置默认配置"
@@ -538,6 +582,7 @@ class EasyPromptConfigurable : Configurable {
         lastSavedModel = settings.state.model
         lastSavedEnhanceMode = settings.state.enhanceMode.ifBlank { "fast" }
         lastSavedBackendMode = settings.state.backendMode.ifBlank { "auto" }
+        lastSavedBackendUrl = normalizeBackendBaseUrl(settings.state.backendUrl)
         @Suppress("DEPRECATION")
         lastSavedBackendToken = settings.state.backendToken
 
@@ -552,6 +597,7 @@ class EasyPromptConfigurable : Configurable {
         // 2026-04-08 P9.09+P9.10: 恢复后端配置 UI
         val backendModeIdx = backendModeEntries.indexOfFirst { it.first == lastSavedBackendMode }
         backendModeCombo?.selectedIndex = if (backendModeIdx >= 0) backendModeIdx else 0
+        backendUrlField?.text = lastSavedBackendUrl
         backendTokenField?.text = lastSavedBackendToken
         statusLabel?.text = ""
         testPassed = false
