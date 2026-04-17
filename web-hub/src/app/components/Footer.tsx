@@ -1,5 +1,6 @@
 import { Github, Twitter, Heart, Wand2 } from 'lucide-react';
 import logoWhite from '@/assets/icon/logo-white.svg';
+import { PROMPT_WEB_FROM_HUB_URL } from '@/lib/env';
 
 interface FooterProps {
   darkMode: boolean;
@@ -47,7 +48,7 @@ export function Footer({ darkMode }: FooterProps) {
             ))}
             <span className={`${dm ? 'text-gray-700' : 'text-gray-200'}`}>|</span>
             <a
-              href="https://prompt.zhiz.chat?from=hub"
+              href={PROMPT_WEB_FROM_HUB_URL}
               target="_blank"
               rel="noopener"
               className={`inline-flex items-center gap-1 font-medium transition-colors ${dm ? 'text-violet-400/70 hover:text-violet-400' : 'text-violet-500/70 hover:text-violet-600'}`}

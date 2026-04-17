@@ -34,6 +34,7 @@ import { useInteractions } from '../hooks/useInteractions';
 import { useOpenDrawer } from '../hooks/useDrawerContext';
 import { useTypewriter } from '../hooks/useTypewriter';
 import { CATEGORY_CONFIG as CARD_CATEGORY_CONFIG, MODEL_LABELS as BASE_MODEL_LABELS } from '../data/constants';
+import { PROMPT_WEB_FROM_HUB_URL } from '@/lib/env';
 import { downloadFile } from '../../lib/utils';
 
 // 从集中 CATEGORY_CONFIG 派生，增加 'all' 入口
@@ -294,7 +295,7 @@ export function Home() {
 
               {/* Cross-product CTA */}
               <a
-                href="https://prompt.zhiz.chat?from=hub"
+                href={PROMPT_WEB_FROM_HUB_URL}
                 target="_blank"
                 rel="noopener"
                 className={`group inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-medium transition-all w-fit ${

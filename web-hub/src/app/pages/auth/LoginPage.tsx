@@ -21,6 +21,7 @@ import { motion } from 'motion/react';
 import { Mail, Lock, Eye, EyeOff, LogIn, Github, Loader2 } from 'lucide-react';
 // 2026-04-10 — P5 修复：改用 authApi 替代直接 fetch，获得统一错误处理、token 自动存储
 import { authApi, ApiError } from '@/lib/api';
+import { BACKEND_API_BASE } from '@/lib/env';
 // 2026-04-10 — SSO Plan v2 A3：登录成功后生成 SSO code 再 redirect
 import { handleSsoRedirect } from '@/lib/api/sso';
 import logoWhite from '@/assets/icon/logo-white.svg';
@@ -42,7 +43,6 @@ import zhizLogo from '@/assets/icon/zhiz-logo.png';
  * 影响范围：web-hub 登录页第三方登录区域
  * 潜在风险：无已知风险
  */
-const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 const ZHIZ_LOGIN_LABEL = 'Zhiz 登录';
 
 /**
@@ -68,7 +68,7 @@ export function LoginPage() {
   const [error, setError] = useState('');
 
   const zhizLoginUrl = useMemo(() => {
-    const url = new URL('/api/v1/auth/oauth/zhiz', API_BASE || window.location.origin);
+    const url = new URL('/api/v1/auth/oauth/zhiz', BACKEND_API_BASE);
     if (redirectUri) {
       url.searchParams.set('clientRedirectUri', redirectUri);
     }

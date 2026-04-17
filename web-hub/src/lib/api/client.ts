@@ -3,25 +3,26 @@
  * 2026-04-09 新增 — P5.01 API Client 封装
  * 变更类型：新增
  * 设计思路：
- *   1. base URL 通过 VITE_API_BASE 环境变量配置（生产 api.zhiz.chat / 开发 localhost:3000）
+ *   1. base URL 通过共享 env 模块统一解析（主语义源 `VITE_BACKEND_PUBLIC_BASE_URL`，兼容 `VITE_API_BASE` 别名）
  *   2. 自动附加 credentials: 'include'（cookie 跨域）
  *   3. 每次请求附加 X-Request-Id（UUID v4）方便链路追踪
  *   4. 请求拦截：附加 access_token（localStorage 存储）
  *   5. 响应拦截：401 自动 refresh token 并重试原请求（仅一次）
  *   6. 请求超时 15s（AbortController）
  *   7. TypeScript 泛型：api.get<T>(), api.post<T>() 等
- * 参数：环境变量 VITE_API_BASE
+ * 参数：共享 env 模块 BACKEND_API_BASE
  * 影响范围：web-hub 全局 API 调用
  * 潜在风险：refresh token 竞态——用 _refreshPromise 单例锁防止并发刷新
  */
 
 import { ApiError } from './types';
 import type { ApiErrorResponse } from './types';
+import { BACKEND_API_BASE } from '../env';
 
 // ── 常量 ─────────────────────────────────────────────────
 
-/** API 基础路径（Vite 环境变量，无尾部斜杠） */
-const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/+$/, '') ?? '';
+/** API 基础路径（共享 env 模块统一解析，无尾部斜杠） */
+const API_BASE = BACKEND_API_BASE;
 
 /** 请求默认超时（毫秒） */
 const REQUEST_TIMEOUT_MS = 15_000;

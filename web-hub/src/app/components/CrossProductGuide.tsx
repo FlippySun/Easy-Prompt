@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Wand2, X, ArrowRight } from 'lucide-react';
 import { unlockAchievementAction } from '../hooks/usePromptStore';
+import { PROMPT_WEB_FROM_HUB_URL } from '@/lib/env';
 
 const STORAGE_KEY = 'prompthub_guide_dismissed';
 
@@ -100,7 +101,7 @@ export function CrossProductGuide({ darkMode }: CrossProductGuideProps) {
                 <motion.a
                   variants={itemVariants}
                   transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
-                  href="https://prompt.zhiz.chat?from=hub"
+                  href={PROMPT_WEB_FROM_HUB_URL}
                   target="_blank"
                   rel="noopener"
                   onClick={handleClick}

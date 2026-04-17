@@ -6,6 +6,7 @@ import { AuthButton } from './AuthButton';
 import { unlockAchievementAction } from '../hooks/usePromptStore';
 import { useState, useEffect } from 'react';
 import logoWhite from '@/assets/icon/logo-white.svg';
+import { PROMPT_WEB_FROM_HUB_URL } from '@/lib/env';
 
 const BUBBLE_KEY = 'prompthub_enhance_bubble_dismissed';
 
@@ -103,7 +104,7 @@ export function Navbar({ darkMode, onToggleDark, searchValue, onSearchChange, on
           {/* Easy Prompt Tool Link */}
           <div className="relative hidden sm:flex">
             <a
-              href="https://prompt.zhiz.chat?from=hub"
+              href={PROMPT_WEB_FROM_HUB_URL}
               target="_blank"
               rel="noopener"
               onClick={() => {

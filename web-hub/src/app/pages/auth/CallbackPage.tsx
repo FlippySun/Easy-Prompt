@@ -15,8 +15,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router';
 import { motion } from 'motion/react';
 import { Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
-
-const API_BASE = import.meta.env.VITE_API_BASE ?? '';
+import { BACKEND_API_BASE } from '@/lib/env';
 
 export function CallbackPage() {
   const [searchParams] = useSearchParams();
@@ -43,7 +42,7 @@ export function CallbackPage() {
     // 将 code 发送到后端交换 token
     const exchangeCode = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/v1/auth/oauth/callback`, {
+        const res = await fetch(`${BACKEND_API_BASE}/api/v1/auth/oauth/callback`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
