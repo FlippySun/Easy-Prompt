@@ -137,12 +137,13 @@ export function initApp() {
 
 /**
  * 2026-04-16 新增 — Web SSO 启动阶段与 Skill 数据同步
+ * 2026-04-17 修复 — 匿名态不再首屏强刷远端 Skill proxy
  * 变更类型：新增/兼容
- * 功能描述：在页面初始化时统一处理 SSO 回调恢复、登录 UI 恢复、定时刷新恢复与 skill 数据真实拉取。
+ * 功能描述：在页面初始化时统一处理 SSO 回调恢复、登录 UI 恢复、定时刷新恢复与 skill 数据同步；未登录时保留本地 mock，避免本地/匿名访问每次启动都强刷后端 skill proxy 产生 502 噪音。
  * 设计思路：
  *   1. 继续保持 initApp 同步入口不变，异步部分单独收敛到 bootstrapSsoStateAndSkills()。
  *   2. handleSsoCallbackOnLoad() 完成 code exchange 后，复用同一 skill 刷新逻辑更新面板数据。
- *   3. 若后端 skill proxy 失败，loadSkills() 会自动回退 mock，不阻断页面初始化。
+ *   3. 仅在已登录（或刚完成 code exchange）后触发真实 skill 刷新，匿名态直接保留 mock 首屏，减少后端 provider 未就绪时的启动噪音。
  * 参数与返回值：bootstrapSsoStateAndSkills() 无参数；返回 Promise<void>。
  * 影响范围：web/src/ui/index.js 的 Skill 面板初始化、SSO 回调恢复、登录态切换后的数据刷新。
  * 潜在风险：无已知风险。
@@ -154,7 +155,9 @@ async function bootstrapSsoStateAndSkills() {
   if (savedExpiry) {
     scheduleSsoRefresh(Number(savedExpiry));
   }
-  await refreshSkillPanelSkills({ forceRefresh: true });
+  if (isAuthenticated()) {
+    await refreshSkillPanelSkills({ forceRefresh: true });
+  }
 }
 
 /**
@@ -485,6 +488,7 @@ function initSkillPanel() {
 // [修复]     2026-04-13 修复两个 bug：
 //            (1) 原 startsWith("/") 导致"输入文字后键入 /"不触发；
 //            (2) 原 substring(1) 导致光标在行首键入 "/" 时 filter 包含光标后全部文本。
+// [更新]     2026-04-17 匿名态 slash 首开不再强刷远端 skill proxy；登录态仍允许按需补拉真实 skills，避免 provider 未就绪时重复 502 噪音。
 // [影响范围] web/src/ui/index.js（handleSkillTrigger + skill-select 事件）
 // [潜在风险] 无已知风险
 function handleSkillTrigger(textarea) {
@@ -501,7 +505,11 @@ function handleSkillTrigger(textarea) {
     // 找到 "/"，且不是 "://" URL 模式 → 触发 skill 浮窗
     const filterText = textBeforeCursor.substring(slashPos + 1);
     _skillSlashIndex = slashPos;
-    if (!_skillPanel.visible && shouldRefreshSkillsOnPanelOpen()) {
+    if (
+      !_skillPanel.visible &&
+      isAuthenticated() &&
+      shouldRefreshSkillsOnPanelOpen()
+    ) {
       void refreshSkillPanelSkills({ forceRefresh: true });
     }
     _skillPanel.filter = filterText;

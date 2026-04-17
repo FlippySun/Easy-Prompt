@@ -9,18 +9,24 @@
       content="97 个专业场景，两步 AI 路由，将你的需求扩写为大师级 Prompt"
     />
     <meta name="theme-color" content="#09090b" />
-    <!-- CSP：Vite dev server 需要 'unsafe-inline' script；生产构建由部署层 CSP header 覆盖 -->
+    <!--
+      2026-04-17 修复 — Web 本地首屏字体加载链收口
+      变更类型：修复/配置
+      功能描述：保留可用的 jsDelivr MiSans regular/bold，移除 public/ 下缺失分片 woff2 的 500/600 CSS 直链，避免 dev 环境持续出现字体解码告警。
+      设计思路：当前 web/public 只有 CSS 文件而无对应分片字体资源，继续加载只会制造浏览器噪音；500/600 先回退到现有 regular/bold，待真实静态资源补齐后再恢复。
+      参数与返回值：无。
+      影响范围：web/index.html 本地首屏字体加载、控制台告警、PromptHub/web 本地 smoke 可读性。
+      潜在风险：中间字重显示可能轻微退化，但不影响功能验证与交互链路。
+    -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src https://cdn.jsdelivr.net; connect-src *; img-src 'self' data:;"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' data: https://cdn.jsdelivr.net; connect-src *; img-src 'self' data:;"
     />
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <link
       href="https://cdn.jsdelivr.net/npm/misans-webfont@4.3.1/misans/misans-regular/result.css"
       rel="stylesheet"
     />
-    <link href="/misans-500.css" rel="stylesheet" />
-    <link href="/misans-600.css" rel="stylesheet" />
     <link
       href="https://cdn.jsdelivr.net/npm/misans-webfont@4.3.1/misans/misans-bold/result.css"
       rel="stylesheet"
@@ -221,8 +227,8 @@
             <button
               class="header__nav-btn header__sso-btn"
               id="btn-sso"
-              aria-label="登录 zhiz.chat"
-              title="登录 zhiz.chat"
+              aria-label="登录 PromptHub"
+              title="登录 PromptHub"
             >
               <svg
                 width="18"
@@ -321,9 +327,10 @@
           <span class="header__nav-divider"></span>
 
           <div class="header__hub-link-wrapper">
+            <!-- 2026-04-17 修复：PromptHub 入口改走 Vite env 注入的 Web-Hub 基地址，development 指向 localhost:5173，production 指向 zhiz.chat，避免首页静态链接在本地联调时误跳公网。 -->
             <a
               class="header__hub-link"
-              href="https://zhiz.chat?from=web"
+              href="%VITE_WEB_HUB_PUBLIC_BASE_URL%?from=web"
               target="_blank"
               rel="noopener"
               title="探索 PromptHub — AI Prompt 精选库"
@@ -409,7 +416,7 @@
           <span class="guide-bar__text">想要现成的优质 Prompt？</span>
           <a
             class="guide-bar__link"
-            href="https://zhiz.chat?from=web"
+            href="%VITE_WEB_HUB_PUBLIC_BASE_URL%?from=web"
             target="_blank"
             rel="noopener"
           >
@@ -479,7 +486,7 @@
         </p>
         <a
           class="hero__cta-link"
-          href="https://zhiz.chat?from=web"
+          href="%VITE_WEB_HUB_PUBLIC_BASE_URL%?from=web"
           target="_blank"
           rel="noopener"
         >
@@ -752,7 +759,7 @@
         <span class="footer__eco-divider"></span>
         <a
           class="footer__eco-link"
-          href="https://zhiz.chat?from=web"
+          href="%VITE_WEB_HUB_PUBLIC_BASE_URL%?from=web"
           target="_blank"
           rel="noopener"
         >

@@ -13,7 +13,7 @@ import { CLIENT_VERSION, CLIENT_PLATFORM } from "./constants.js";
 /* ═══════════════════════════════════════════════════
    §7b. Backend API Client (backend-only mode)
    2026-04-08 P2.10 新增，2026-04-09 架构重构，2026-04-10 SSO B9 改造
-   设计思路：所有增强请求统一走后端 API（api.zhiz.chat），
+   设计思路：所有增强请求统一走受控 backend API 基准地址，
      后端做中间转接层（记录信息 + 管理 API Key + 内部转发）。
      客户端不再持有 Provider Key，不再有本地直连回退。
      2026-04-10: 认证从 cookie 改为 Bearer token（SSO localStorage）。
@@ -21,7 +21,48 @@ import { CLIENT_VERSION, CLIENT_PLATFORM } from "./constants.js";
    潜在风险：localStorage 在同源下共享，XSS 可读取（CSP 已防护）
    ═══════════════════════════════════════════════════ */
 
-export const BACKEND_API_BASE = "https://api.zhiz.chat";
+/**
+ * 2026-04-17 修复 — 环境区分任务 3：Web 端 backend/SSO 基准地址环境化
+ * 变更类型：修复/配置/重构
+ * 功能描述：从 Vite `import.meta.env` 读取 Web 端 backend API 与 SSO Hub 基准地址，development / production 分别跟随 `.env.development` / `.env.production`，停止在运行时代码中硬编码生产域名。
+ * 设计思路：
+ *   1. `VITE_BACKEND_PUBLIC_BASE_URL` 作为主语义源，保留 `VITE_API_BASE` 仅作任务 1 过渡期兼容别名。
+ *   2. `VITE_SSO_HUB_BASE_URL` 作为 Web 登录/个人主页跳转基准，缺失时仅回退到同批冻结的 `VITE_WEB_HUB_PUBLIC_BASE_URL`。
+ *   3. 关键 env 缺失时立即 fail-closed 抛错，避免本地开发静默命中线上 `api.zhiz.chat` / `zhiz.chat`。
+ * 参数与返回值：`normalizeViteBaseUrl(value)` 返回去空白与尾斜杠后的字符串；`requireViteBaseUrl(primaryKey, usage, fallbackKey)` 返回必需的基准地址或抛错。
+ * 影响范围：Web 端增强请求、SSO code exchange / refresh、登录页跳转、个人主页跳转、skill proxy 请求。
+ * 潜在风险：若 Vite env 契约文件缺失，页面会在导入阶段显式失败；这是预期的 fail-closed 行为。
+ */
+const viteEnv = import.meta.env ?? {};
+
+function normalizeViteBaseUrl(value) {
+  return typeof value === "string" ? value.trim().replace(/\/+$/, "") : "";
+}
+
+function requireViteBaseUrl(primaryKey, usage, fallbackKey) {
+  const primaryValue = normalizeViteBaseUrl(viteEnv[primaryKey]);
+  if (primaryValue) {
+    return primaryValue;
+  }
+
+  const fallbackValue = fallbackKey
+    ? normalizeViteBaseUrl(viteEnv[fallbackKey])
+    : "";
+  if (fallbackValue) {
+    return fallbackValue;
+  }
+
+  throw new Error(
+    `[EP_WEB_ENV] ${primaryKey} is required for ${usage}${fallbackKey ? ` (fallback ${fallbackKey} also missing)` : ""}`,
+  );
+}
+
+export const BACKEND_API_BASE = requireViteBaseUrl(
+  "VITE_BACKEND_PUBLIC_BASE_URL",
+  "Web backend API requests",
+  "VITE_API_BASE",
+);
+
 // 2026-04-10 修复
 // 变更类型：修复
 // 功能描述：将 Web 端后端增强请求超时从 30s 提升到 90s，避免生产环境中两步增强尚未完成时被前端提前中断
@@ -48,7 +89,11 @@ export const BACKEND_TIMEOUT_MS = 90000;
 // 参数与返回值：无（仅变量 export）。
 // 影响范围：web/src/ui/index.js 导入 SSO_HUB_BASE 与 openProfilePage()。
 // 潜在风险：无已知风险。
-export const SSO_HUB_BASE = "https://zhiz.chat";
+export const SSO_HUB_BASE = requireViteBaseUrl(
+  "VITE_SSO_HUB_BASE_URL",
+  "Web SSO login and profile links",
+  "VITE_WEB_HUB_PUBLIC_BASE_URL",
+);
 export const SSO_KEYS = {
   ACCESS_TOKEN: "ep-sso-access-token",
   REFRESH_TOKEN: "ep-sso-refresh-token",
@@ -56,6 +101,7 @@ export const SSO_KEYS = {
   USER: "ep-sso-user",
   STATE: "ep-sso-state",
 };
+
 let _ssoRefreshTimer = null;
 export const SSO_STATE_CHANGE_EVENT = "ep:sso-state-change";
 
@@ -209,7 +255,7 @@ export function clearSsoTokens() {
   dispatchSsoStateChange({ reason: "tokens_cleared", user: null });
 }
 
-/** SSO 登录 — 跳转到 zhiz.chat */
+/** SSO 登录 — 跳转到统一 SSO Hub 登录页 */
 export function ssoLogin() {
   const state = crypto.randomUUID();
   localStorage.setItem(SSO_KEYS.STATE, state);
@@ -332,14 +378,14 @@ export function updateSsoUI() {
   if (user) {
     const name = user.displayName || user.username || "已登录";
     label.textContent = name;
-    btn.title = `已登录：${name}\n点击打开 zhiz.chat 个人主页`;
+    btn.title = `已登录：${name}\n点击打开个人主页`;
     btn.setAttribute("aria-label", `已登录 ${name}，点击打开个人主页`);
     btn.classList.add("is-logged-in");
     if (chevron) chevron.hidden = false;
   } else {
     label.textContent = "登录";
-    btn.title = "登录 zhiz.chat";
-    btn.setAttribute("aria-label", "登录 zhiz.chat");
+    btn.title = "打开登录页";
+    btn.setAttribute("aria-label", "打开登录页");
     btn.classList.remove("is-logged-in");
     if (chevron) {
       chevron.hidden = true;
