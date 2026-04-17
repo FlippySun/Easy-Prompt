@@ -41,7 +41,14 @@ export const BACKEND_TIMEOUT_MS = 90000;
 // 影响范围：认证方式、UI 登录按钮
 // 潜在风险：无已知风险（CSP 限制 XSS）
 
-const SSO_HUB_BASE = "https://zhiz.chat";
+// 2026-04-17 修改 — Zhiz SSO Hub 基地址 export 化
+// 变更类型：重构/修复
+// 功能描述：将 SSO_HUB_BASE 从内部常量升级为 export，供 UI 层在"点击已登录用户名跳个人主页"等场景复用同一地址。
+// 设计思路：保持单一来源（single source of truth），避免 UI 层再次硬编码 https://zhiz.chat，防止未来切域名时漏改。
+// 参数与返回值：无（仅变量 export）。
+// 影响范围：web/src/ui/index.js 导入 SSO_HUB_BASE 与 openProfilePage()。
+// 潜在风险：无已知风险。
+export const SSO_HUB_BASE = "https://zhiz.chat";
 export const SSO_KEYS = {
   ACCESS_TOKEN: "ep-sso-access-token",
   REFRESH_TOKEN: "ep-sso-refresh-token",
@@ -50,6 +57,7 @@ export const SSO_KEYS = {
   STATE: "ep-sso-state",
 };
 let _ssoRefreshTimer = null;
+export const SSO_STATE_CHANGE_EVENT = "ep:sso-state-change";
 
 /** 获取 SSO access token */
 export function getSsoToken() {
@@ -71,6 +79,115 @@ export function isAuthenticated() {
   return !!getSsoToken();
 }
 
+/**
+ * 2026-04-16 新增 — Web SSO 状态变更事件桥接
+ * 变更类型：新增/兼容
+ * 功能描述：在 Web 端登录态发生保存/清除时向页面广播轻量事件，供 skill 面板等旁路模块刷新依赖登录态的数据。
+ * 设计思路：
+ *   1. 复用 window CustomEvent，避免把 skill 刷新逻辑直接耦合进 SSO 登录/退出主流程。
+ *   2. 仅广播 reason/user 等最小上下文，不传 token，继续遵守客户端不暴露敏感凭证的约束。
+ *   3. 提供 onSsoStateChange() 取消订阅函数，便于 UI 模块按需绑定而不污染全局命名空间。
+ * 参数与返回值：dispatchSsoStateChange(detail) 无返回值；onSsoStateChange(listener) 返回解绑函数。
+ * 影响范围：web/src/ui/index.js 的 skill 数据刷新，以及后续任何依赖 Web 登录态切换的旁路 UI。
+ * 潜在风险：无已知风险。
+ */
+function dispatchSsoStateChange(detail) {
+  if (
+    typeof window === "undefined" ||
+    typeof window.dispatchEvent !== "function"
+  ) {
+    return;
+  }
+  window.dispatchEvent(
+    new CustomEvent(SSO_STATE_CHANGE_EVENT, {
+      detail,
+    }),
+  );
+}
+
+export function onSsoStateChange(listener) {
+  if (
+    typeof window === "undefined" ||
+    typeof window.addEventListener !== "function"
+  ) {
+    return () => {};
+  }
+  const wrappedListener = (event) => {
+    listener(event.detail || {});
+  };
+  window.addEventListener(SSO_STATE_CHANGE_EVENT, wrappedListener);
+  return () => {
+    window.removeEventListener(SSO_STATE_CHANGE_EVENT, wrappedListener);
+  };
+}
+
+/**
+ * 2026-04-16 新增 — Web SSO 刷新定时器清理助手
+ * 变更类型：新增/兼容
+ * 功能描述：统一清理当前页面持有的 SSO token 自动刷新计时器，供退出登录与跨标签页 storage 同步复用。
+ * 设计思路：把 `_ssoRefreshTimer` 的生命周期收口到单一 helper，避免多个入口分别操作 timeout handle 导致遗留定时器。
+ * 参数与返回值：clearSsoRefreshTimer() 无参数；无返回值。
+ * 影响范围：web/src/backend.js 的 logout、token 刷新与 cross-tab storage 同步。
+ * 潜在风险：无已知风险。
+ */
+function clearSsoRefreshTimer() {
+  if (_ssoRefreshTimer) {
+    clearTimeout(_ssoRefreshTimer);
+    _ssoRefreshTimer = null;
+  }
+}
+
+/**
+ * 2026-04-16 新增 — Web 跨标签页 SSO storage 事件桥接
+ * 变更类型：新增/兼容
+ * 功能描述：监听其他标签页对 `ep-sso-*` 的 localStorage 变更，并在当前标签页同步登录 UI、刷新定时器与 skill 依赖数据事件。
+ * 设计思路：
+ *   1. 仅处理 `SSO_KEYS` 范围内的 storage 事件，避免无关 localStorage 读写触发 skill 面板误刷新。
+ *   2. 监听到跨 tab 登录/退出/refresh 后，先恢复当前页 UI 与 refresh timer，再通过既有 `ep:sso-state-change` 广播给 skill 面板等旁路模块。
+ *   3. 同 tab 的 localStorage 写入不会触发 storage 事件，因此与 `dispatchSsoStateChange()` 的本地广播互补，不会重复覆盖。
+ * 参数与返回值：onSsoStorageChange(listener) 返回解绑函数；listener 接收 `{ reason, key, user }`。
+ * 影响范围：web/src/ui/index.js 的跨标签页登录态刷新、skill 数据同步。
+ * 潜在风险：无已知风险。
+ */
+export function onSsoStorageChange(listener = () => {}) {
+  if (
+    typeof window === "undefined" ||
+    typeof window.addEventListener !== "function"
+  ) {
+    return () => {};
+  }
+  const ssoKeys = new Set(Object.values(SSO_KEYS));
+  const wrappedListener = (event) => {
+    if (event.storageArea !== localStorage) {
+      return;
+    }
+    if (event.key && !ssoKeys.has(event.key)) {
+      return;
+    }
+
+    const storedExpiry = localStorage.getItem(SSO_KEYS.EXPIRES_AT);
+    if (storedExpiry) {
+      scheduleSsoRefresh(Number(storedExpiry));
+    } else {
+      clearSsoRefreshTimer();
+    }
+    updateSsoUI();
+
+    const detail = {
+      reason: "storage_sync",
+      key: event.key || null,
+      user: getSsoUser(),
+    };
+    dispatchSsoStateChange(detail);
+    listener(detail);
+  };
+
+  window.addEventListener("storage", wrappedListener);
+  return () => {
+    window.removeEventListener("storage", wrappedListener);
+  };
+}
+
 /** 保存 SSO tokens */
 export function saveSsoTokens(data) {
   const { user, tokens } = data;
@@ -81,16 +198,15 @@ export function saveSsoTokens(data) {
   if (user) localStorage.setItem(SSO_KEYS.USER, JSON.stringify(user));
   scheduleSsoRefresh(expiresAt);
   updateSsoUI();
+  dispatchSsoStateChange({ reason: "tokens_saved", user: user || null });
 }
 
 /** 清除 SSO tokens */
 export function clearSsoTokens() {
   Object.values(SSO_KEYS).forEach((k) => localStorage.removeItem(k));
-  if (_ssoRefreshTimer) {
-    clearInterval(_ssoRefreshTimer);
-    _ssoRefreshTimer = null;
-  }
+  clearSsoRefreshTimer();
   updateSsoUI();
+  dispatchSsoStateChange({ reason: "tokens_cleared", user: null });
 }
 
 /** SSO 登录 — 跳转到 zhiz.chat */
@@ -140,12 +256,17 @@ export async function refreshSsoToken() {
   localStorage.setItem(SSO_KEYS.REFRESH_TOKEN, tokens.refreshToken);
   localStorage.setItem(SSO_KEYS.EXPIRES_AT, String(expiresAt));
   scheduleSsoRefresh(expiresAt);
+  updateSsoUI();
+  dispatchSsoStateChange({
+    reason: "tokens_refreshed",
+    user: getSsoUser(),
+  });
   return tokens;
 }
 
 /** 调度定时刷新（B10） */
 export function scheduleSsoRefresh(expiresAt) {
-  if (_ssoRefreshTimer) clearInterval(_ssoRefreshTimer);
+  clearSsoRefreshTimer();
   const delayMs = Math.max(expiresAt - Date.now() - 60 * 1000, 30 * 1000);
   _ssoRefreshTimer = setTimeout(async () => {
     try {
@@ -185,23 +306,63 @@ export async function handleSsoCallbackOnLoad() {
   }
 }
 
-/** 更新 SSO UI（header 登录按钮） */
+/**
+ * 2026-04-17 修复 — Web 主应用 SSO 按钮语义与其他端对齐
+ * 变更类型：修复/交互
+ * 功能描述：
+ *   1. 已登录状态下，按钮主体点击改为跳转 Web-Hub 个人主页（见 #btn-sso click handler + openProfilePage）；
+ *   2. 同步更新 title / aria-label 文案，消除"点击退出"的误导提示；
+ *   3. 控制新增的 Chevron 下拉菜单按钮与菜单容器在登录态切换时的可见性与 aria-expanded。
+ * 设计思路：
+ *   - 保持 `getSsoUser()` 为唯一登录态真相来源，避免多处分支各自判断。
+ *   - Chevron/menu 仅在"登录成功"后才暴露，降低未登录用户的 UI 噪音。
+ *   - 退出登录不再由主按钮承担，而是通过下拉菜单的"退出登录"入口触发。
+ * 参数与返回值：无参数、无返回值。
+ * 影响范围：web/index.html 的 SSO 按钮组、web/src/ui/index.js 的 bindHeaderEvents。
+ * 潜在风险：如果用户浏览器拦截新标签页（弹窗拦截），"点击跳 profile"会失败，但该行为由 openProfilePage 独立承担，不影响 UI 状态。
+ */
 export function updateSsoUI() {
   const btn = document.getElementById("btn-sso");
   const label = document.getElementById("sso-label");
+  const chevron = document.getElementById("btn-sso-menu");
+  const menu = document.getElementById("sso-menu");
   if (!btn || !label) return;
 
   const user = getSsoUser();
   if (user) {
     const name = user.displayName || user.username || "已登录";
     label.textContent = name;
-    btn.title = `已登录: ${name}\n点击退出`;
+    btn.title = `已登录：${name}\n点击打开 zhiz.chat 个人主页`;
+    btn.setAttribute("aria-label", `已登录 ${name}，点击打开个人主页`);
     btn.classList.add("is-logged-in");
+    if (chevron) chevron.hidden = false;
   } else {
     label.textContent = "登录";
     btn.title = "登录 zhiz.chat";
+    btn.setAttribute("aria-label", "登录 zhiz.chat");
     btn.classList.remove("is-logged-in");
+    if (chevron) {
+      chevron.hidden = true;
+      chevron.setAttribute("aria-expanded", "false");
+    }
+    if (menu) menu.hidden = true;
   }
+}
+
+/**
+ * 2026-04-17 新增 — 打开 Web-Hub 个人主页
+ * 变更类型：新增/交互修复
+ * 功能描述：在新标签页中打开 `${SSO_HUB_BASE}/profile`，作为 Web 主应用"点击已登录用户名"的统一行为。
+ * 设计思路：
+ *   - 复用 SSO_HUB_BASE 常量，避免硬编码主机名；与其他端（VS Code / IntelliJ / Web-Hub / Browser Extension）
+ *     指向的 Web-Hub Profile 路由保持一致。
+ *   - 使用 `noopener,noreferrer` 新标签页打开，避免跨源 window.opener 泄漏。
+ * 参数与返回值：无入参；无显式返回值（浏览器新开标签）。
+ * 影响范围：Web 主应用 header SSO 按钮主体点击 + Chevron 下拉菜单"个人主页"选项。
+ * 潜在风险：若浏览器弹窗拦截打开，用户需手动授权；无已知代码层风险。
+ */
+export function openProfilePage() {
+  window.open(`${SSO_HUB_BASE}/profile`, "_blank", "noopener,noreferrer");
 }
 
 /**
@@ -331,7 +492,13 @@ export async function callBackendEnhance(input, config, signal) {
  * @param {AbortSignal} signal - 取消信号
  * @returns {Promise<{result, scenes, composite, source}>}
  */
-export async function dualTrackEnhance(config, input, sceneId, onProgress, signal) {
+export async function dualTrackEnhance(
+  config,
+  input,
+  sceneId,
+  onProgress,
+  signal,
+) {
   // 2026-04-10 修复
   // 变更类型：修复
   // 功能描述：恢复 Web 端 backend-only 增强流程的阶段性进度提示，避免长请求期间一直停留在"正在连接 AI 服务..."

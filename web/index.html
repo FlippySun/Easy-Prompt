@@ -203,28 +203,120 @@
             </svg>
           </a>
 
-          <!-- 2026-04-10 B9: SSO 登录/用户按钮 -->
-          <button
-            class="header__nav-btn header__sso-btn"
-            id="btn-sso"
-            aria-label="登录"
-            title="登录 zhiz.chat"
-          >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
+          <!--
+            2026-04-17 修复 — SSO 按钮从"单按钮双行为"改为"主按钮 + Chevron 下拉菜单"
+            变更类型：修复 / 交互
+            功能描述：
+              1. 主按钮 #btn-sso：未登录时触发登录；已登录时打开 Web-Hub 个人主页。
+              2. Chevron 按钮 #btn-sso-menu：仅在已登录时显示，点击展开下拉菜单。
+              3. 下拉菜单 #sso-menu：包含"个人主页"与"退出登录"两个 menuitem。
+            设计思路：
+              - 与 web-hub/src/app/components/UserMenu.tsx 的 Chevron 模式对齐，避免"点击用户名误触退出"。
+              - 主按钮保留原有 id/aria 结构，避免破坏既有监听/埋点。
+              - 菜单默认 hidden，由 updateSsoUI() 根据登录态切换显隐。
+            影响范围：web/src/ui/index.js（bindHeaderEvents 新绑定）、web/src/backend.js（updateSsoUI 新 UI 同步）、web/src/style.css（新增 SSO 菜单样式）。
+            潜在风险：无已知风险；若浏览器阻止打开新标签页，用户仍可通过 URL 访问 profile。
+          -->
+          <div class="header__sso-wrapper" id="sso-wrapper">
+            <button
+              class="header__nav-btn header__sso-btn"
+              id="btn-sso"
+              aria-label="登录 zhiz.chat"
+              title="登录 zhiz.chat"
             >
-              <circle cx="12" cy="8" r="5" />
-              <path d="M20 21a8 8 0 0 0-16 0" />
-            </svg>
-            <span class="header__nav-label" id="sso-label">登录</span>
-          </button>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="12" cy="8" r="5" />
+                <path d="M20 21a8 8 0 0 0-16 0" />
+              </svg>
+              <span class="header__nav-label" id="sso-label">登录</span>
+            </button>
+            <button
+              class="header__sso-chevron"
+              id="btn-sso-menu"
+              type="button"
+              aria-label="展开账号菜单"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="sso-menu"
+              hidden
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            <div
+              class="header__sso-menu"
+              id="sso-menu"
+              role="menu"
+              aria-labelledby="btn-sso-menu"
+              hidden
+            >
+              <button
+                class="header__sso-menu-item"
+                id="btn-sso-profile"
+                type="button"
+                role="menuitem"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="8" r="5" />
+                  <path d="M20 21a8 8 0 0 0-16 0" />
+                </svg>
+                <span>个人主页</span>
+              </button>
+              <button
+                class="header__sso-menu-item header__sso-menu-item--danger"
+                id="btn-sso-logout"
+                type="button"
+                role="menuitem"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" x2="9" y1="12" y2="12" />
+                </svg>
+                <span>退出登录</span>
+              </button>
+            </div>
+          </div>
 
           <span class="header__nav-divider"></span>
 

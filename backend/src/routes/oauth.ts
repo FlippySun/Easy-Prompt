@@ -24,6 +24,7 @@ import {
   linkOrCreateUser,
   startZhizPasswordSetupChallenge,
 } from '../services/oauth.service';
+import { fetchZhizSkills } from '../services/skill.service';
 import type {
   OAuthProvider,
   ZhizEmailVerificationChallengeState,
@@ -32,7 +33,7 @@ import type {
   ZhizContinuationTicketState,
 } from '../services/oauth.service';
 import { redis } from '../lib/redis';
-import { optionalAuth } from '../middlewares/auth';
+import { optionalAuth, optionalAuthRejectInvalidToken } from '../middlewares/auth';
 import { validate } from '../middlewares/validate';
 import { AppError } from '../utils/errors';
 import { createChildLogger } from '../utils/logger';
@@ -612,6 +613,34 @@ router.get('/:provider/callback', async (req, res, _next) => {
     // 重定向到前端错误页而非返回 JSON
     const message = err instanceof AppError ? err.message : 'OAuth login failed';
     res.redirect(buildErrorRedirect(message));
+  }
+});
+
+/**
+ * 2026-04-16 新增 — Skill 真实数据迁移（方案 B）T2 路由接入
+ * 变更类型：新增/兼容/安全
+ * 功能描述：暴露 Zhiz skill 服务端代理接口，允许已登录用户走 provider token 代理，未登录或 token 不可用时走匿名 skill 拉取。
+ * 设计思路：
+ *   1. 对缺失 token 继续匿名放行，但显式携带 invalid / expired Bearer token 时返回 401，让 Web / Browser 客户端能执行“refresh 一次再匿名 fallback”的既定契约。
+ *   2. route 仅负责调用 service 与裁剪返回字段，不在 HTTP 层直接处理 provider token 或上游请求细节。
+ *   3. 对外只返回前端消费需要的 skills/source/fallbackReason，避免泄露任何 access token 或数据库内部字段。
+ * 参数与返回值：GET /api/v1/auth/oauth/zhiz/skills；返回 { success, data: { skills, source, fallbackReason } }。
+ * 影响范围：Web / Browser skill 面板真实数据入口；依赖 skill.service.ts。
+ * 潜在风险：若未来误把此严格模式复用于普通 public route，会改变原本“坏 token 静默匿名”的体验，因此仅限需要客户端 token refresh 语义的接口使用。
+ */
+router.get('/zhiz/skills', optionalAuthRejectInvalidToken, async (req, res, next) => {
+  try {
+    const result = await fetchZhizSkills({ userId: req.user?.userId ?? null });
+    res.json({
+      success: true,
+      data: {
+        skills: result.skills,
+        source: result.source,
+        fallbackReason: result.fallbackReason,
+      },
+    });
+  } catch (err) {
+    next(err);
   }
 });
 

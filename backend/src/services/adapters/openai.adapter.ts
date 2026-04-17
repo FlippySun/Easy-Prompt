@@ -13,6 +13,12 @@ import type { AdapterResponse, StreamCallbacks } from '../../types/ai';
 
 const log = createChildLogger('ai-adapter');
 
+interface OpenAIUsage {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+}
+
 export interface AdapterCallOptions {
   apiMode: string;
   baseUrl: string;
@@ -26,12 +32,122 @@ export interface AdapterCallOptions {
 }
 
 /**
+ * 2026-04-16 更新 — OpenAI 同步路径改为 stream-first
+ * 变更类型：修复/优化/兼容
+ * 功能描述：将 openai 模式的同步调用统一改为 `stream: true` + SSE 聚合文本，兼容第三方网关仅在流式 chunk 中返回 `delta.content` 的场景，并消除“先非流式再回退流式”带来的双倍上游请求。
+ * 设计思路：
+ *   1. 同步调用与显式流式调用共用同一套 SSE 聚合器，减少协议分叉与维护成本。
+ *   2. 所有 openai provider 的同步路径直接 stream-first，避免每个 enhance 阶段重复发起一次非流式探测请求。
+ *   3. 若上游 chunk 附带 usage 则透传 token 统计；若未附带则允许 usage 为空，但优先保证文本结果可用。
+ * 参数与返回值：collectOpenAIStreamContent(options, timeoutMs, onChunk?) 接收请求参数与可选增量回调，返回聚合后的文本与 usage。
+ * 影响范围：OpenAI 兼容 provider 的同步增强调用、显式流式增强、/api/v1/ai/enhance。
+ * 潜在风险：极少数不支持 SSE 的旧 OpenAI 网关可能需要后续补兼容；当前目标 provider 无已知风险。
+ */
+
+async function collectOpenAIStreamContent(
+  options: AdapterCallOptions,
+  timeoutMs: number,
+  onChunk?: (chunk: string) => void,
+): Promise<{
+  content: string;
+  usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number };
+}> {
+  const url = `${options.baseUrl}/chat/completions`;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${options.apiKey}`,
+    ...options.extraHeaders,
+  };
+
+  const body = JSON.stringify({
+    model: options.model,
+    messages: [
+      { role: 'system', content: options.systemPrompt },
+      { role: 'user', content: options.userMessage },
+    ],
+    max_tokens: options.maxTokens,
+    stream: true,
+    stream_options: { include_usage: true },
+  });
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body,
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new AppError('AI_PROVIDER_ERROR', `OpenAI stream ${response.status}: ${errorText}`);
+    }
+
+    if (!response.body) {
+      throw new AppError('AI_INVALID_RESPONSE', 'No response body for streaming');
+    }
+
+    let fullContent = '';
+    let usage:
+      | { promptTokens?: number; completionTokens?: number; totalTokens?: number }
+      | undefined;
+
+    await parseSSEStream(response.body, (eventData) => {
+      if (eventData === '[DONE]') return;
+
+      try {
+        const parsed = JSON.parse(eventData) as {
+          choices?: Array<{ delta?: { content?: string } }>;
+          usage?: OpenAIUsage;
+        };
+
+        const delta = parsed.choices?.[0]?.delta?.content;
+        if (typeof delta === 'string' && delta.length > 0) {
+          fullContent += delta;
+          onChunk?.(delta);
+        }
+
+        if (parsed.usage) {
+          usage = {
+            promptTokens: parsed.usage.prompt_tokens,
+            completionTokens: parsed.usage.completion_tokens,
+            totalTokens: parsed.usage.total_tokens,
+          };
+        }
+      } catch {
+        // 忽略无法解析的 SSE 行（心跳等）
+      }
+    });
+
+    if (!fullContent) {
+      throw new AppError('AI_INVALID_RESPONSE', 'No content in OpenAI stream response');
+    }
+
+    return {
+      content: fullContent,
+      usage,
+    };
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new AppError('AI_TIMEOUT');
+    }
+
+    throw err instanceof Error ? err : new Error(String(err));
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
  * 统一 AI API 调用适配器
  * 根据 apiMode 选择对应的请求格式
  */
 export async function callAiProvider(options: AdapterCallOptions): Promise<AdapterResponse> {
   const startTime = Date.now();
-  // 2026-04-10 防御 — 去除 baseUrl 尾部斜杠，避免拼接出 //chat/completions
+  // 2026-04-10 防御 — 去除 baseUrl 尾部斜杠，避免拼接出重复路径分隔符
   options = { ...options, baseUrl: options.baseUrl.replace(/\/+$/, '') };
 
   try {
@@ -70,59 +186,23 @@ async function callOpenAI(
   options: AdapterCallOptions,
   startTime: number,
 ): Promise<AdapterResponse> {
-  const url = `${options.baseUrl}/chat/completions`;
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${options.apiKey}`,
-    ...options.extraHeaders,
+  log.info(
+    {
+      baseUrl: options.baseUrl,
+      model: options.model,
+    },
+    'OpenAI sync call using stream-first aggregation',
+  );
+
+  const fallback = await collectOpenAIStreamContent(options, options.timeoutMs);
+
+  return {
+    content: fallback.content,
+    promptTokens: fallback.usage?.promptTokens,
+    completionTokens: fallback.usage?.completionTokens,
+    totalTokens: fallback.usage?.totalTokens,
+    durationMs: Date.now() - startTime,
   };
-
-  const body = JSON.stringify({
-    model: options.model,
-    messages: [
-      { role: 'system', content: options.systemPrompt },
-      { role: 'user', content: options.userMessage },
-    ],
-    max_tokens: options.maxTokens,
-  });
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs);
-
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body,
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => 'Unknown error');
-      log.error({ status: response.status, errorText }, 'OpenAI API error');
-      throw new AppError('AI_PROVIDER_ERROR', `OpenAI API ${response.status}: ${errorText}`);
-    }
-
-    const data = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
-    };
-
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) {
-      throw new AppError('AI_INVALID_RESPONSE', 'No content in OpenAI response');
-    }
-
-    return {
-      content,
-      promptTokens: data.usage?.prompt_tokens,
-      completionTokens: data.usage?.completion_tokens,
-      totalTokens: data.usage?.total_tokens,
-      durationMs: Date.now() - startTime,
-    };
-  } finally {
-    clearTimeout(timeout);
-  }
 }
 
 // ── OpenAI Responses API ────────────────────────────
@@ -368,86 +448,11 @@ async function streamOpenAI(
   options: AdapterCallOptions,
   callbacks: StreamCallbacks,
 ): Promise<void> {
-  const url = `${options.baseUrl}/chat/completions`;
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${options.apiKey}`,
-    ...options.extraHeaders,
-  };
-
-  const body = JSON.stringify({
-    model: options.model,
-    messages: [
-      { role: 'system', content: options.systemPrompt },
-      { role: 'user', content: options.userMessage },
-    ],
-    max_tokens: options.maxTokens,
-    stream: true,
-  });
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs);
-
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body,
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => 'Unknown error');
-      throw new AppError('AI_PROVIDER_ERROR', `OpenAI stream ${response.status}: ${errorText}`);
-    }
-
-    if (!response.body) {
-      throw new AppError('AI_INVALID_RESPONSE', 'No response body for streaming');
-    }
-
-    // 逐行解析 SSE — 聚合完整文本
-    let fullContent = '';
-    let usage:
-      | { promptTokens?: number; completionTokens?: number; totalTokens?: number }
-      | undefined;
-
-    await parseSSEStream(response.body, (eventData) => {
-      if (eventData === '[DONE]') return;
-
-      try {
-        const parsed = JSON.parse(eventData) as {
-          choices?: Array<{ delta?: { content?: string }; finish_reason?: string }>;
-          usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
-        };
-
-        const delta = parsed.choices?.[0]?.delta?.content;
-        if (delta) {
-          fullContent += delta;
-          callbacks.onChunk(delta);
-        }
-
-        // OpenAI 在最后一个 chunk 可能附带 usage（需开启 stream_options）
-        if (parsed.usage) {
-          usage = {
-            promptTokens: parsed.usage.prompt_tokens,
-            completionTokens: parsed.usage.completion_tokens,
-            totalTokens: parsed.usage.total_tokens,
-          };
-        }
-      } catch {
-        // 忽略无法解析的 SSE 行（心跳等）
-      }
-    });
-
-    callbacks.onDone(fullContent, usage);
+    const result = await collectOpenAIStreamContent(options, options.timeoutMs, callbacks.onChunk);
+    callbacks.onDone(result.content, result.usage);
   } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      callbacks.onError(new AppError('AI_TIMEOUT'));
-    } else {
-      callbacks.onError(err instanceof Error ? err : new Error(String(err)));
-    }
-  } finally {
-    clearTimeout(timeout);
+    callbacks.onError(err instanceof Error ? err : new Error(String(err)));
   }
 }
 

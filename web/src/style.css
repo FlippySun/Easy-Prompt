@@ -449,6 +449,119 @@ a {
   color: var(--text-primary);
 }
 
+/* ═══════════════════════════════════════════════════
+   2026-04-17 新增 — SSO 按钮 Chevron 下拉菜单
+   变更类型：新增/交互修复
+   功能描述：为 Web 主应用 header 的 SSO 按钮组提供 "主按钮 + Chevron 菜单" 样式。
+   设计思路：
+     - wrapper 用 position: relative，让菜单相对 SSO 按钮组定位；
+     - chevron 继承 nav-btn 视觉节奏，但更窄（仅图标）；
+     - menu 使用既有 design tokens（--bg-elevated / --border / --shadow-md / --radius-md）
+       自动适配深色 / 浅色主题；
+     - 菜单项 --danger 变体仅影响悬停色，不破坏默认文本可读性。
+   影响范围：header SSO 按钮组视觉。
+   潜在风险：无已知风险。
+   ═══════════════════════════════════════════════════ */
+.header__sso-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+
+.header__sso-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 30px;
+  padding: 0;
+  margin-left: 2px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    color var(--duration-fast),
+    background-color var(--duration-fast),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.header__sso-chevron[hidden] {
+  display: none;
+}
+
+.header__sso-chevron:hover {
+  background: var(--border);
+  color: var(--text-primary);
+}
+
+.header__sso-chevron svg {
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.header__sso-chevron[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.header__sso-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 200;
+  min-width: 168px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.header__sso-menu[hidden] {
+  display: none;
+}
+
+.header__sso-menu-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast),
+    color var(--duration-fast);
+}
+
+.header__sso-menu-item:hover {
+  background: var(--border);
+}
+
+.header__sso-menu-item svg {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.header__sso-menu-item--danger:hover {
+  color: var(--error);
+  background: var(--error-subtle);
+}
+
+.header__sso-menu-item--danger:hover svg {
+  color: var(--error);
+}
+
 .header__nav-label {
   display: none;
 }

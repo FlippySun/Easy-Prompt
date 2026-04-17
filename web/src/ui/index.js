@@ -56,6 +56,8 @@ import { SCENES, SCENE_NAMES } from "../scenes.js";
 // --- 2026-04-13 Skill 浮窗：导入 skill 数据层（含 WC 注册 + CSS 注入）---
 import {
   SKILLS,
+  loadSkills,
+  shouldRefreshSkillsOnPanelOpen,
   SKILL_TYPE_MAP,
   SKILL_ICON_MAP,
   FOLDER_ICON_SVG,
@@ -67,7 +69,10 @@ import {
   isAuthenticated,
   ssoLogin,
   ssoLogout,
+  openProfilePage,
   handleSsoCallbackOnLoad,
+  onSsoStateChange,
+  onSsoStorageChange,
   updateSsoUI,
   SSO_KEYS,
   scheduleSsoRefresh,
@@ -84,6 +89,8 @@ let activePersona = "all";
 // --- 2026-04-13 Skill 浮窗状态 ---
 let _skillPanel = null; // <ep-skill-panel> 实例引用
 let _skillSlashIndex = -1; // 2026-04-13 修复：记录触发 "/" 在文本中的位置（光标感知）
+let _disposeSkillSsoSync = null;
+let _disposeSkillStorageSync = null;
 
 /* ─── Init ─── */
 
@@ -122,11 +129,71 @@ export function initApp() {
   // 2026-04-13 Skill 浮窗初始化
   initSkillPanel();
 
-  // 2026-04-10 B9: SSO 回调处理 + UI 初始化 + 定时刷新恢复
-  handleSsoCallbackOnLoad();
+  // 2026-04-16 新增 — Skill 面板与 SSO 登录态刷新桥接
+  bindSkillPanelSsoSync();
+  bindSkillPanelStorageSync();
+  void bootstrapSsoStateAndSkills();
+}
+
+/**
+ * 2026-04-16 新增 — Web SSO 启动阶段与 Skill 数据同步
+ * 变更类型：新增/兼容
+ * 功能描述：在页面初始化时统一处理 SSO 回调恢复、登录 UI 恢复、定时刷新恢复与 skill 数据真实拉取。
+ * 设计思路：
+ *   1. 继续保持 initApp 同步入口不变，异步部分单独收敛到 bootstrapSsoStateAndSkills()。
+ *   2. handleSsoCallbackOnLoad() 完成 code exchange 后，复用同一 skill 刷新逻辑更新面板数据。
+ *   3. 若后端 skill proxy 失败，loadSkills() 会自动回退 mock，不阻断页面初始化。
+ * 参数与返回值：bootstrapSsoStateAndSkills() 无参数；返回 Promise<void>。
+ * 影响范围：web/src/ui/index.js 的 Skill 面板初始化、SSO 回调恢复、登录态切换后的数据刷新。
+ * 潜在风险：无已知风险。
+ */
+async function bootstrapSsoStateAndSkills() {
+  await handleSsoCallbackOnLoad();
   updateSsoUI();
   const savedExpiry = localStorage.getItem(SSO_KEYS.EXPIRES_AT);
-  if (savedExpiry) scheduleSsoRefresh(Number(savedExpiry));
+  if (savedExpiry) {
+    scheduleSsoRefresh(Number(savedExpiry));
+  }
+  await refreshSkillPanelSkills({ forceRefresh: true });
+}
+
+/**
+ * 2026-04-16 新增 — Skill 面板订阅 SSO 状态变化
+ * 变更类型：新增/兼容
+ * 功能描述：在登录/退出导致本地 SSO 状态变化后，刷新 Skill 面板使用的后端数据源。
+ * 设计思路：
+ *   1. 仅建立一次订阅，避免 initApp 重入时重复绑定事件造成多次请求。
+ *   2. 订阅回调只做 forceRefresh，不直接操作 token，保持鉴权来源仍在 skill.js 内部。
+ *   3. 保持 shared-ui/skill-panel.js 完全不动，避免破坏既有隐藏态与防闪烁约束。
+ * 参数与返回值：bindSkillPanelSsoSync() 无参数；无返回值。
+ * 影响范围：web/src/ui/index.js、web/src/backend.js 的 SSO 状态广播链路。
+ * 潜在风险：无已知风险。
+ */
+function bindSkillPanelSsoSync() {
+  if (_disposeSkillSsoSync) {
+    return;
+  }
+  _disposeSkillSsoSync = onSsoStateChange(() => {
+    void refreshSkillPanelSkills({ forceRefresh: true });
+  });
+}
+
+/**
+ * 2026-04-16 新增 — Skill 面板订阅跨标签页 SSO storage 变化
+ * 变更类型：新增/兼容
+ * 功能描述：激活 Web 端 `storage` 监听桥接，让其他标签页登录/退出/refresh 后当前页的 skill 面板也能收到刷新事件。
+ * 设计思路：
+ *   1. `onSsoStorageChange()` 内部会把跨 tab storage 变化转成既有 `ep:sso-state-change` 事件，这里只负责确保桥接监听被注册一次。
+ *   2. 不在这里重复直接刷新 skill，避免与 `bindSkillPanelSsoSync()` 双重触发同一轮 forceRefresh。
+ * 参数与返回值：bindSkillPanelStorageSync() 无参数；无返回值。
+ * 影响范围：web/src/ui/index.js、web/src/backend.js 的跨标签页登录态同步。
+ * 潜在风险：无已知风险。
+ */
+function bindSkillPanelStorageSync() {
+  if (_disposeSkillStorageSync) {
+    return;
+  }
+  _disposeSkillStorageSync = onSsoStorageChange();
 }
 
 /* ─── Header ─── */
@@ -136,12 +203,76 @@ function bindHeaderEvents() {
   $("#btn-settings").addEventListener("click", () => openPanel("settings"));
   $("#btn-scenes-browser").addEventListener("click", () => openModal("scenes"));
 
-  // 2026-04-10 B9: SSO 登录/退出按钮
+  // 2026-04-17 修复 — SSO 按钮改为"主按钮 + Chevron 下拉菜单"模式
+  // 变更类型：修复 / 交互
+  // 功能描述：
+  //   1. 主按钮 #btn-sso：未登录 → 触发登录；已登录 → 打开 Web-Hub 个人主页。
+  //      （替代旧版"已登录点击即 logout"的误导行为，根除跨端交互分叉。）
+  //   2. Chevron 按钮 #btn-sso-menu：仅在已登录时显示，点击切换下拉菜单。
+  //   3. 菜单项 #btn-sso-profile / #btn-sso-logout：分别承载"跳个人主页"与"显式退出"。
+  //   4. 点击菜单外部 / 按 Escape → 自动关闭菜单并恢复焦点。
+  // 设计思路：
+  //   - 登录态真相统一来自 isAuthenticated()，handler 内部按需分支，UI 可见性由 updateSsoUI() 统一控制。
+  //   - 使用 stopPropagation() 防止 Chevron 自身点击被 outside-click 立即关闭。
+  //   - 菜单项点击后主动关闭菜单并复位 aria-expanded，避免屏幕阅读器状态漂移。
+  //   - outside-click/Escape 监听走 document 级，避免每次菜单展开都重新绑定。
+  // 参数与返回值：无；bindHeaderEvents() 为 UI 初始化副作用型函数。
+  // 影响范围：web/index.html 新增的 Chevron/menu DOM、web/src/backend.js 的 updateSsoUI、openProfilePage。
+  // 潜在风险：initApp 重入时 bindHeaderEvents 也会重入，但该函数仅在 initApp 启动时调用一次；若未来改为热更新需引入一次性守卫。
   $("#btn-sso").addEventListener("click", () => {
     if (isAuthenticated()) {
-      ssoLogout();
+      openProfilePage();
     } else {
       ssoLogin();
+    }
+  });
+
+  const ssoMenuBtn = document.getElementById("btn-sso-menu");
+  const ssoMenu = document.getElementById("sso-menu");
+  const ssoProfileBtn = document.getElementById("btn-sso-profile");
+  const ssoLogoutBtn = document.getElementById("btn-sso-logout");
+
+  function closeSsoMenu({ returnFocus = false } = {}) {
+    if (!ssoMenu || ssoMenu.hidden) return;
+    ssoMenu.hidden = true;
+    if (ssoMenuBtn) ssoMenuBtn.setAttribute("aria-expanded", "false");
+    if (returnFocus && ssoMenuBtn && !ssoMenuBtn.hidden) ssoMenuBtn.focus();
+  }
+
+  if (ssoMenuBtn && ssoMenu) {
+    ssoMenuBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const willOpen = ssoMenu.hidden;
+      ssoMenu.hidden = !willOpen;
+      ssoMenuBtn.setAttribute("aria-expanded", String(willOpen));
+    });
+  }
+
+  if (ssoProfileBtn) {
+    ssoProfileBtn.addEventListener("click", () => {
+      closeSsoMenu();
+      openProfilePage();
+    });
+  }
+
+  if (ssoLogoutBtn) {
+    ssoLogoutBtn.addEventListener("click", () => {
+      closeSsoMenu();
+      ssoLogout();
+    });
+  }
+
+  document.addEventListener("click", (event) => {
+    if (!ssoMenu || ssoMenu.hidden) return;
+    const target = event.target;
+    if (ssoMenu.contains(target)) return;
+    if (ssoMenuBtn && ssoMenuBtn.contains(target)) return;
+    closeSsoMenu();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && ssoMenu && !ssoMenu.hidden) {
+      closeSsoMenu({ returnFocus: true });
     }
   });
 }
@@ -203,6 +334,30 @@ function bindInputEvents() {
 }
 
 /* ─── Skill Panel ─── */
+
+/**
+ * 2026-04-16 新增 — Web Skill 面板异步数据刷新
+ * 变更类型：新增/兼容
+ * 功能描述：在不打断当前面板生命周期的前提下，用后端 skill proxy 返回的新数据替换当前面板 skills。
+ * 设计思路：
+ *   1. 面板仍以本地 mock 立即可用，随后异步刷新真实数据，保持 `/` 首次触发即时反馈。
+ *   2. 仅替换 `.skills` 属性，不重新创建自定义元素，避免触碰共享面板的隐藏态/防闪烁实现。
+ *   3. loadSkills() 已含 mock 兜底，因此这里无需额外兜底分支，只在极端异常时打 warn。
+ * 参数与返回值：refreshSkillPanelSkills({ forceRefresh }) 返回 Promise<void>。
+ * 影响范围：web/src/ui/index.js 与 web/src/skill.js 之间的 skill 数据同步。
+ * 潜在风险：无已知风险。
+ */
+async function refreshSkillPanelSkills(options = {}) {
+  if (!_skillPanel) {
+    return;
+  }
+  try {
+    const nextSkills = await loadSkills(options);
+    _skillPanel.skills = Array.isArray(nextSkills) ? nextSkills : SKILLS;
+  } catch (err) {
+    console.warn("[EP] Failed to refresh skill panel skills:", err);
+  }
+}
 
 // --- 2026-04-13 Skill 浮窗初始化 ---
 // [类型]     新增
@@ -346,6 +501,9 @@ function handleSkillTrigger(textarea) {
     // 找到 "/"，且不是 "://" URL 模式 → 触发 skill 浮窗
     const filterText = textBeforeCursor.substring(slashPos + 1);
     _skillSlashIndex = slashPos;
+    if (!_skillPanel.visible && shouldRefreshSkillsOnPanelOpen()) {
+      void refreshSkillPanelSkills({ forceRefresh: true });
+    }
     _skillPanel.filter = filterText;
     _skillPanel.visible = true;
   } else {

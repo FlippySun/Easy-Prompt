@@ -1,3 +1,9 @@
+import {
+  assertSkillProxySuccess,
+  loadSkillProxyPayload,
+} from "../../core/skill-fetch-client.mjs";
+import { Sso } from "../shared/sso.js";
+
 /**
  * Easy Prompt Browser Extension — Content Script
  * On AI chat sites: persistent trigger icon + preview panel + undo + keyboard shortcut.
@@ -333,6 +339,179 @@
   let _FOLDER_ICON_SVG = "";
   const SKILL_FILTER_DEBOUNCE_MS = 160;
   let _skillPanelResizeObserver = null;
+  const SKILL_PROXY_URL = "https://api.zhiz.chat/api/v1/auth/oauth/zhiz/skills";
+  const SKILL_FETCH_TIMEOUT_MS = 15000;
+  const SSO_ACCESS_TOKEN_KEY = "ep-sso-access-token";
+  const SSO_USER_KEY = "ep-sso-user";
+  let _skillDataLoadPromise = null;
+  let _skillDataSource = "mock";
+
+  /**
+   * 2026-04-16 新增 — Browser Skill Proxy 拉取超时信号
+   * 变更类型：新增/兼容
+   * 功能描述：为浏览器内容脚本的 skill 数据请求提供超时保护，避免上游或后端异常时预加载链路长时间悬挂。
+   * 设计思路：优先使用 AbortSignal.timeout；运行时不支持时退化为无超时但保持功能可用。
+   * 参数与返回值：_getSkillRequestSignal() 无参数；返回 AbortSignal 或 undefined。
+   * 影响范围：browser/content/content.js skill 真实数据拉取。
+   * 潜在风险：无已知风险。
+   */
+  function _getSkillRequestSignal() {
+    if (
+      typeof AbortSignal !== "undefined" &&
+      typeof AbortSignal.timeout === "function"
+    ) {
+      return AbortSignal.timeout(SKILL_FETCH_TIMEOUT_MS);
+    }
+    return undefined;
+  }
+
+  /**
+   * 2026-04-16 新增 — Browser 端读取已存储 SSO token
+   * 变更类型：新增/安全
+   * 功能描述：从 chrome.storage.local 读取浏览器扩展 SSO access token，供 skill proxy 请求在已登录时透传 Bearer token。
+   * 设计思路：直接复用既有 ep-sso-* 存储 schema，不在 content script 内复制完整 SSO 模块。
+   * 参数与返回值：_getStoredSkillSsoToken() 返回 Promise<string|null>。
+   * 影响范围：browser/content/content.js skill 数据请求鉴权。
+   * 潜在风险：无已知风险。
+   */
+  async function _getStoredSkillSsoToken() {
+    try {
+      const stored = await chrome.storage.local.get(SSO_ACCESS_TOKEN_KEY);
+      return stored[SSO_ACCESS_TOKEN_KEY] || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * 2026-04-16 修复 — Browser Skill 鉴权重试失败日志收口
+   * 变更类型：修复/兼容/安全
+   * 功能描述：在浏览器内容脚本的 skill proxy access token 刷新失败时输出最小必要日志，帮助定位为何从已登录态退化到匿名 skill。
+   * 设计思路：
+   *   1. 只记录 refresh 失败这一阶段性事实，不打印 token、用户信息或 storage 明细。
+   *   2. 让 401 刷新重试逻辑复用共享 helper；content script 只负责记录诊断与 fallback 到当前 skill 数据。
+   * 参数与返回值：_logSkillAuthRetryFailure(error) 无返回值。
+   * 影响范围：browser/content/content.js 的 401 -> refresh -> retry -> anonymous fallback 观测。
+   * 潜在风险：无已知风险。
+   */
+  function _logSkillAuthRetryFailure(error) {
+    console.warn(
+      "[Easy Prompt] Skill proxy token refresh failed, fallback to anonymous skills:",
+      error,
+    );
+  }
+
+  /**
+   * 2026-04-16 新增 — Browser Slash 首开是否需要补拉真实 Skill
+   * 变更类型：新增/兼容/优化
+   * 功能描述：为内容脚本提供一个最小判断，决定 `/` 首次打开 skill 面板时是否应补拉一次真实 skill 数据。
+   * 设计思路：
+   *   1. 当前缓存仍是 mock/fallback 时，slash 首开作为恢复性 force refresh 触发点。
+   *   2. 最近一次成功拿到真实数据后，不在每次输入 `/` 时重复强刷，避免内容脚本高频请求。
+   * 参数与返回值：_shouldRefreshSkillsOnPanelOpen() 无参数；返回 boolean。
+   * 影响范围：browser/content/content.js 的 slash 首开条件重拉逻辑。
+   * 潜在风险：无已知风险。
+   */
+  function _shouldRefreshSkillsOnPanelOpen() {
+    return _skillDataSource !== "remote";
+  }
+
+  /**
+   * 2026-04-16 新增 — Browser Skill 面板数据同步到自定义元素
+   * 变更类型：新增/兼容
+   * 功能描述：当 skill 数据更新时，仅同步 `skills` attribute 到已创建的 `<ep-skill-panel>`，不重建节点。
+   * 设计思路：保持 shared-ui/skill-panel.js 的稳定 Shadow DOM shell 与隐藏态逻辑不变，只做最小数据更新。
+   * 参数与返回值：_syncSkillPanelSkills() 无参数；无返回值。
+   * 影响范围：browser/content/content.js 与 shared-ui/skill-panel.js 的数据桥接。
+   * 潜在风险：skills JSON 变大时 attribute 会随之增长，但当前数据规模可控。
+   */
+  function _syncSkillPanelSkills() {
+    if (!_skillPanel) return;
+    const serializedSkills = JSON.stringify(
+      Array.isArray(_SKILLS) ? _SKILLS : [],
+    );
+    if (_skillPanel.getAttribute("skills") !== serializedSkills) {
+      _skillPanel.setAttribute("skills", serializedSkills);
+    }
+  }
+
+  /**
+   * 2026-04-16 新增 — Browser Skill 数据真实拉取 + mock 兜底
+   * 变更类型：新增/兼容/安全
+   * 功能描述：优先从 backend Zhiz skill proxy 拉取真实 skill 列表；失败时保留当前 mock 数据，不让内容脚本 skill 面板空白。
+   * 设计思路：
+   *   1. 已登录时先尝试 Bearer；若收到 401 则刷新一次 token 后重试，再匿名退化，与 Web 端行为保持一致。
+   *   2. 继续保留 core/mock.json 作为预加载兜底，保证 `/` 首次触发不会因网络而失去反馈。
+   *   3. 用 in-flight promise 去重，避免 storage 变更、首次预加载与 slash 首开补拉并发触发重复请求。
+   * 参数与返回值：_loadSkillData({ forceRefresh }) 返回 Promise<object[]>。
+   * 影响范围：browser/content/content.js skill 数据预加载、登录态切换刷新。
+   * 潜在风险：若后端 route 返回结构变化，会保守回退到当前 `_SKILLS` 而不是写入脏数据。
+   */
+  async function _loadSkillData(options = {}) {
+    const forceRefresh = Boolean(options.forceRefresh);
+    if (_skillDataLoadPromise) {
+      return _skillDataLoadPromise;
+    }
+
+    _skillDataLoadPromise = (async () => {
+      try {
+        const result = await loadSkillProxyPayload({
+          requestUrl: SKILL_PROXY_URL,
+          fetchImpl: fetch,
+          getAccessToken: _getStoredSkillSsoToken,
+          refreshAccessToken: Sso.refreshAccessToken,
+          getRequestSignal: _getSkillRequestSignal,
+          onAuthRetryFailure: _logSkillAuthRetryFailure,
+        });
+
+        _SKILLS = assertSkillProxySuccess(result);
+        _skillDataSource = "remote";
+        return _SKILLS;
+      } catch (err) {
+        console.warn(
+          "[Easy Prompt] Skill proxy fetch failed, fallback to current skills:",
+          err,
+        );
+        _skillDataSource = "mock";
+        return _SKILLS;
+      } finally {
+        _skillDataLoadPromise = null;
+      }
+    })();
+
+    return _skillDataLoadPromise;
+  }
+
+  async function _refreshSkillPanelSkills(options = {}) {
+    await _loadSkillData(options);
+    _syncSkillPanelSkills();
+  }
+
+  function _shouldRefreshSkillsForSsoChange(changes) {
+    const userChange = changes[SSO_USER_KEY];
+    if (userChange && userChange.newValue !== userChange.oldValue) {
+      return true;
+    }
+
+    const tokenChange = changes[SSO_ACCESS_TOKEN_KEY];
+    if (!tokenChange) {
+      return false;
+    }
+
+    return Boolean(tokenChange.oldValue) !== Boolean(tokenChange.newValue);
+  }
+
+  if (chrome.storage?.onChanged?.addListener) {
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName !== "local" || !_skillDepsLoaded) {
+        return;
+      }
+      if (!_shouldRefreshSkillsForSsoChange(changes)) {
+        return;
+      }
+      void _refreshSkillPanelSkills({ forceRefresh: true });
+    });
+  }
 
   // 异步预加载 skill 依赖（不阻塞主流程）
   (async () => {
@@ -349,6 +528,7 @@
       _SKILL_ICON_MAP = iconsMod.SKILL_ICON_MAP || {};
       _FOLDER_ICON_SVG = iconsMod.FOLDER_ICON_SVG || "";
       _skillDepsLoaded = true;
+      void _refreshSkillPanelSkills();
     } catch (e) {
       console.warn("[Easy Prompt] Skill panel deps failed to load:", e);
     }
@@ -1327,6 +1507,9 @@
       const filter = textBeforeCursor.substring(slashPos + 1);
       _skillSlashIndex = slashPos;
       if (!_skillPanelVisible) {
+        if (_shouldRefreshSkillsOnPanelOpen()) {
+          void _refreshSkillPanelSkills({ forceRefresh: true });
+        }
         _showSkillPanel();
       }
       if (_skillPanel) {
