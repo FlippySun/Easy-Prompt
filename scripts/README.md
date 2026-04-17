@@ -10,14 +10,14 @@
 
 ### Backend（后端服务）
 
-| 脚本                | 说明                                                                                |
-| ------------------- | ----------------------------------------------------------------------------------- |
-| `backend-dev.sh`    | 启动后端 dev 服务器（自动拉起 SSH 隧道，`--no-tunnel` 跳过）                        |
-| `backend-build.sh`  | 编译 TypeScript → dist/（可选 `--clean`）                                           |
-| `backend-test.sh`   | 运行测试（`--mode=unit\|integration\|coverage\|all`，integration/all 自动拉起隧道） |
-| `backend-deploy.sh` | 部署到 VPS（rsync + pm2 reload，支持 `--dry-run`）                                  |
-| `backend-tunnel.sh` | SSH Tunnel 管理（`start\|stop\|status\|restart`）                                   |
-| `backend-db.sh`     | Prisma 数据库操作（`migrate\|seed\|studio\|generate\|reset`，自动拉起隧道）         |
+| 脚本                | 说明                                                                                  |
+| ------------------- | ------------------------------------------------------------------------------------- |
+| `backend-dev.sh`    | 启动后端 dev 服务器（自动拉起 SSH 隧道；本地 cron 默认关闭，`--allow-cron` 显式开启） |
+| `backend-build.sh`  | 编译 TypeScript → dist/（可选 `--clean`）                                             |
+| `backend-test.sh`   | 运行测试（backend Vitest 在 shared/protected DB 上默认锁定，需显式 unlock）           |
+| `backend-deploy.sh` | 部署到 VPS（rsync + pm2 reload，支持 `--dry-run`）                                    |
+| `backend-tunnel.sh` | SSH Tunnel 管理（`start\|stop\|status\|restart`）                                     |
+| `backend-db.sh`     | Prisma 数据库操作（protected/shared DB 上会阻断 `migrate` 或要求 typed confirmation） |
 
 ### Browser（浏览器扩展）
 
@@ -67,8 +67,11 @@
 # 查看项目状态
 ./scripts/status.sh
 
-# 启动后端开发（自动拉起 SSH tunnel）
+# 启动后端开发（自动拉起 SSH tunnel，本地 cron 默认关闭）
 ./scripts/backend-dev.sh
+
+# 如需本地调试 cron，显式开启
+./scripts/backend-dev.sh --allow-cron
 
 # 启动浏览器扩展开发
 ./scripts/browser-dev.sh
@@ -96,3 +99,6 @@
 - 破坏性操作（db reset、deploy）均有确认提示或 `--dry-run` 支持
 - 输出使用统一的 `╔══╗` 标题格式 + emoji 日志
 - **SSH 隧道自动管理**：需要远端 DB/Redis 的脚本会自动检测并拉起 SSH 隧道（幂等），无需手动启动。传入 `--no-tunnel` 可跳过（本地 DB 或 CI 环境）
+- **Batch B shared-DB 安全门**：保留 shared/prod DB 直连工作流，但 backend Vitest 默认锁定；如确需执行，显式导出 `ALLOW_SHARED_DB_TESTS=I_ACK_SHARED_DB_TEST_MUTATIONS`
+- **本地 cron 默认关闭**：`backend-dev.sh` 会默认导出 `CRON_ENABLED=false`，避免本地 shared-DB 开发进程重复执行后台副作用任务；传 `--allow-cron` 可显式开启
+- **Protected DB 运维确认**：`backend-db.sh` 在 protected/shared DB 上会阻断 `migrate`，并要求对 `seed` / `migrate-prod` / `studio` 输入当前数据库名确认；`reset` 还需额外导出 `ALLOW_PROTECTED_DB_RESET=I_ACK_PROTECTED_DB_RESET`

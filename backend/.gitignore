@@ -9,6 +9,8 @@ dist/
 .env.local
 .env.production
 .env.vps
+# 2026-04-17 新增 — 阻止凭证轮换备份文件误入仓
+.env.bak-*
 
 # IDE
 .idea/

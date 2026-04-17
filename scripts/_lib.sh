@@ -13,12 +13,168 @@
 # ── 常量 ──────────────────────────────────────────
 # SSH 隧道脚本的相对路径（相对于项目根目录）
 _TUNNEL_SCRIPT="backend/scripts/ssh-tunnel.sh"
+_SHARED_DB_TEST_UNLOCK_ENV="ALLOW_SHARED_DB_TESTS"
+_SHARED_DB_TEST_UNLOCK_VALUE="I_ACK_SHARED_DB_TEST_MUTATIONS"
+_PROTECTED_DB_RESET_UNLOCK_ENV="ALLOW_PROTECTED_DB_RESET"
+_PROTECTED_DB_RESET_UNLOCK_VALUE="I_ACK_PROTECTED_DB_RESET"
 
 # ── 日志辅助 ──────────────────────────────────────
 _lib_info()    { echo -e "\033[0;34m[TUNNEL]\033[0m $*"; }
 _lib_success() { echo -e "\033[0;32m[TUNNEL]\033[0m $*"; }
 _lib_warn()    { echo -e "\033[0;33m[TUNNEL]\033[0m $*"; }
 _lib_error()   { echo -e "\033[0;31m[TUNNEL]\033[0m $*" >&2; }
+
+# ── Shared DB Safety Helpers ──────────────────────
+# 2026-04-16 新增 — Batch B shared DB hardening
+# 变更类型：新增/安全/运维/测试
+# 功能描述：为 shell 脚本统一提供 DATABASE_URL 读取、受保护数据库识别，以及 shared DB 测试/高危命令的显式 unlock 或确认护栏。
+# 设计思路：
+#   1. 保留“本地可直连正常数据库”的工作流，不把 shared/prod DB 连接本身视为非法。
+#   2. 仅对高风险入口（Vitest、migrate dev、reset、shared DB seed/deploy）增加 fail-fast 或交互确认。
+#   3. 所有脚本统一复用这里的口径，避免 backend-dev/test/db 各自维护一份数据库识别逻辑。
+# 参数与返回值：下方函数根据当前环境或 backend/.env 返回 database url/name、布尔判定或非零退出条件。
+# 影响范围：scripts/backend-test.sh、scripts/backend-dev.sh、scripts/backend-db.sh 及其从 backend/package.json 触发的入口。
+# 潜在风险：若团队未来新增新的 protected DB 命名约定，需要同步调整这里的显式 test DB 识别规则。
+get_repo_root() {
+  (cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+}
+
+get_backend_env_path() {
+  printf '%s/backend/.env' "$(get_repo_root)"
+}
+
+strip_wrapping_quotes() {
+  local value="$1"
+  value="${value%$'\r'}"
+  if [[ "$value" == \"*\" ]]; then
+    value="${value#\"}"
+    value="${value%\"}"
+  elif [[ "$value" == \'*\' ]]; then
+    value="${value#\'}"
+    value="${value%\'}"
+  fi
+  printf '%s' "$value"
+}
+
+get_database_url() {
+  local database_url="${DATABASE_URL:-}"
+
+  if [[ -z "$database_url" ]]; then
+    local env_file
+    env_file="$(get_backend_env_path)"
+    if [[ -f "$env_file" ]]; then
+      while IFS= read -r line; do
+        case "$line" in
+          DATABASE_URL=*)
+            database_url="${line#DATABASE_URL=}"
+            database_url="$(strip_wrapping_quotes "$database_url")"
+            break
+            ;;
+        esac
+      done < "$env_file"
+    fi
+  fi
+
+  printf '%s' "$database_url"
+}
+
+get_database_name() {
+  local database_url
+  database_url="$(get_database_url)"
+
+  if [[ -z "$database_url" ]]; then
+    return 0
+  fi
+
+  database_url="${database_url%%\?*}"
+  database_url="${database_url%/}"
+  printf '%s' "${database_url##*/}"
+}
+
+is_explicit_test_db() {
+  local database_name="${1:-$(get_database_name)}"
+  [[ -n "$database_name" && "$database_name" =~ (^|[_-])(test|ci|spec)([_-]|$) ]]
+}
+
+is_protected_db() {
+  local database_name="${1:-$(get_database_name)}"
+  if [[ -z "$database_name" ]]; then
+    return 1
+  fi
+
+  if is_explicit_test_db "$database_name"; then
+    return 1
+  fi
+
+  return 0
+}
+
+has_shared_db_test_unlock() {
+  [[ "${ALLOW_SHARED_DB_TESTS:-}" == "${_SHARED_DB_TEST_UNLOCK_VALUE}" ]]
+}
+
+assert_shared_db_test_allowed() {
+  local operation="$1"
+  local database_url
+  local database_name
+  database_url="$(get_database_url)"
+  database_name="$(get_database_name)"
+
+  if [[ -z "$database_url" || -z "$database_name" ]]; then
+    _lib_error "Refusing to ${operation}: DATABASE_URL is missing or unreadable."
+    _lib_error "  Configure DATABASE_URL explicitly before running backend Vitest."
+    return 1
+  fi
+
+  if is_protected_db "$database_name" && ! has_shared_db_test_unlock; then
+    _lib_error "Refusing to ${operation} against protected database '${database_name}'."
+    _lib_error "  Export ${_SHARED_DB_TEST_UNLOCK_ENV}=${_SHARED_DB_TEST_UNLOCK_VALUE} only for a deliberate shared-DB test run."
+    return 1
+  fi
+
+  return 0
+}
+
+confirm_protected_db_action() {
+  local action="$1"
+  local database_name
+  local confirmation
+  database_name="$(get_database_name)"
+
+  if ! is_protected_db "$database_name"; then
+    return 0
+  fi
+
+  _lib_warn "Protected database detected: ${database_name}"
+  _lib_warn "Action requested: ${action}"
+  printf 'Type the database name (%s) to continue: ' "$database_name"
+  read -r confirmation
+
+  if [[ "$confirmation" != "$database_name" ]]; then
+    _lib_error "Confirmation mismatch. Protected DB action cancelled."
+    return 1
+  fi
+
+  return 0
+}
+
+assert_protected_db_reset_allowed() {
+  local operation="$1"
+  local database_name
+  database_name="$(get_database_name)"
+
+  if ! is_protected_db "$database_name"; then
+    return 0
+  fi
+
+  if [[ "${ALLOW_PROTECTED_DB_RESET:-}" != "${_PROTECTED_DB_RESET_UNLOCK_VALUE}" ]]; then
+    _lib_error "Refusing to ${operation} against protected database '${database_name}'."
+    _lib_error "  Export ${_PROTECTED_DB_RESET_UNLOCK_ENV}=${_PROTECTED_DB_RESET_UNLOCK_VALUE} for a deliberate protected DB reset, then re-run."
+    return 1
+  fi
+
+  confirm_protected_db_action "$operation"
+}
 
 # ── ensure_tunnel() ──────────────────────────────────
 # 功能：确保 SSH 隧道已启动（幂等）

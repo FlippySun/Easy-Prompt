@@ -1,13 +1,15 @@
 /**
  * 定时任务调度器入口
- * 2026-04-08 新增 — P2.08
- * 变更类型：新增
- * 设计思路：统一注册所有 cron 任务，由 server.ts 启动时调用 initCronJobs()。
- *   每个任务独立文件，导出 { schedule, handler, name } 三元组。
- *   生产环境启用，开发环境可通过 CRON_ENABLED=false 禁用。
+ * 2026-04-08 新增 | 2026-04-16 Batch B 更新 — P2.08
+ * 变更类型：新增/安全/运维
+ * 功能描述：统一注册所有 cron 任务，由 server.ts 启动时调用 initCronJobs()；Batch B 起默认仅在 production 自动启用，避免 shared DB 直连开发时由本地进程重复执行后台副作用任务。
+ * 设计思路：
+ *   1. 每个任务独立文件，导出 { schedule, handler, name } 三元组。
+ *   2. 未显式配置 `CRON_ENABLED` 时，production 默认启用，非 production 默认关闭。
+ *   3. 若用户显式设置 `CRON_ENABLED=true/false`，则优先尊重显式值，便于本地按需调试 cron。
  * 参数：无
  * 影响范围：server.ts 启动流程
- * 潜在风险：cron handler 异常不应影响主服务，已用 try/catch 隔离
+ * 潜在风险：cron handler 异常不应影响主服务，已用 try/catch 隔离；若需本地调试 cron，必须显式设置 `CRON_ENABLED=true` 或通过脚本 `--allow-cron` 开启。
  */
 
 import cron from 'node-cron';
@@ -39,9 +41,19 @@ const JOBS = [
  * 应在 server.ts listen 回调之后调用
  */
 export function initCronJobs(): void {
-  const enabled = process.env.CRON_ENABLED !== 'false';
+  const cronEnabledEnv = process.env.CRON_ENABLED;
+  const enabled =
+    cronEnabledEnv === undefined
+      ? process.env.NODE_ENV === 'production'
+      : cronEnabledEnv === 'true';
   if (!enabled) {
-    log.info('Cron jobs disabled (CRON_ENABLED=false)');
+    log.info(
+      {
+        cronEnabledEnv: cronEnabledEnv ?? '(unset)',
+        env: process.env.NODE_ENV ?? '(unset)',
+      },
+      'Cron jobs disabled by environment policy',
+    );
     return;
   }
 

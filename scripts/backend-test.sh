@@ -9,7 +9,7 @@
 #   --watch                               启用 watch 模式（仅 unit）
 #   --no-tunnel                           跳过自动 SSH tunnel
 # 影响范围：测试输出
-# 潜在风险：VPS 不可达时 tunnel 启动失败，integration 测试会报错退出
+# 潜在风险：VPS 不可达时 tunnel 启动失败，integration 测试会报错退出；2026-04-16 Batch B 起 shared/prod DB backend Vitest 默认锁定，需显式 unlock 才允许执行，防止误触发测试清理或未来新增的 destructive test path。
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -17,6 +17,21 @@ REPO_ROOT="${SCRIPT_DIR}/.."
 
 # 2026-04-09 — 引入共享库，获取 ensure_tunnel / --no-tunnel 支持
 source "${SCRIPT_DIR}/_lib.sh"
+
+# 2026-04-16 更新 — Backend test runner shared-DB guard（二层防护）
+# 变更类型：修复/安全/测试/运维
+# 功能描述：在触发 backend Vitest 前统一检查是否命中 protected/shared DB；命中时默认拒绝，只有显式 unlock 才允许继续，阻断 shared DB 下误跑测试的入口。
+# 设计思路：
+#   1. helper/vitest.setup 已有进程内 guard，但 runner 层继续 fail-fast，能在启动测试前给出更直观错误。
+#   2. 仅拦截会执行 backend Vitest 的模式；HTTP smoke integration 模式不直接经过本 guard。
+#   3. 与 package.json 中新增的 `test:_raw` / `test:coverage:_raw` 配合，避免脚本 wrapper 自递归。
+# 参数与返回值：assert_backend_vitest_allowed(mode) 复用 _lib.sh 中的 `assert_shared_db_test_allowed()`；安全时返回 0，不安全时输出原因并返回非零。
+# 影响范围：scripts/backend-test.sh 所有走 backend Vitest 的模式（unit/coverage/all）。
+# 潜在风险：若确需在 shared/prod DB 上执行 backend Vitest，必须显式导出 `ALLOW_SHARED_DB_TESTS=I_ACK_SHARED_DB_TEST_MUTATIONS`；这是预期安全门。
+assert_backend_vitest_allowed() {
+  local mode_name="$1"
+  assert_shared_db_test_allowed "$mode_name"
+}
 
 MODE="unit"
 WATCH=false
@@ -31,6 +46,8 @@ for arg in "$@"; do
     --no-tunnel) ;; # 已由 parse_tunnel_flag 处理
     -h|--help)
       echo "Usage: $(basename "$0") [--mode=unit|integration|coverage|all] [--watch] [--no-tunnel]"
+      echo "       Protected/shared DB backend Vitest is locked by default."
+      echo "       Deliberate unlock: ALLOW_SHARED_DB_TESTS=I_ACK_SHARED_DB_TEST_MUTATIONS"
       exit 0
       ;;
   esac
@@ -51,11 +68,12 @@ esac
 
 run_unit() {
   echo "📋 Running unit tests (vitest)..."
+  assert_backend_vitest_allowed "backend test mode=unit" || exit 1
   cd "$REPO_ROOT/backend"
   if $WATCH; then
-    npm run test:watch
+    npm run test:watch:_raw
   else
-    npm run test
+    npm run test:_raw
   fi
 }
 
@@ -67,8 +85,9 @@ run_integration() {
 
 run_coverage() {
   echo "📋 Running tests with coverage..."
+  assert_shared_db_test_allowed "backend test mode=coverage" || exit 1
   cd "$REPO_ROOT/backend"
-  npm run test:coverage
+  npm run test:coverage:_raw
 }
 
 case "$MODE" in
