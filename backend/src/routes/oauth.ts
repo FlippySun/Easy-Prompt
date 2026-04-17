@@ -37,7 +37,7 @@ import { optionalAuth, optionalAuthRejectInvalidToken } from '../middlewares/aut
 import { validate } from '../middlewares/validate';
 import { AppError } from '../utils/errors';
 import { createChildLogger } from '../utils/logger';
-import { config } from '../config';
+import { config, getCookieDomain, requireConfiguredBaseUrl } from '../config';
 
 const log = createChildLogger('oauth');
 const router = Router();
@@ -133,7 +133,7 @@ const zhizEmailVerificationChallengeSchema = z.object({
  *   - parseOAuthStateContext(provider, rawStateValue): 兼容解析旧/新 state 存储格式。
  *   - buildFrontendUrl(pathname): 返回前端登录页/首页等页面回跳地址。
  * 影响范围：/api/v1/auth/oauth/:provider start/callback 路由。
- * 潜在风险：若 AUTH_WEB_BASE_URL 缺失，将回退为相对路径，不影响本地与测试环境可运行性。
+ * 潜在风险：若 AUTH_WEB_BASE_URL 缺失，相关前端页回跳会显式失败并走错误处理；这是预期的 fail-closed 行为。
  */
 function getQueryValue(value: unknown): string {
   if (typeof value === 'string') {
@@ -193,7 +193,7 @@ function parseOAuthStateContext(provider: OAuthProvider, rawStateValue: string):
 }
 
 function buildFrontendBaseUrl(): string {
-  return config.AUTH_WEB_BASE_URL || config.OAUTH_CALLBACK_BASE_URL || '';
+  return requireConfiguredBaseUrl('AUTH_WEB_BASE_URL', 'OAuth frontend redirects');
 }
 
 function buildFrontendUrl(pathname: string): string {
@@ -470,7 +470,7 @@ router.get('/:provider', optionalAuth, async (req, res, next) => {
  * 2026-04-09 新增 — P6.03
  * 流程：验证 state → 用 code 换 profile → 登录/注册 → 返回 JWT
  */
-router.get('/:provider/callback', async (req, res, _next) => {
+router.get('/:provider/callback', async (req, res, next) => {
   try {
     const provider = String(req.params.provider);
     const { code, state, nonce, error: oauthError } = req.query as Record<string, string>;
@@ -480,7 +480,18 @@ router.get('/:provider/callback', async (req, res, _next) => {
     // OAuth 提供方返回错误
     if (oauthError) {
       log.warn({ provider, oauthError }, 'OAuth provider returned error');
-      return res.redirect(buildErrorRedirect('OAuth authorization denied'));
+      const errorRedirect = buildErrorRedirect('OAuth authorization denied');
+      if (errorRedirect) {
+        return res.redirect(errorRedirect);
+      }
+      throw new AppError(
+        'SYSTEM_INTERNAL_ERROR',
+        'AUTH_WEB_BASE_URL is required for OAuth error redirects',
+        {
+          missingEnv: 'AUTH_WEB_BASE_URL',
+          usage: 'OAuth error redirects',
+        },
+      );
     }
 
     if (!VALID_PROVIDERS.has(provider)) {
@@ -588,11 +599,12 @@ router.get('/:provider/callback', async (req, res, _next) => {
       const result = await linkOrCreateUser(oauthProvider, profile);
 
       // 设置 refresh token cookie（与普通登录一致）
+      const cookieDomain = getCookieDomain();
       res.cookie('refresh_token', result.refreshToken, {
         httpOnly: true,
         secure: config.NODE_ENV === 'production',
         sameSite: 'lax',
-        domain: config.COOKIE_DOMAIN,
+        ...(cookieDomain ? { domain: cookieDomain } : {}),
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 天
         path: '/',
       });
@@ -612,7 +624,11 @@ router.get('/:provider/callback', async (req, res, _next) => {
     log.error({ err }, 'OAuth callback failed');
     // 重定向到前端错误页而非返回 JSON
     const message = err instanceof AppError ? err.message : 'OAuth login failed';
-    res.redirect(buildErrorRedirect(message));
+    const errorRedirect = buildErrorRedirect(message);
+    if (errorRedirect) {
+      return res.redirect(errorRedirect);
+    }
+    return next(err);
   }
 });
 
@@ -854,8 +870,18 @@ router.post(
 /**
  * 构建错误重定向 URL
  * 2026-04-09 — P6.03：OAuth 错误重定向到前端登录页
+ * 2026-04-17 修复 — 环境区分任务 2：缺少前端基准地址时不再静默相对跳转
+ * 变更类型：修复/配置
+ * 功能描述：仅在 `AUTH_WEB_BASE_URL` 已配置时构建登录页错误回跳；缺失时返回 `null`，交由上层显式失败。
+ * 设计思路：避免 callback 失败后继续相对跳转到错误页面，导致本地/生产都难以分辨真实配置问题。
+ * 参数与返回值：`buildErrorRedirect(message)` 返回错误页 URL 或 `null`。
+ * 影响范围：OAuth callback/provider error 分支。
+ * 潜在风险：若前端基准地址缺失，用户会直接收到 JSON 错误而非前端错误页；这是预期的 fail-closed 行为。
  */
-function buildErrorRedirect(message: string): string {
+function buildErrorRedirect(message: string): string | null {
+  if (!config.AUTH_WEB_BASE_URL.trim()) {
+    return null;
+  }
   return `${buildFrontendUrl('/auth/login')}?error=${encodeURIComponent(message)}`;
 }
 

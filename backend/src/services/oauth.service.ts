@@ -16,7 +16,7 @@
 
 import crypto from 'crypto';
 import { prisma } from '../lib/prisma';
-import { config } from '../config';
+import { config, requireConfiguredBaseUrl } from '../config';
 import { PASSWORD_POLICY } from '../config/constants';
 import { AppError } from '../utils/errors';
 import { createChildLogger } from '../utils/logger';
@@ -272,7 +272,12 @@ function getZhizEmailVerificationRequiredDetails(ticketState: {
   };
 }
 
-function throwZhizEmailVerificationRequiredError(ticketState: ZhizContinuationTicketState): never {
+function throwZhizEmailVerificationRequiredError(ticketState: {
+  step?: ZhizContinuationStep;
+  maskedEmail?: string | null;
+  verificationMode?: ZhizVerificationMode | null;
+  requiresNewPassword?: boolean;
+}): never {
   throw new AppError(
     'AUTH_ZHIZ_EMAIL_VERIFICATION_REQUIRED',
     'Email verification is required before this Zhiz account can be bound',
@@ -288,17 +293,17 @@ function throwZhizEmailVerificationRequiredError(ticketState: ZhizContinuationTi
  * 设计思路：
  *   1. provider callback URL builder 与前端页面回跳 builder 分层，避免继续复用同一基准 URL。
  *   2. Zhiz 授权页是 hash-route SPA，采用字符串追加 query，避免 URL 对 hash 部分重写。
- *   3. 本批次只接通 start 链路，因此 Zhiz callback 仍显式标记为未启用，防止误以为主链已完成。
+ *   3. 环境区分任务 2 起不再静默 fallback 到 `localhost:${config.PORT}`；缺少 callback base 时显式 fail-closed。
  * 参数与返回值：
  *   - getOAuthCallbackBase(): 返回 provider redirect_uri 所用的后端基准地址。
  *   - buildProviderCallbackUrl(provider, options): 返回某个 provider 的 callback URL。
  *   - appendQueryString(baseUrl, params): 返回追加查询参数后的 URL 字符串。
  *   - buildZhizAuthUrl(state, options): 返回 Zhiz 授权页地址。
  * 影响范围：OAuth start 路由、后续 Zhiz callback/token exchange。
- * 潜在风险：若 OAUTH_ZHIZ_AUTH_PAGE_URL 配置错误，Zhiz 仅会在起始跳转阶段失败，不影响旧 provider。
+ * 潜在风险：若 `OAUTH_CALLBACK_BASE_URL` 未注入，对应 OAuth start 会显式失败；这是预期的 fail-closed 行为。
  */
 function getOAuthCallbackBase(): string {
-  return config.OAUTH_CALLBACK_BASE_URL || `http://localhost:${config.PORT}`;
+  return requireConfiguredBaseUrl('OAUTH_CALLBACK_BASE_URL', 'OAuth provider callback URLs');
 }
 
 function buildProviderCallbackUrl(

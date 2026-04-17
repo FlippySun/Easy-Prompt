@@ -153,6 +153,8 @@ async function createPasswordSetupRequiredFixture(): Promise<{
 beforeAll(async () => {
   config.OAUTH_ZHIZ_CLIENT_ID = 'test-zhiz-client-id';
   config.OAUTH_ZHIZ_CLIENT_SECRET = 'test-zhiz-client-secret';
+  config.OAUTH_GOOGLE_CLIENT_ID = 'test-google-client-id';
+  config.OAUTH_GOOGLE_CLIENT_SECRET = 'test-google-client-secret';
   config.OAUTH_ZHIZ_BASE_URL = 'https://8060.zhiz.chat';
   config.OAUTH_ZHIZ_AUTH_PAGE_URL = 'https://3001.zhiz.chat/#/oauth/authorize';
   config.OAUTH_CALLBACK_BASE_URL = 'https://api.zhiz.chat';
@@ -236,6 +238,131 @@ describe('GET /api/v1/auth/oauth/zhiz', () => {
       expect(params.get('state')).toBeTruthy();
     } finally {
       config.OAUTH_ZHIZ_AUTH_PAGE_URL = previousAuthPageUrl;
+    }
+  });
+
+  /**
+   * 2026-04-17 修复 — 环境区分任务 2 fail-closed start 回归测试
+   * 变更类型：新增/测试
+   * 功能描述：确认 backend 在缺少 `OAUTH_CALLBACK_BASE_URL` 时不会再静默 fallback 到 localhost，而是返回明确的配置错误。
+   * 设计思路：直接打真实 start 路由，断言统一 error handler 输出的 `SYSTEM_INTERNAL_ERROR + details.missingEnv`。
+   * 参数与返回值：无；断言 HTTP 500 与错误 details。
+   * 影响范围：OAuth start/provider redirect_uri 构造、本地/生产环境分层。
+   * 潜在风险：若后续错误码策略调整，需要同步更新断言字段。
+   */
+  it('should fail closed when OAUTH_CALLBACK_BASE_URL is missing during OAuth start', async () => {
+    const previousCallbackBaseUrl = config.OAUTH_CALLBACK_BASE_URL;
+    config.OAUTH_CALLBACK_BASE_URL = '';
+
+    try {
+      const res = await request(app)
+        .get('/api/v1/auth/oauth/zhiz')
+        .query({ clientRedirectUri: 'vscode://easy-prompt/callback' })
+        .expect(500);
+
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.code).toBe('SYSTEM_INTERNAL_ERROR');
+      expect(res.body.error.details).toMatchObject({
+        missingEnv: 'OAUTH_CALLBACK_BASE_URL',
+        usage: 'OAuth provider callback URLs',
+      });
+    } finally {
+      config.OAUTH_CALLBACK_BASE_URL = previousCallbackBaseUrl;
+    }
+  });
+
+  /**
+   * 2026-04-17 修复 — 环境区分任务 2 fail-closed callback 错误页回归测试
+   * 变更类型：新增/测试
+   * 功能描述：确认 callback 失败时若缺少 `AUTH_WEB_BASE_URL`，backend 不再静默退回相对登录页，而是返回明确配置错误。
+   * 设计思路：走 provider error 分支，避免依赖 Redis state / 第三方 token 请求即可触发错误页回跳逻辑。
+   * 参数与返回值：无；断言 HTTP 500 与错误 details。
+   * 影响范围：OAuth callback 错误页回跳、前端登录页基准地址分层。
+   * 潜在风险：若后续 callback 错误处理改为统一 JSON，此断言需要同步调整。
+   */
+  it('should fail closed when AUTH_WEB_BASE_URL is missing for callback error redirects', async () => {
+    const previousAuthWebBaseUrl = config.AUTH_WEB_BASE_URL;
+    config.AUTH_WEB_BASE_URL = '';
+
+    try {
+      const res = await request(app)
+        .get('/api/v1/auth/oauth/zhiz/callback')
+        .query({ error: 'access_denied', state: 'missing-auth-web-base' })
+        .expect(500);
+
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.code).toBe('SYSTEM_INTERNAL_ERROR');
+      expect(res.body.error.details).toMatchObject({
+        missingEnv: 'AUTH_WEB_BASE_URL',
+        usage: 'OAuth error redirects',
+      });
+    } finally {
+      config.AUTH_WEB_BASE_URL = previousAuthWebBaseUrl;
+    }
+  });
+});
+
+/**
+ * 2026-04-17 修复 — 环境区分任务 2 OAuth cookie domain 回归测试
+ * 变更类型：新增/测试
+ * 功能描述：验证 `COOKIE_DOMAIN=''` 时 OAuth callback 写出的 refresh cookie 不再携带 `Domain=`，避免本地联调复用生产 `.zhiz.chat` cookie 域。
+ * 设计思路：复用文件内已有 fetch mock，走最小 Google callback 成功链路，直接检查 `set-cookie` 头。
+ * 参数与返回值：无；断言 302 Location 与 `set-cookie` 中不存在 Domain 属性。
+ * 影响范围：OAuth callback refresh cookie、本地 host-only cookie 行为。
+ * 潜在风险：若后续 cookie 名称或重定向协议调整，需要同步更新断言。
+ */
+describe('GET /api/v1/auth/oauth/google/callback', () => {
+  it('should omit the cookie domain when COOKIE_DOMAIN is blank', async () => {
+    const state = `google-cookie-domain-${Date.now()}`;
+    const previousCookieDomain = config.COOKIE_DOMAIN;
+
+    await redis.setex(
+      `oauth:state:${state}`,
+      600,
+      JSON.stringify({
+        provider: 'google',
+        oauthNonce: '',
+        clientRedirectUri: '',
+        clientState: '',
+        webReturnTo: '',
+        frontendRedirect: 'https://3000.zhiz.chat/post-auth',
+        initiatingUserId: '',
+      }),
+    );
+
+    fetchMock.mockResolvedValueOnce(
+      mockJsonResponse({ access_token: 'google-cookie-access-token' }),
+    );
+    fetchMock.mockResolvedValueOnce(
+      mockJsonResponse({
+        id: 'google-cookie-user-id',
+        email: 'google-cookie-user@integration.test',
+        name: 'Google Cookie User',
+        picture: 'https://avatar.example/google-cookie.png',
+        verified_email: true,
+      }),
+    );
+
+    config.COOKIE_DOMAIN = '';
+
+    try {
+      const res = await request(app)
+        .get('/api/v1/auth/oauth/google/callback')
+        .query({ code: 'google-cookie-code', state })
+        .expect(302);
+
+      const rawSetCookie = res.headers['set-cookie'];
+      const setCookie = Array.isArray(rawSetCookie)
+        ? rawSetCookie
+        : typeof rawSetCookie === 'string'
+          ? [rawSetCookie]
+          : [];
+      expect(setCookie.length).toBeGreaterThan(0);
+      expect(setCookie.some((cookie) => cookie.includes('refresh_token='))).toBe(true);
+      expect(setCookie.some((cookie) => /domain=/i.test(cookie))).toBe(false);
+      expect(res.headers.location).toContain('https://3000.zhiz.chat/post-auth');
+    } finally {
+      config.COOKIE_DOMAIN = previousCookieDomain;
     }
   });
 });

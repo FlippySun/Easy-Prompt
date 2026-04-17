@@ -213,18 +213,18 @@ describe('POST /api/v1/auth/sso/authorize', () => {
 /**
  * 2026-04-15 修复 — SSO token exchange CORS 回归测试
  * 变更类型：修复/测试
- * 功能描述：验证 `/api/v1/auth/sso/token` 的预检请求会为受控 Web 子域名与浏览器扩展 origin 返回允许头，防止 redirect allowlist 已放行但浏览器换 token 仍被 CORS 拦截。
+ * 功能描述：验证 `/api/v1/auth/sso/token` 的预检请求会为本地 Web origin 与浏览器扩展 origin 返回允许头，防止 redirect allowlist 已放行但浏览器换 token 仍被 CORS 拦截。
  * 设计思路：
  *   1. 直接对真实 Express app 发送 `OPTIONS` 预检，覆盖浏览器最先失败的链路。
- *   2. 选用 `5174.zhiz.chat` 与 `chrome-extension://...` 代表 Web / Browser 两类客户端，避免只修单一来源。
+ *   2. 选用 `http://localhost:5174` 与 `chrome-extension://...` 代表本地 Web / Browser 两类客户端，避免只修单一来源。
  * 参数与返回值：无；断言预检返回 204 与 `access-control-allow-origin/credentials` 头。
- * 影响范围：全局 CORS、`/api/v1/auth/sso/token` 跨域换 token、Web 与 Browser SSO 登录成功态落地。
+ * 影响范围：全局 CORS、`/api/v1/auth/*` 跨域访问、Web 与 Browser SSO 登录成功态落地。
  * 潜在风险：若未来某类客户端改为不同 origin 方案，需要同步更新样本值。
  */
 describe('OPTIONS /api/v1/auth/sso/token', () => {
   it('should allow trusted SSO client origins during token exchange preflight', async () => {
     const allowedOrigins = [
-      'https://5174.zhiz.chat',
+      'http://localhost:5174',
       'chrome-extension://abcdefghijklmnopabcdefghijklmnop',
     ];
 
