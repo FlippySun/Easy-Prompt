@@ -186,72 +186,73 @@
 4. **Safari Extensions（本次 5.3.8 不包含）**
    - 本轮发版不打包 Safari，不提交 App Store Connect
 
-## 🌐 后端对接检查（Phase 9 — 2026-04-08）
+## 🌐 Task 8 — 环境区分发布门禁（2026-04-17）
 
-### 基础设施
+<!--
+2026-04-17 新增 — 环境区分任务 8
+变更类型：新增/文档/测试/发布
+功能描述：用统一 release gate 替换旧的 Phase 9 dual-mode 验收口径，明确多端环境区分收尾阶段的命令门禁、验证矩阵与人工 smoke 范围。
+设计思路：
+  1. 复用 `scripts/release-gate.sh` 作为唯一统一入口，避免不同客户端各跑各的导致遗漏。
+  2. 默认 gate 聚焦离线可跑的 parity/build/package/artifact 检查；外部服务依赖项降为可选或人工 smoke。
+  3. 明确“localhost 泄漏只查可运行工件”的原则，和 scripts/README 的环境契约保持一致。
+参数与返回值：本节为发布文档，无运行时参数与返回值；命令入口见下方 checklist。
+影响范围：RELEASE_CHECKLIST.md、Task 8 执行口径、跨端 env separation 发布验收。
+潜在风险：若只通过 quick gate 而未执行 full gate，可能遗漏 VS Code / IntelliJ 最终 package 级问题；需按发布阶段选择合适门禁。
+-->
 
-- [ ] `api.zhiz.chat` HTTPS 可访问
-- [ ] `GET /health` 返回 200 + `{"status":"ok"}`
-- [ ] Nginx 反向代理正常（`api.zhiz.chat` → `127.0.0.1:3000`）
-- [ ] PM2 进程运行正常（`pm2 status easy-prompt-backend`）
+### 统一门禁命令
 
-### 双轨模式（各端）
+- [ ] 高频回归：`./scripts/release-gate.sh --quick`
+- [ ] 发布前完整门禁：`./scripts/release-gate.sh`
+- [ ] 如需追加外部依赖验证：`./scripts/release-gate.sh --with-backend-integration --with-browser-e2e`
 
-- [ ] **Web SPA** — `web/app.js` dualTrackEnhance 正常（auto 模式）
-- [ ] **Browser Extension** — Options 页三模式切换 + Token 保存/加载
-- [ ] **VS Code** — Settings 中 backendMode/backendToken 配置生效
-- [ ] **IntelliJ** — backendMode/backendToken 设置持久化
+### 默认离线 Gate 覆盖矩阵
 
-### 三模式开关
+- [ ] **Cross-platform parity** — `tests/test-parity.js` 通过
+- [ ] **Backend build** — `scripts/backend-build.sh` 通过
+- [ ] **Browser unit/build** — `scripts/browser-test.sh --mode=unit` 与 `scripts/browser-build.sh` 通过
+- [ ] **Web build** — `scripts/published/web-build.sh` 通过
+- [ ] **PromptHub build/lint** — `scripts/webhub-build.sh` 与 `scripts/webhub-lint.sh` 通过
+- [ ] **VS Code package** — `scripts/vscode-package.sh` 通过（full gate）
+- [ ] **IntelliJ** — `compileKotlin`（quick）或 `scripts/intellij-build.sh`（full）通过
 
-- [ ] `auto` — 后端优先，失败回退本地（source: local-fallback）
-- [ ] `backend-only` — 仅后端，失败报错不回退
-- [ ] `local-only` — 仅本地直连，不调用后端
+### 发布工件 localhost 泄漏门禁
 
-### 认证
+- [ ] `browser/dist`（兼容旧 `.output`）中无 `localhost:3000/5173/5174` 或 `127.0.0.1:3000/5173/5174` 残留
+- [ ] `web/dist` 中无 `localhost:3000/5173/5174` 或 `127.0.0.1:3000/5173/5174` 残留
+- [ ] `web-hub/dist` 中无 `localhost:3000/5173/5174` 或 `127.0.0.1:3000/5173/5174` 残留
 
-- [ ] 匿名请求可正常增强（受限流）
-- [ ] 带 Token 请求通过 Bearer 认证
-- [ ] Token 输入/保存/清除 UI 正常（Browser Options / VS Code Settings）
+### 环境区分人工 Smoke Matrix
 
-### 集成测试
+- [ ] **Browser**
+  - 开发态登录 / profile / enhance 走 localhost 环境
+  - 生产构建默认不回落到 localhost
+- [ ] **VS Code**
+  - 调试态 login / token exchange / refresh / profile / enhance 指向 localhost 契约
+  - 打包产物默认指向生产公网地址
+- [ ] **IntelliJ**
+  - 调试态 login / token exchange / refresh / profile / enhance 指向 localhost 契约
+  - `compileKotlin` 与 `buildPlugin` 通过后，发布默认值保持生产公网地址
+- [ ] **Web / PromptHub**
+  - 本地 dev 环境与生产 dist 的 backend / web / web-hub URL 各自正确
+  - 生产 dist 不残留 localhost 默认值
 
-- [ ] `npm run test:integration` 通过
-- [ ] `npm run test:integration -- --token <TOKEN>` 带认证测试通过
+### 可选增强验证
 
-### 错误处理
+- [ ] Backend HTTP integration smoke 通过
+- [ ] Browser Playwright E2E 通过
+- [ ] README / 发布说明中的截图、演示、手工安装步骤已更新
 
-- [ ] 网络超时 → 友好中文提示 + 本地回退（auto 模式）
-- [ ] 限流 429 → "请求过于频繁" 提示，不回退
-- [ ] 后端 500 → 本地回退（auto）或报错（backend-only）
+## ⚠️ 当前发布阻断项
 
----
-
-## ⚠️ 阻塞发布的问题
-
-### 高优先级
-
-1. **完整测试** - 至少在 macOS + VSCode 环境完整测试一遍
-
-### 中优先级
-
-2. **README 截图** - 添加使用演示 GIF 或截图
-3. **FAQ 文档** - 整理常见问题和解决方案
-
-## 📝 发布后待办
-
-1. 监控用户反馈和 Issue
-2. 收集使用统计（如果实现了）
-3. 根据反馈迭代优化
-4. 准备下一版本计划
+- [ ] Full release gate 尚未完整跑通
+- [ ] 跨端人工 smoke matrix 尚未逐项打勾
+- [ ] README 截图 / 演示物料仍需补齐（如本次发版需要）
 
 ## 🎯 当前状态
 
-- ✅ 核心功能完整
-- ✅ 代码质量优化完成
-- ✅ 基础文档齐全
-- ✅ 图标资源已就绪
-- ⚠️ 缺少使用演示
-- ⚠️ 需要完整测试
-
-**建议：先完成图标和演示，再进行完整测试后发布。**
+- ✅ Task 1 ~ Task 7 已完成
+- ✅ IntelliJ Task 7 `compileKotlin` 已通过
+- ✅ 统一 `release-gate.sh` 入口已建立
+- ⚠️ Task 8 仍需按本清单完成 full gate + 人工 smoke 才可视为发布就绪

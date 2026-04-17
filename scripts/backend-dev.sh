@@ -65,6 +65,52 @@ elif [[ -z "${CRON_ENABLED:-}" ]]; then
   echo "🛡️  Local cron disabled by default for this dev session (pass --allow-cron to enable)"
 fi
 
+# ── 1.6 Local Env Contract Defaults ──
+# 2026-04-17 新增 — 环境区分任务 2：backend 本地默认环境分层
+# 变更类型：新增/配置/运维
+# 功能描述：为本地 backend dev 会话注入 development 基准地址、OAuth 回调基准、前端页回跳基准、CORS 与 cookie 默认值，避免未显式配置时继续沿用生产导向配置或依赖隐式 fallback。
+# 设计思路：
+#   1. 仅在变量缺失时导出默认值，显式用户配置始终优先。
+#   2. OAUTH_CALLBACK_BASE_URL 指向本地 backend；AUTH_WEB_BASE_URL / SSO_HUB_BASE_URL 指向本地 web-hub，保持 provider callback 与前端页面回跳分层。
+#   3. COOKIE_DOMAIN 默认为空字符串，让本地浏览器采用 host-only cookie，避免污染 `.zhiz.chat` 会话。
+# 参数与返回值：无显式参数；通过 export 注入 NODE_ENV/APP_ENV/PORT/*_BASE_URL/CORS_ORIGINS/COOKIE_DOMAIN。
+# 影响范围：scripts/backend-dev.sh、本地 nodemon 启动、OAuth provider callback/frontend redirect/CORS 默认值。
+# 潜在风险：若需要非常规本地端口或自定义域名，需在启动前显式 export 同名变量覆盖默认值。
+if [[ -z "${NODE_ENV:-}" ]]; then
+  export NODE_ENV=development
+fi
+if [[ -z "${APP_ENV:-}" ]]; then
+  export APP_ENV=development
+fi
+if [[ -z "${PORT:-}" ]]; then
+  export PORT=3000
+fi
+if [[ -z "${WEB_PUBLIC_BASE_URL:-}" ]]; then
+  export WEB_PUBLIC_BASE_URL="http://localhost:5174"
+fi
+if [[ -z "${WEB_HUB_PUBLIC_BASE_URL:-}" ]]; then
+  export WEB_HUB_PUBLIC_BASE_URL="http://localhost:5173"
+fi
+if [[ -z "${SSO_HUB_BASE_URL:-}" ]]; then
+  export SSO_HUB_BASE_URL="${WEB_HUB_PUBLIC_BASE_URL}"
+fi
+if [[ -z "${BACKEND_PUBLIC_BASE_URL:-}" ]]; then
+  export BACKEND_PUBLIC_BASE_URL="http://localhost:${PORT}"
+fi
+if [[ -z "${AUTH_WEB_BASE_URL:-}" ]]; then
+  export AUTH_WEB_BASE_URL="${WEB_HUB_PUBLIC_BASE_URL}"
+fi
+if [[ -z "${OAUTH_CALLBACK_BASE_URL:-}" ]]; then
+  export OAUTH_CALLBACK_BASE_URL="${BACKEND_PUBLIC_BASE_URL}"
+fi
+if [[ -z "${CORS_ORIGINS:-}" ]]; then
+  export CORS_ORIGINS="http://localhost:5173,http://localhost:5174"
+fi
+if [[ -z "${COOKIE_DOMAIN:-}" ]]; then
+  export COOKIE_DOMAIN=""
+fi
+echo "🌐 Local env contract: backend=${BACKEND_PUBLIC_BASE_URL} web=${WEB_PUBLIC_BASE_URL} hub=${WEB_HUB_PUBLIC_BASE_URL} auth_web=${AUTH_WEB_BASE_URL}"
+
 # ── 2. Prisma Generate ──
 if ! $SKIP_GENERATE; then
   echo ""

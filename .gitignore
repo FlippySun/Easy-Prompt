@@ -13,6 +13,8 @@ web/dist/
 .idea/
 *.iml
 *.code-workspace
+# [2026-04-17][配置变更] Ignore IDE self-update lock | Rationale: local IDE runtime lock has no product/runtime value and should not enter version control
+intellij/.intellijPlatform/self-update.lock
 
 # OS
 .DS_Store
@@ -38,6 +40,9 @@ deploy/
 .roo/
 .claude/
 .playwright-mcp/
+# [2026-04-17][配置变更] Ignore local agent workspace folders | Rationale: agent-generated local workspace metadata is machine-specific and should not be versioned
+.agent/
+.agents/
 .github/copilot-instructions.md
 .github/copilot-instructions.md.*
 .github/agents/
