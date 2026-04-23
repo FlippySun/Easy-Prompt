@@ -25,6 +25,7 @@ import {
   X,
   Sparkles,
   Command,
+  Wand2,
 } from 'lucide-react';
 // 2026-04-09 — P5 迁移：不再直接导入 MOCK_PROMPTS/CATEGORY_COUNTS
 import { type Prompt } from '../data/prompts';
@@ -102,6 +103,16 @@ const PAGES = [
   { title: 'Prompt 合集', icon: Package, path: '/collections', desc: '浏览精心策划的主题合集' },
   { title: '我的收藏', icon: Bookmark, path: '/favorites', desc: '查看你收藏的所有 Prompt' },
   { title: '个人主页', icon: User, path: '/profile', desc: '查看你的个人资料和成就' },
+  /**
+   * 2026-04-23
+   * 变更类型：add
+   * What：命令面板新增 GPT-image2 页面快捷入口。
+   * Why：新专页不仅要能从侧边栏进入，也要能被全局搜索与 ⌘K 面板快速定位。
+   * Params & return：新增静态页面配置 `{ title, icon, path, desc }`；不改变命令面板其它分组结构。
+   * Impact scope：PromptHub 命令面板页面索引与快捷导航。
+   * Risk：无已知风险。
+   */
+  { title: 'GPT-image2', icon: Wand2, path: '/gpt-image2', desc: '打开在线图像生成工作台' },
 ];
 
 // --- Main Component ---

@@ -10,6 +10,16 @@ const Profile = lazy(() => import('./pages/Profile').then((m) => ({ default: m.P
 const Collections = lazy(() => import('./pages/Collections').then((m) => ({ default: m.Collections })));
 const TagFilter = lazy(() => import('./pages/TagFilter').then((m) => ({ default: m.TagFilter })));
 const Galaxy = lazy(() => import('./pages/Galaxy').then((m) => ({ default: m.Galaxy })));
+/**
+ * 2026-04-23
+ * 变更类型：add
+ * What：新增 GPT-image2 工作台页面懒加载入口。
+ * Why：Figma 新设计要求在 PromptHub 内提供独立图像生成专页，并通过单独路由承载完整工作台交互。
+ * Params & return：访问 `/gpt-image2` 时返回 `GptImage2` 路由组件；不改变现有 Layout 入参和返回结构。
+ * Impact scope：web-hub 路由表、侧边栏新增入口、命令面板页面检索。
+ * Risk：当前页面为 UI-first 前端原型，后续接入真实图片生成 API 时需继续复用该路由而非再开新路径。
+ */
+const GptImage2 = lazy(() => import('./pages/GptImage2').then((m) => ({ default: m.GptImage2 })));
 const CollectionDetail = lazy(() => import('./pages/CollectionDetail'));
 const LoginPage = lazy(() => import('./pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
 const CallbackPage = lazy(() => import('./pages/auth/CallbackPage').then((m) => ({ default: m.CallbackPage })));
@@ -268,6 +278,14 @@ export const router = createBrowserRouter([
         element: (
           <SuspenseWrapper>
             <Profile />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: 'gpt-image2',
+        element: (
+          <SuspenseWrapper>
+            <GptImage2 />
           </SuspenseWrapper>
         ),
       },

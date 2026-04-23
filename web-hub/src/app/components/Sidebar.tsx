@@ -16,6 +16,7 @@ import {
   Heart,
   Flame,
   Telescope,
+  Wand2,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { CATEGORY_CONFIG } from '../data/constants';
@@ -208,7 +209,7 @@ export function Sidebar({ darkMode: dm }: SidebarProps) {
         <div className={`h-px ${dm ? 'bg-gray-800' : 'bg-gray-100'}`} />
 
         {/* ── Galaxy Mode ───────────────────────────────────────────────────── */}
-        <div className="px-2">
+        <div className="space-y-2 px-2">
           <NavLink
             to="/galaxy"
             className={({ isActive }) =>
@@ -225,6 +226,35 @@ export function Sidebar({ darkMode: dm }: SidebarProps) {
             <Telescope size={15} className="shrink-0" />
             <span className="whitespace-nowrap">🌌 银河探索模式</span>
             <span className="ml-auto rounded-full bg-linear-to-r from-violet-500 to-indigo-500 px-1.5 py-0.5 text-[9px] font-bold text-white">
+              NEW
+            </span>
+          </NavLink>
+
+          {/**
+           * 2026-04-23
+           * 变更类型：add
+           * What：在银河探索模式分组下追加 GPT-image2 新入口，并用醒目的渐变样式对齐 Figma 设计稿的侧边栏状态。
+           * Why：用户要求将图片生成专页挂到左侧底部的银河探索模式区域，避免新功能埋在原有分类导航中难以发现。
+           * Params & return：新增 `NavLink` 指向 `/gpt-image2`；不改变 `SidebarProps` 入参或组件返回类型。
+           * Impact scope：PromptHub 左侧导航、GPT-image2 专页主入口。
+           * Risk：无已知风险；若后续银河探索模式继续扩展，建议把该区域抽成统一配置数组。
+           */}
+          <NavLink
+            to="/gpt-image2"
+            className={({ isActive }) =>
+              cn(
+                'group flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all',
+                isActive
+                  ? 'border border-violet-300 bg-linear-to-r from-violet-500/15 to-pink-500/10 text-violet-700 shadow-sm'
+                  : dm
+                    ? 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+                    : 'text-violet-600 hover:bg-violet-50/80 hover:text-violet-700',
+              )
+            }
+          >
+            <Wand2 size={15} className="shrink-0" />
+            <span className="truncate">GPT-image2</span>
+            <span className="ml-auto rounded-full bg-linear-to-r from-violet-500 to-pink-500 px-1.5 py-0.5 text-[9px] font-bold text-white">
               NEW
             </span>
           </NavLink>
