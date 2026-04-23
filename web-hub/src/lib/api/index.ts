@@ -28,6 +28,7 @@ import type {
   ZhizPasswordSetupChallengeResult,
   ZhizPasswordSetupCompleteRequest,
   ZhizPasswordSetupStartRequest,
+  ZhizLinkStatusResult,
   PromptListParams,
   PromptItem,
   PromptDetail,
@@ -84,11 +85,27 @@ export const authApi = {
     return res.data;
   },
 
-  /** 刷新 token（通常由 client.ts 自动调用，此处供手动调用） */
-  async refresh(refreshToken: string) {
-    const res = await postPublic<ApiSuccessResponse<AuthTokens>>('/api/v1/auth/refresh', { refreshToken });
+  /**
+   * 2026-04-22 修复 — Web-Hub refresh 支持 cookie 共享会话
+   * 变更类型：fix
+   * What：允许 `authApi.refresh()` 在不显式传 refreshToken 时，退化为依赖共享 `refresh_token` cookie 的静默刷新。
+   * Why：其他端登录后，Web-Hub 登录页/个人页需要复用共享会话自动恢复，而不是强制用户再次输入账号密码。
+   * Params & return：`refresh(refreshToken?)` 可接收显式 refreshToken，也可省略；返回标准 `AuthTokens`。
+   * Impact scope：AuthProvider 初始化、LoginPage 自动 SSO 续接、所有客户端共享登录恢复。
+   * Risk：匿名访问时会得到 401 并由上层吞掉，不会写入错误 token。
+   */
+  async refresh(refreshToken?: string) {
+    const res = await postPublic<ApiSuccessResponse<AuthTokens>>(
+      '/api/v1/auth/refresh',
+      refreshToken ? { refreshToken } : {},
+    );
     setTokens(res.data.accessToken, res.data.refreshToken);
     return res.data;
+  },
+
+  /** 使用共享 refresh cookie 静默恢复本地 token */
+  async bootstrapSessionFromCookie() {
+    return this.refresh();
   },
 
   /** Zhiz continuation status → 返回当前 complete 页面状态快照 */
@@ -96,6 +113,12 @@ export const authApi = {
     const res = await get<ApiSuccessResponse<ZhizContinuationStatusResult>>('/api/v1/auth/oauth/zhiz/status', {
       ticket,
     });
+    return res.data;
+  },
+
+  /** Zhiz link-status → 返回当前登录用户的 Zhiz 绑定状态 */
+  async zhizLinkStatus() {
+    const res = await get<ApiSuccessResponse<ZhizLinkStatusResult>>('/api/v1/auth/oauth/zhiz/link-status');
     return res.data;
   },
 

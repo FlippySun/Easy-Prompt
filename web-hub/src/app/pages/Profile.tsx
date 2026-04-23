@@ -27,6 +27,7 @@ import { CATEGORY_CONFIG, formatCount } from '../data/constants';
 import { RARITY_CONFIG, type Achievement } from '../data/achievements';
 import { useAchievements } from '../hooks/useAchievements';
 import { motion, AnimatePresence } from 'motion/react';
+import { ZhizConnectionCard } from '../components/profile/ZhizConnectionCard';
 
 // 从集中的 CATEGORY_CONFIG 派生图表配置
 const CATEGORY_CHART_CONFIG: Record<string, { name: string; color: string }> = Object.fromEntries(
@@ -237,6 +238,8 @@ export function Profile() {
           </p>
         </div>
       </div>
+
+      <ZhizConnectionCard darkMode={dm} />
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

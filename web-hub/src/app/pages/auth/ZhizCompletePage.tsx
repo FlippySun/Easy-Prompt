@@ -9,7 +9,7 @@
  *   1. 页面启动先调 `zhizStatus(ticket)` 恢复真实状态，避免刷新后 UI 丢失。
  *   2. `ready` 状态自动调用 `zhizFinish(ticket)`，与后端 consumed ticket 语义保持一致。
  *   3. `needs_email/collect_email`、`verify_email` 与 `verify_email_and_set_password` 共用同一页状态机，避免首登流程拆页。
- *   4. 登录成功后遵循既有优先级：外层 SSO → 站内 `webReturnTo` → 首页。
+ *   4. 登录成功后遵循既有优先级：外层 SSO → `postBindTarget`（如 Skills Manager）→ 站内 `webReturnTo` → 首页。
  * 参数与返回值：URL query `ticket`；组件内部消费 `authApi.zhizStatus/zhizFinish/zhizPasswordSetup*`。
  * 影响范围：`/auth/zhiz/complete` 路由、Zhiz 登录完成态、Web-Hub 登录入口。
  * 潜在风险：验证码倒计时基于前端本地递减，若页面长时间挂起会在下一次 status 恢复时重新对齐后端剩余时间。
@@ -42,6 +42,7 @@ import {
 } from '@/lib/api';
 import { handleSsoRedirect } from '@/lib/api/sso';
 import zhizLogo from '@/assets/icon/zhiz-logo.png';
+import { resolveZhizPostBindUrl } from '@/lib/zhiz-auth';
 
 interface ZhizChallengeDetails {
   maskedEmail?: string;
@@ -319,13 +320,17 @@ function normalizeZhizChallengeDetailsForUi(error: unknown): Partial<ZhizChallen
   return details;
 }
 
-function buildLoginHref(snapshot: ZhizContinuationStatusResult | null): string {
+function buildLoginHref(snapshot: ZhizContinuationStatusResult | null, fallbackPostBindTarget: string | null): string {
   const url = new URL('/auth/login', window.location.origin);
   if (snapshot?.clientRedirectUri) {
     url.searchParams.set('redirect_uri', snapshot.clientRedirectUri);
   }
   if (snapshot?.clientState) {
     url.searchParams.set('state', snapshot.clientState);
+  }
+  const postBindTarget = snapshot?.postBindTarget ?? fallbackPostBindTarget;
+  if (postBindTarget) {
+    url.searchParams.set('postBindTarget', postBindTarget);
   }
   return `${url.pathname}${url.search}`;
 }
@@ -351,6 +356,7 @@ function normalizeWebReturnTo(webReturnTo: string): string {
 export function ZhizCompletePage() {
   const [searchParams] = useSearchParams();
   const ticket = searchParams.get('ticket') ?? '';
+  const postBindTarget = searchParams.get('postBindTarget');
 
   const [snapshot, setSnapshot] = useState<ZhizContinuationStatusResult | null>(null);
   const [challengeState, setChallengeState] = useState<ZhizPasswordSetupChallengeResult | null>(null);
@@ -376,7 +382,7 @@ export function ZhizCompletePage() {
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<ZhizFieldErrors>({});
 
-  const loginHref = useMemo(() => buildLoginHref(snapshot), [snapshot]);
+  const loginHref = useMemo(() => buildLoginHref(snapshot, postBindTarget), [postBindTarget, snapshot]);
   const hasActiveChallenge = (challengeState?.challengeExpiresInSec ?? 0) > 0;
   const resendAfterSec = challengeState?.resendAfterSec ?? 0;
   const verifyMode = resolveZhizVerificationMode(snapshot, challengeState ?? {});
@@ -446,13 +452,44 @@ export function ZhizCompletePage() {
     [],
   );
 
-  const finalizeRedirect = useCallback(async (currentSnapshot: ZhizContinuationStatusResult) => {
-    if (currentSnapshot.clientRedirectUri && currentSnapshot.clientState) {
-      await handleSsoRedirect(currentSnapshot.clientRedirectUri, currentSnapshot.clientState);
-      return;
-    }
-    window.location.href = normalizeWebReturnTo(currentSnapshot.webReturnTo);
-  }, []);
+  const finalizeRedirect = useCallback(
+    async (currentSnapshot: ZhizContinuationStatusResult) => {
+      const hasOuterRedirectUri = Boolean(currentSnapshot.clientRedirectUri);
+      const hasOuterState = Boolean(currentSnapshot.clientState);
+
+      // 2026-04-22 修复 — 外层 SSO 回跳参数必须完整成对出现
+      // 变更类型：修复/前端/安全
+      // 功能描述：若 Zhiz complete snapshot 只恢复出 clientRedirectUri / clientState 中的一项，则停止继续回落到 postBindTarget 或 webReturnTo，避免把本应返回外层 SSO 的流程误送到错误站点。
+      // 设计思路：outer SSO 仍是最高优先级；一旦检测到“部分存在”的异常态，就 fail-closed 抛错，让页面停留在当前 complete 页面并展示错误，而不是猜测用户想去哪。
+      // 参数与返回值：读取 `currentSnapshot.clientRedirectUri/clientState` 是否成对存在；异常时抛出 Error，正常时继续既有跳转优先级。
+      // 影响范围：ZhizCompletePage 登录完成后的最终重定向。
+      // 潜在风险：若后端未来显式允许只传其中一项，需要同步调整这里与后端契约；当前产品不支持该半状态。
+      if (hasOuterRedirectUri !== hasOuterState) {
+        throw new Error('SSO 回跳参数不完整，请重新发起登录流程');
+      }
+
+      if (hasOuterRedirectUri && hasOuterState) {
+        await handleSsoRedirect(currentSnapshot.clientRedirectUri, currentSnapshot.clientState);
+        return;
+      }
+
+      // 2026-04-22 新增 — Zhiz complete 支持 postBindTarget=skills-manager
+      // 变更类型：新增/前端/路由
+      // 功能描述：当当前 Zhiz 流程来自 Profile/Skills Manager 绑定场景时，在无 outer SSO 的前提下优先跳回 Skills Manager，而不是一律回到 `webReturnTo` 或首页。
+      // 设计思路：继续保持“outer SSO 最高优先级”，只有在不存在 clientRedirectUri/clientState 时才消费 `postBindTarget`；未知 target 则继续回退到既有 `webReturnTo` 逻辑。
+      // 参数与返回值：读取 snapshot/searchParam 中的 `postBindTarget`，命中已知目标则执行前端跳转；否则回退现有站内回跳。
+      // 影响范围：ZhizCompletePage 登录完成跳转。
+      // 潜在风险：若后端未来增加更多 target，而前端未及时映射，会回退到 `webReturnTo`；不会影响 outer SSO。
+      const targetUrl = resolveZhizPostBindUrl(currentSnapshot.postBindTarget ?? postBindTarget);
+      if (targetUrl) {
+        window.location.href = targetUrl;
+        return;
+      }
+
+      window.location.href = normalizeWebReturnTo(currentSnapshot.webReturnTo);
+    },
+    [postBindTarget],
+  );
 
   const finishTicket = useCallback(
     async (data: ZhizFinishRequest, currentSnapshot: ZhizContinuationStatusResult) => {

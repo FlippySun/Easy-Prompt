@@ -69,6 +69,7 @@ export interface RegisterRequest {
 export type ZhizContinuationStatus = 'ready' | 'needs_email';
 export type ZhizContinuationStep = 'collect_email' | 'verify_email' | 'verify_email_and_set_password';
 export type ZhizVerificationMode = 'create_user' | 'bind_existing_user' | 'set_password_and_bind';
+export type ZhizPostBindTarget = 'skills-manager';
 
 export interface ZhizContinuationStatusResult {
   status: ZhizContinuationStatus;
@@ -80,6 +81,7 @@ export interface ZhizContinuationStatusResult {
   clientRedirectUri: string;
   clientState: string;
   webReturnTo: string;
+  postBindTarget?: ZhizPostBindTarget | null;
   maskedEmail?: string;
   verificationMode?: ZhizVerificationMode;
   requiresNewPassword?: boolean;
@@ -118,6 +120,15 @@ export interface ZhizPasswordSetupCompleteRequest {
   ticket: string;
   code: string;
   newPassword?: string;
+}
+
+export interface ZhizLinkStatusResult {
+  provider: 'zhiz';
+  linked: boolean;
+  profile: {
+    displayName: string | null;
+    avatarUrl: string | null;
+  };
 }
 
 // 2026-04-09 修复 — avatar → avatarUrl，对齐后端 Prisma 字段名

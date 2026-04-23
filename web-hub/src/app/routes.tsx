@@ -31,6 +31,19 @@ const EmailTemplatePreviewPage = lazy(() =>
   import('./pages/EmailTemplatePreviewPage').then((m) => ({ default: m.EmailTemplatePreviewPage })),
 );
 
+/**
+ * 2026-04-21 新增 — Zhiz AI 邮件模板独立预览路由
+ * 变更类型：新增/前端/路由
+ * 功能描述：复制现有验证码邮件预览能力到新的公开路径 `/preview/email/zhiz-ai-verification`，用于后续独立迭代 AI 版投递页。
+ * 设计思路：保持旧路由不变，同时通过独立页面组件与独立 HTML 模板资产建立安全隔离，降低后续改版互相影响的风险。
+ * 参数与返回值：无新增路由参数；访问固定路径 `/preview/email/zhiz-ai-verification` 时返回 AI 版预览页面组件。
+ * 影响范围：Web-Hub 路由表、AI 版邮件模板验收入口、后续新投递页改版流程。
+ * 潜在风险：短期内新旧页面存在少量重复代码，但这是为了换取独立迭代边界；当前无已知核心业务风险。
+ */
+const ZhizAiEmailTemplatePreviewPage = lazy(() =>
+  import('./pages/ZhizAiEmailTemplatePreviewPage').then((m) => ({ default: m.ZhizAiEmailTemplatePreviewPage })),
+);
+
 // 2026-04-09 新增 — P6.05~P6.08 Admin 页面（lazy load）
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout').then((m) => ({ default: m.AdminLayout })));
 const AdminDashboard = lazy(() => import('./pages/admin/Dashboard').then((m) => ({ default: m.Dashboard })));
@@ -171,6 +184,14 @@ export const router = createBrowserRouter([
     element: (
       <SuspenseWrapper>
         <EmailTemplatePreviewPage />
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: '/preview/email/zhiz-ai-verification',
+    element: (
+      <SuspenseWrapper>
+        <ZhizAiEmailTemplatePreviewPage />
       </SuspenseWrapper>
     ),
   },

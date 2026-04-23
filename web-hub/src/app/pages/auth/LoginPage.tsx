@@ -10,22 +10,23 @@
  *      - 跨域名 → 生成 code → redirect 到 redirect_uri?code=xxx&state=yyy
  *   4. 预留 GitHub / Google OAuth 按钮（Phase 6）
  *   5. 样式与 PromptHub 一致的设计语言
- * 参数：URL query: redirect_uri, state
+ * 参数：URL query: redirect_uri, state, postBindTarget
  * 影响范围：/auth/login 路由
  * 潜在风险：SSO 核心入口，需严格校验 redirect_uri 防止开放重定向
  */
 
-import { useState, useEffect, useMemo, useCallback, type FormEvent } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { motion } from 'motion/react';
 import { Mail, Lock, Eye, EyeOff, LogIn, Github, Loader2 } from 'lucide-react';
 // 2026-04-10 — P5 修复：改用 authApi 替代直接 fetch，获得统一错误处理、token 自动存储
 import { authApi, ApiError } from '@/lib/api';
-import { BACKEND_API_BASE } from '@/lib/env';
+import { buildZhizBindingProfileUrl, buildZhizStartUrl } from '@/lib/zhiz-auth';
 // 2026-04-10 — SSO Plan v2 A3：登录成功后生成 SSO code 再 redirect
 import { handleSsoRedirect } from '@/lib/api/sso';
 import logoWhite from '@/assets/icon/logo-white.svg';
 import zhizLogo from '@/assets/icon/zhiz-logo.png';
+import { useAuth } from '@/app/hooks/useAuth';
 
 // 2026-04-10 — SSO Plan v2 A3：移除前端 ALLOWED_REDIRECT_DOMAINS 白名单
 // redirect_uri 校验统一由后端 /sso/authorize → ALLOWED_REDIRECT_PATTERNS 负责
@@ -37,7 +38,7 @@ import zhizLogo from '@/assets/icon/zhiz-logo.png';
  * 功能描述：在 /auth/login 展示可用的 Zhiz 第三方登录入口并复用项目内 SVG Logo 资源
  * 设计思路：
  *   1. 入口直接跳转后端 `/api/v1/auth/oauth/zhiz`，由后端维护 OAuth state 与前端 complete 页面回跳
- *   2. 将现有 SSO `redirect_uri/state` 转换为后端约定的 `clientRedirectUri/clientState`
+ *   2. 将现有 SSO `redirect_uri/state` 转换为后端约定的 `clientRedirectUri/clientState`，并透传可选 `postBindTarget`
  *   3. 同步读取 `?error=` 回跳参数，承接 OAuth 回调失败后的登录页错误提示
  * 参数与返回值：无（纯展示配置）
  * 影响范围：web-hub 登录页第三方登录区域
@@ -60,6 +61,9 @@ export function LoginPage() {
   const redirectUri = searchParams.get('redirect_uri') ?? '';
   const state = searchParams.get('state') ?? '';
   const oauthError = searchParams.get('error') ?? '';
+  const postBindTarget = searchParams.get('postBindTarget') === 'skills-manager' ? 'skills-manager' : null;
+  const { isAuthenticated, isLoading } = useAuth();
+  const hasAutoContinuedRef = useRef(false);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -68,15 +72,19 @@ export function LoginPage() {
   const [error, setError] = useState('');
 
   const zhizLoginUrl = useMemo(() => {
-    const url = new URL('/api/v1/auth/oauth/zhiz', BACKEND_API_BASE);
-    if (redirectUri) {
-      url.searchParams.set('clientRedirectUri', redirectUri);
-    }
-    if (state) {
-      url.searchParams.set('clientState', state);
-    }
-    return url.toString();
-  }, [redirectUri, state]);
+    // 2026-04-22 新增 — Login/Profile 共用 Zhiz start URL builder
+    // 变更类型：重构/前端
+    // 功能描述：登录页改为复用 `buildZhizStartUrl()` 统一生成 Zhiz OAuth 起始地址，并透传 `postBindTarget`，避免与 Profile 入口各自维护 query 拼装。
+    // 设计思路：登录页继续只负责把 outer SSO 的 `redirect_uri/state` 与可选 `postBindTarget` 传给共享 builder；真正的跳转优先级仍由 complete 页统一裁决。
+    // 参数与返回值：读取 URL query `redirect_uri/state/postBindTarget`，返回完整 Zhiz OAuth URL 字符串。
+    // 影响范围：LoginPage 的 Zhiz 登录按钮、ZhizCompletePage 的后续完成跳转。
+    // 潜在风险：若未来 start API 新增额外 query 字段，需要同步补到共享 builder 入参。
+    return buildZhizStartUrl({
+      clientRedirectUri: redirectUri,
+      clientState: state,
+      postBindTarget,
+    });
+  }, [postBindTarget, redirectUri, state]);
 
   useEffect(() => {
     if (oauthError) {
@@ -84,10 +92,62 @@ export function LoginPage() {
     }
   }, [oauthError]);
 
+  useEffect(() => {
+    if (isLoading || !isAuthenticated || hasAutoContinuedRef.current || !!oauthError) {
+      return;
+    }
+
+    /**
+     * 2026-04-22 修复 — 登录页自动复用已登录 SSO 会话
+     * 变更类型：fix
+     * What：当用户已在任一端完成登录、当前登录页又带着 `redirect_uri/state` 或 `postBindTarget` 打开时，直接续接原流程而不是停留在表单页。
+     * Why：统一登录页是多端共享会话的汇合点；如果这里不自动续接，就会表现成“另一端明明已登录，但当前端仍像未登录一样要求重复操作”。
+     * Params & return：监听 `isAuthenticated/isLoading/redirectUri/state/postBindTarget`；命中后执行 redirect 或站内跳转，无同步返回值。
+     * Impact scope：Web、Browser、IDE 客户端经 `/auth/login` 发起的 SSO 跳转，以及 Zhiz 绑定入口从登录页继续绑定的闭环。
+     * Risk：No known risks.
+     */
+    hasAutoContinuedRef.current = true;
+    setError('');
+
+    if (redirectUri && state) {
+      handleSsoRedirect(redirectUri, state).catch((err) => {
+        hasAutoContinuedRef.current = false;
+        if (err instanceof ApiError) {
+          setError(`SSO 授权失败：${err.message}`);
+          return;
+        }
+        setError('SSO 授权失败，请重试');
+      });
+      return;
+    }
+
+    if (postBindTarget) {
+      window.location.href = buildZhizBindingProfileUrl(postBindTarget);
+      return;
+    }
+
+    window.location.href = '/';
+  }, [isAuthenticated, isLoading, oauthError, postBindTarget, redirectUri, state]);
+
   const handleZhizLogin = useCallback(() => {
     setError('');
     window.location.href = zhizLoginUrl;
   }, [zhizLoginUrl]);
+
+  const authQuerySuffix = useMemo(() => {
+    const params = new URLSearchParams();
+    if (redirectUri) {
+      params.set('redirect_uri', redirectUri);
+    }
+    if (state) {
+      params.set('state', state);
+    }
+    if (postBindTarget) {
+      params.set('postBindTarget', postBindTarget);
+    }
+    const query = params.toString();
+    return query ? `?${query}` : '';
+  }, [postBindTarget, redirectUri, state]);
 
   const handleSubmit = useCallback(
     async (e: FormEvent) => {
@@ -134,7 +194,20 @@ export function LoginPage() {
             return;
           }
         }
-        // 无 redirect_uri → Web-Hub 自身登录，跳首页
+
+        // 2026-04-22 修复 — 登录页保留 Zhiz 绑定续接意图
+        // 变更类型：修复/交互
+        // 功能描述：当用户从 Profile Zhiz 绑定专区跳到普通登录页，且选择邮箱密码登录而不是直接点 Zhiz OAuth 按钮时，登录成功后仍返回 Zhiz 绑定专区，而不是丢失 `postBindTarget` 语义后直接回首页。
+        // 设计思路：outer SSO 场景继续优先走 handleSsoRedirect；仅在 Web-Hub 自身登录且存在 `postBindTarget` 时，显式回到 `/profile?connect=zhiz...#zhiz-oauth` 继续绑定闭环。
+        // 参数与返回值：读取当前 URL query 中的 `postBindTarget`；命中时通过 `buildZhizBindingProfileUrl()` 生成绑定专区地址并执行整页跳转。
+        // 影响范围：LoginPage 邮箱密码登录成功后的站内回跳。
+        // 潜在风险：若未来登录页承载更多 post-login 落点，需要把当前单一 `postBindTarget` 分流继续上提为更通用的 intent builder。
+        if (postBindTarget) {
+          window.location.href = buildZhizBindingProfileUrl(postBindTarget);
+          return;
+        }
+
+        // 无 redirect_uri 且无 postBindTarget → Web-Hub 自身登录，跳首页
         window.location.href = '/';
       } catch (err) {
         // 使用后端返回的错误码映射中文消息
@@ -152,7 +225,7 @@ export function LoginPage() {
         setLoading(false);
       }
     },
-    [email, password, redirectUri, state],
+    [email, password, postBindTarget, redirectUri, state],
   );
 
   return (
@@ -297,10 +370,7 @@ export function LoginPage() {
           {/* 注册链接 */}
           <p className="mt-6 text-center text-sm text-gray-400">
             还没有账号？{' '}
-            <Link
-              to={`/auth/register${redirectUri ? `?redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}` : ''}`}
-              className="font-medium text-indigo-400 hover:text-indigo-300"
-            >
+            <Link to={`/auth/register${authQuerySuffix}`} className="font-medium text-indigo-400 hover:text-indigo-300">
               立即注册
             </Link>
           </p>

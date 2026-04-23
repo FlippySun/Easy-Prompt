@@ -65,6 +65,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  /**
+   * 2026-04-22 修复 — Web-Hub 共享会话静默恢复
+   * 变更类型：fix
+   * What：当当前 origin 没有本地 token 时，先尝试用共享 `refresh_token` cookie 静默换回一对新 token，再恢复用户信息与自动刷新定时器。
+   * Why：多端单点登录的“复用已登录状态”不能只依赖本地 localStorage；其他端完成登录后，Web-Hub 应能通过共享会话自动恢复。
+   * Params & return：`tryBootstrapSharedSession()` 无参数；成功返回 `true`，失败返回 `false`。
+   * Impact scope：AuthProvider 初始化、LoginPage 自动续接、Profile/首页登录态展示。
+   * Risk：匿名访问会多一次 `/auth/refresh` 探测，但失败会被静默吞掉且不会污染现有 token。
+   */
+  const tryBootstrapSharedSession = useCallback(async (): Promise<boolean> => {
+    try {
+      const tokens = await authApi.bootstrapSessionFromCookie();
+      const u = await authApi.me();
+      setUser(u);
+      scheduleRefresh(tokens.expiresIn);
+      return true;
+    } catch {
+      clearTokens();
+      setUser(null);
+      return false;
+    }
+  }, [scheduleRefresh]);
+
   // ── 初始化：检查已有 token ──
   useEffect(() => {
     let cancelled = false;
@@ -72,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async function init() {
       const token = getAccessToken();
       if (!token) {
+        await tryBootstrapSharedSession();
         setIsLoading(false);
         return;
       }
@@ -97,8 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               }
             }
           } else if (!cancelled) {
-            clearTokens();
-            setUser(null);
+            await tryBootstrapSharedSession();
           }
         } else if (!cancelled) {
           setUser(null);
@@ -112,7 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [scheduleRefresh]);
+  }, [scheduleRefresh, tryBootstrapSharedSession]);
 
   // ── 卸载时清除定时器 ──
   useEffect(() => clearRefreshTimer, [clearRefreshTimer]);
