@@ -32,18 +32,33 @@ function getProviderKey(): Buffer {
 }
 
 /**
- * 2026-04-14 新增 — Zhiz OAuth Superpowers Execute T5
- * 变更类型：新增/安全
- * 功能描述：为第三方 OAuth token 提供独立于 Provider API Key 的加密 key 解析能力。
+ * 2026-04-22 修复 — Zhiz OAuth token key 兼容回退链
+ * 变更类型：fix/security
+ * 功能描述：为 OAuth token 提供“优先 dedicated key、缺失或历史兼容时回退 Provider key”的解析顺序。
  * 设计思路：
- *   1. Provider API Key 与 OAuth token 分离使用不同 key，避免职责混用。
- *   2. 保持底层 AES-256-CBC 实现共享，只拆分 key 来源与导出 API。
- * 参数与返回值：getOAuthTokenKey() 返回 OAUTH_TOKEN_ENCRYPTION_KEY 解码后的 32 字节 Buffer。
- * 影响范围：Zhiz OAuth callback、continuation ticket、后续 OAuthAccount.accessToken 持久化。
- * 潜在风险：若 OAUTH_TOKEN_ENCRYPTION_KEY 未配置，相关 Zhiz callback 链路将按显式错误失败。
+ *   1. 新环境仍优先使用 `OAUTH_TOKEN_ENCRYPTION_KEY`，保持 OAuth token 与 Provider API Key 分钥隔离。
+ *   2. 若 dedicated key 缺失，则安全回退到 `PROVIDER_ENCRYPTION_KEY`，避免已注册用户在“首次绑定 Zhiz”时因老环境未补新变量而直接失败。
+ *   3. 解密时若 dedicated key 存在但历史数据仍使用 Provider key 加密，则继续尝试兼容回退，避免后续补环境变量后旧数据失效。
+ * 参数与返回值：`getOAuthTokenKeys()` 返回按优先级排序的 32 字节 Buffer 数组，数组首项总是当前应使用的加密 key。
+ * 影响范围：Zhiz OAuth callback、continuation ticket、`OAuthAccount.accessToken` 持久化与后续 skill 拉取。
+ * 潜在风险：若 Provider key 未来轮换且没有同步迁移历史 OAuth token，兼容回退数据仍会失效；这是密钥轮换本身需要单独处理的风险。
  */
-function getOAuthTokenKey(): Buffer {
-  return getKeyFromHex(config.OAUTH_TOKEN_ENCRYPTION_KEY, 'OAUTH_TOKEN_ENCRYPTION_KEY');
+function getOAuthTokenKeys(): Buffer[] {
+  const providerKey = getProviderKey();
+  if (!config.OAUTH_TOKEN_ENCRYPTION_KEY) {
+    return [providerKey];
+  }
+
+  const oauthKey = getKeyFromHex(
+    config.OAUTH_TOKEN_ENCRYPTION_KEY,
+    'OAUTH_TOKEN_ENCRYPTION_KEY',
+  );
+
+  if (oauthKey.equals(providerKey)) {
+    return [oauthKey];
+  }
+
+  return [oauthKey, providerKey];
 }
 
 function encryptWithKey(plaintext: string, key: Buffer): string {
@@ -91,7 +106,7 @@ export function decrypt(ciphertext: string): string {
  * @returns 格式：iv:encrypted（hex 编码）
  */
 export function encryptOAuthToken(plaintext: string): string {
-  return encryptWithKey(plaintext, getOAuthTokenKey());
+  return encryptWithKey(plaintext, getOAuthTokenKeys()[0]);
 }
 
 /**
@@ -100,5 +115,17 @@ export function encryptOAuthToken(plaintext: string): string {
  * @returns OAuth access token 明文
  */
 export function decryptOAuthToken(ciphertext: string): string {
-  return decryptWithKey(ciphertext, getOAuthTokenKey());
+  const attemptedErrors: Error[] = [];
+
+  for (const key of getOAuthTokenKeys()) {
+    try {
+      return decryptWithKey(ciphertext, key);
+    } catch (error) {
+      attemptedErrors.push(
+        error instanceof Error ? error : new Error(String(error)),
+      );
+    }
+  }
+
+  throw attemptedErrors[0] ?? new Error('Failed to decrypt OAuth token');
 }

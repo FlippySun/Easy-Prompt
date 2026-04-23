@@ -151,6 +151,23 @@ export function createApp() {
     max: config.RATE_LIMIT_LOGIN_MAX,
     windowSec: config.RATE_LIMIT_LOGIN_WINDOW_SEC,
   });
+  // 2026-04-22 修复 — 登录态探测与 SSO code 流程限流拆分
+  // 变更类型：fix
+  // What：把 `/auth/me` 与 `/auth/sso/*` 从“5 次/60s 登录尝试”配额中拆出，分别使用更贴近真实跳转链路的读态/SSO 配额。
+  // Why：正常的跨端复用登录与 code 回跳会自然包含 `me`、`sso/authorize`、`sso/token` 等请求，继续共用 loginLimiter 会误伤正常跳转并产生 429。
+  // Params & return：`authStateLimiter` 负责 `/api/v1/auth/me`（60/60s），`ssoFlowLimiter` 负责 `/api/v1/auth/sso/*`（30/60s）；无业务返回值。
+  // Impact scope：Web、Web-Hub、Browser 的 SSO 登录/恢复链路与 backend `/api/v1/auth/*` 路由级限流。
+  // Risk：提升了已认证读态与 SSO 回跳的吞吐上限，但登录口令暴力防护仍由原 `loginLimiter` 独立承担。
+  const authStateLimiter = createRateLimiter({
+    scope: 'auth-state',
+    max: 60,
+    windowSec: 60,
+  });
+  const ssoFlowLimiter = createRateLimiter({
+    scope: 'sso-flow',
+    max: 30,
+    windowSec: 60,
+  });
   // 2026-04-10 新增 — SSO 全端审计 P0-2
   // 变更类型：安全/性能
   // 设计思路：/auth/refresh 使用独立 refreshLimiter（scope 隔离），
@@ -173,8 +190,8 @@ export function createApp() {
   app.use('/api/v1/auth/refresh', refreshLimiter);
   app.use('/api/v1/auth/register', loginLimiter);
   app.use('/api/v1/auth/login', loginLimiter);
-  app.use('/api/v1/auth/me', loginLimiter);
-  app.use('/api/v1/auth/sso', loginLimiter);
+  app.use('/api/v1/auth/me', authStateLimiter);
+  app.use('/api/v1/auth/sso', ssoFlowLimiter);
   app.use('/api/v1/auth', authRouter);
   app.use('/api/v1/ai', aiLimiter, aiRouter);
   app.use('/api/v1/meta', metaRouter);

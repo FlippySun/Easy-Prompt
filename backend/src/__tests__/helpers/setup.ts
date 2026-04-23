@@ -4,15 +4,14 @@
  * 设计思路：每个测试文件前清理相关表数据，确保测试独立性
  *   使用真实的 VPS PostgreSQL 和 Redis（通过 SSH tunnel）
  * 影响范围：仅测试环境
- * 潜在风险：2026-04-16 事故复盘确认“表级 deleteMany 限制范围”并不能避免误清共享库；现已改为 shared-DB 测试默认锁定 + 显式 unlock 机制，防止误跑 backend tests 再次清空共享数据。
+ * 潜在风险：2026-04-16/2026-04-22 事故复盘确认“共享生产库 + backend tests”本身就是危险组合；现已改为 shared/prod DB 永久拒绝 backend tests，防止再次清空共享数据。
  */
 
 import { prisma } from '../../lib/prisma';
 import { redis } from '../../lib/redis';
 import { createApp } from '../../app';
 import {
-  SHARED_DB_TEST_UNLOCK_ENV,
-  SHARED_DB_TEST_UNLOCK_VALUE,
+  TEST_DATABASE_REQUIREMENT_HINT,
   assertSharedDbDestructiveTestMutationAllowed,
   assertSharedDbTestExecutionAllowed,
 } from '../../utils/dbSafety';
@@ -20,17 +19,18 @@ import type { Express } from 'express';
 
 /**
  * 2026-04-16 更新 — Backend integration test shared-DB guard
+ * 2026-04-22 更新 — 共享生产库事故后的永久止血
  * 变更类型：修复/安全/测试/运维
- * 功能描述：在保留“本地可直连正常数据库”工作流的前提下，把 backend Vitest 与 destructive test cleanup 默认锁死，只有显式设置共享库测试 unlock 后才允许继续。
+ * 功能描述：在保留“本地可直连正常数据库”工作流的前提下，把 backend Vitest 与 destructive test cleanup 永久限制到 dedicated test DB，彻底取消 shared/prod DB 的人工解锁路径。
  * 设计思路：
- *   1. 不再把“是否 test 库”作为唯一判定，而是把 shared/prod DB backend tests 视为高风险动作并默认拒绝。
- *   2. createTestApp 只要求“显式允许 backend tests”，cleanup/Redis 清理则进一步要求“显式允许 destructive test mutation”。
- *   3. unlock 口令统一复用 `ALLOW_SHARED_DB_TESTS=I_ACK_SHARED_DB_TEST_MUTATIONS`，避免 helper、Vitest setup、shell runner 各自发明不同开关。
+ *   1. 根因不是“误敲命令”，而是 shared/prod DB 上仍存在可被手工绕过的测试入口，因此这里直接 fail closed。
+ *   2. createTestApp、cleanupTestData、cleanupRedis 都复用同一条 dedicated test DB 断言，避免 helper 口径漂移。
+ *   3. 通过统一 hint 明确告诉操作者需要把 DATABASE_URL 指到显式 `*_test` / `*_ci` / `*_spec` 库。
  * 参数与返回值：assertSharedDb* 接收当前危险操作名称；安全时无返回，不安全时抛出 Error。
  * 影响范围：backend/src/__tests__/helpers/setup.ts、所有依赖该 helper 的 integration tests、shared-DB 下的 backend Vitest 执行口径。
- * 潜在风险：若确需在 shared/prod DB 上执行 backend tests，必须显式设置环境变量 `ALLOW_SHARED_DB_TESTS=I_ACK_SHARED_DB_TEST_MUTATIONS`；这是预期安全门。
+ * 潜在风险：若历史测试流程仍默认连接 shared/prod DB，会立即失败；这是预期安全门。
  */
-const SHARED_DB_TEST_UNLOCK_HINT = `${SHARED_DB_TEST_UNLOCK_ENV}=${SHARED_DB_TEST_UNLOCK_VALUE}`;
+const TEST_DB_REQUIREMENT_HINT = TEST_DATABASE_REQUIREMENT_HINT;
 
 /**
  * 清理测试数据（仅删除测试中创建的行，不 DROP 表）
@@ -38,7 +38,7 @@ const SHARED_DB_TEST_UNLOCK_HINT = `${SHARED_DB_TEST_UNLOCK_ENV}=${SHARED_DB_TES
  */
 export async function cleanupTestData() {
   assertSharedDbDestructiveTestMutationAllowed(
-    `cleanup integration test data (requires ${SHARED_DB_TEST_UNLOCK_HINT})`,
+    `cleanup integration test data (${TEST_DB_REQUIREMENT_HINT})`,
   );
   await prisma.aiRequestLog.deleteMany({});
   await prisma.rateViolation.deleteMany({});
@@ -67,7 +67,7 @@ export async function cleanupTestData() {
  */
 export async function cleanupRedis() {
   assertSharedDbDestructiveTestMutationAllowed(
-    `cleanup integration test Redis keys (requires ${SHARED_DB_TEST_UNLOCK_HINT})`,
+    `cleanup integration test Redis keys (${TEST_DB_REQUIREMENT_HINT})`,
   );
   const patterns = [
     'sso:code:*',
@@ -90,9 +90,7 @@ export async function cleanupRedis() {
  * 创建测试用 Express app 实例
  */
 export function createTestApp(): Express {
-  assertSharedDbTestExecutionAllowed(
-    `create integration test app (requires ${SHARED_DB_TEST_UNLOCK_HINT})`,
-  );
+  assertSharedDbTestExecutionAllowed(`create integration test app (${TEST_DB_REQUIREMENT_HINT})`);
   return createApp();
 }
 

@@ -112,7 +112,7 @@
 - 破坏性操作（db reset、deploy）均有确认提示或 `--dry-run` 支持
 - 输出使用统一的 `╔══╗` 标题格式 + emoji 日志
 - **SSH 隧道自动管理**：需要远端 DB/Redis 的脚本会自动检测并拉起 SSH 隧道（幂等），无需手动启动。传入 `--no-tunnel` 可跳过（本地 DB 或 CI 环境）
-- **Batch B shared-DB 安全门**：保留 shared/prod DB 直连工作流，但 backend Vitest 默认锁定；如确需执行，显式导出 `ALLOW_SHARED_DB_TESTS=I_ACK_SHARED_DB_TEST_MUTATIONS`
+- **Batch B shared-DB 安全门**：保留 shared/prod DB 直连工作流，但 backend Vitest 已永久禁止在 shared/prod DB 上执行；如需运行，请把 `DATABASE_URL` 显式切到 `*_test` / `*_ci` / `*_spec` 数据库
 - **本地 cron 默认关闭**：`backend-dev.sh` 会默认导出 `CRON_ENABLED=false`，避免本地 shared-DB 开发进程重复执行后台副作用任务；传 `--allow-cron` 可显式开启
 - **Protected DB 运维确认**：`backend-db.sh` 在 protected/shared DB 上会阻断 `migrate`，并要求对 `seed` / `migrate-prod` / `studio` 输入当前数据库名确认；`reset` 还需额外导出 `ALLOW_PROTECTED_DB_RESET=I_ACK_PROTECTED_DB_RESET`
 
@@ -159,7 +159,7 @@
   - Browser：`chromiumapp.org` / `chrome-extension://` / `safari-web-extension://` / `moz-extension://`
   - VS Code：`vscode://flippysun.easy-prompt-ai/...`
   - IntelliJ：`http://localhost:<random-port>/...`
-- **C 类：第三方 OAuth 上游地址（本轮默认不随 app 环境切换）**
+- **C 类：第三方 OAuth 上游地址（按 development/production 分流，但后缀路径保持不变）**
   - `OAUTH_ZHIZ_BASE_URL`
   - `OAUTH_ZHIZ_AUTH_PAGE_URL`
 
@@ -169,11 +169,15 @@
   - backend：`http://localhost:3000`
   - web：`http://localhost:5174`
   - web-hub / SSO hub：`http://localhost:5173`
+  - Zhiz token / skill upstream：`https://sit.zhiz.com.cn/tpt-infinity`
+  - Zhiz 授权页：`https://sit.zhiz.me/#/oauth/authorize`
   - browser dev server：`3002`（仅 WXT HMR，不代表扩展真实 origin/callback）
 - **production**
   - backend：`https://api.zhiz.chat`
   - web：`https://prompt.zhiz.chat`
   - web-hub / SSO hub：`https://zhiz.chat`
+  - Zhiz token / skill upstream：`https://zhiz.com.cn/tpt-infinity`
+  - Zhiz 授权页：`https://zhiz.me/#/oauth/authorize`
 
 ### 各端 env 文件映射
 

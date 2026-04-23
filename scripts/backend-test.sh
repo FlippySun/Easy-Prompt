@@ -9,7 +9,7 @@
 #   --watch                               启用 watch 模式（仅 unit）
 #   --no-tunnel                           跳过自动 SSH tunnel
 # 影响范围：测试输出
-# 潜在风险：VPS 不可达时 tunnel 启动失败，integration 测试会报错退出；2026-04-16 Batch B 起 shared/prod DB backend Vitest 默认锁定，需显式 unlock 才允许执行，防止误触发测试清理或未来新增的 destructive test path。
+# 潜在风险：VPS 不可达时 tunnel 启动失败，integration 测试会报错退出；2026-04-22 起 shared/prod DB backend Vitest 被永久禁止，必须切到 dedicated test DB 才能执行，防止再次触发 destructive test path。
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -19,15 +19,16 @@ REPO_ROOT="${SCRIPT_DIR}/.."
 source "${SCRIPT_DIR}/_lib.sh"
 
 # 2026-04-16 更新 — Backend test runner shared-DB guard（二层防护）
+# 2026-04-22 更新 — 共享生产库事故后的永久止血
 # 变更类型：修复/安全/测试/运维
-# 功能描述：在触发 backend Vitest 前统一检查是否命中 protected/shared DB；命中时默认拒绝，只有显式 unlock 才允许继续，阻断 shared DB 下误跑测试的入口。
+# 功能描述：在触发 backend Vitest 前统一检查是否命中 protected/shared DB；命中时永久拒绝，彻底移除 shared/prod DB 的人工解锁入口。
 # 设计思路：
 #   1. helper/vitest.setup 已有进程内 guard，但 runner 层继续 fail-fast，能在启动测试前给出更直观错误。
 #   2. 仅拦截会执行 backend Vitest 的模式；HTTP smoke integration 模式不直接经过本 guard。
 #   3. 与 package.json 中新增的 `test:_raw` / `test:coverage:_raw` 配合，避免脚本 wrapper 自递归。
 # 参数与返回值：assert_backend_vitest_allowed(mode) 复用 _lib.sh 中的 `assert_shared_db_test_allowed()`；安全时返回 0，不安全时输出原因并返回非零。
 # 影响范围：scripts/backend-test.sh 所有走 backend Vitest 的模式（unit/coverage/all）。
-# 潜在风险：若确需在 shared/prod DB 上执行 backend Vitest，必须显式导出 `ALLOW_SHARED_DB_TESTS=I_ACK_SHARED_DB_TEST_MUTATIONS`；这是预期安全门。
+# 潜在风险：若当前 DATABASE_URL 仍指向 shared/prod DB，backend Vitest 会立即失败；这是预期安全门。
 assert_backend_vitest_allowed() {
   local mode_name="$1"
   assert_shared_db_test_allowed "$mode_name"
@@ -46,8 +47,8 @@ for arg in "$@"; do
     --no-tunnel) ;; # 已由 parse_tunnel_flag 处理
     -h|--help)
       echo "Usage: $(basename "$0") [--mode=unit|integration|coverage|all] [--watch] [--no-tunnel]"
-      echo "       Protected/shared DB backend Vitest is locked by default."
-      echo "       Deliberate unlock: ALLOW_SHARED_DB_TESTS=I_ACK_SHARED_DB_TEST_MUTATIONS"
+      echo "       Protected/shared DB backend Vitest is permanently blocked."
+      echo "       Point DATABASE_URL to an explicit *_test / *_ci / *_spec database before running backend Vitest."
       exit 0
       ;;
   esac

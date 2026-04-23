@@ -13,8 +13,6 @@
 # ── 常量 ──────────────────────────────────────────
 # SSH 隧道脚本的相对路径（相对于项目根目录）
 _TUNNEL_SCRIPT="backend/scripts/ssh-tunnel.sh"
-_SHARED_DB_TEST_UNLOCK_ENV="ALLOW_SHARED_DB_TESTS"
-_SHARED_DB_TEST_UNLOCK_VALUE="I_ACK_SHARED_DB_TEST_MUTATIONS"
 _PROTECTED_DB_RESET_UNLOCK_ENV="ALLOW_PROTECTED_DB_RESET"
 _PROTECTED_DB_RESET_UNLOCK_VALUE="I_ACK_PROTECTED_DB_RESET"
 
@@ -26,15 +24,16 @@ _lib_error()   { echo -e "\033[0;31m[TUNNEL]\033[0m $*" >&2; }
 
 # ── Shared DB Safety Helpers ──────────────────────
 # 2026-04-16 新增 — Batch B shared DB hardening
-# 变更类型：新增/安全/运维/测试
-# 功能描述：为 shell 脚本统一提供 DATABASE_URL 读取、受保护数据库识别，以及 shared DB 测试/高危命令的显式 unlock 或确认护栏。
+# 2026-04-22 更新 — 共享生产库事故后的永久止血
+# 变更类型：修复/安全/运维/测试
+# 功能描述：为 shell 脚本统一提供 DATABASE_URL 读取、受保护数据库识别，以及 shared DB 高危命令确认护栏；backend Vitest 永久仅允许显式 test/ci/spec 库。
 # 设计思路：
 #   1. 保留“本地可直连正常数据库”的工作流，不把 shared/prod DB 连接本身视为非法。
-#   2. 仅对高风险入口（Vitest、migrate dev、reset、shared DB seed/deploy）增加 fail-fast 或交互确认。
+#   2. 根因已经证明是“shared/prod DB 上仍可人为解锁 backend tests”，因此直接取消该后门，只保留 dedicated test DB 执行路径。
 #   3. 所有脚本统一复用这里的口径，避免 backend-dev/test/db 各自维护一份数据库识别逻辑。
 # 参数与返回值：下方函数根据当前环境或 backend/.env 返回 database url/name、布尔判定或非零退出条件。
 # 影响范围：scripts/backend-test.sh、scripts/backend-dev.sh、scripts/backend-db.sh 及其从 backend/package.json 触发的入口。
-# 潜在风险：若团队未来新增新的 protected DB 命名约定，需要同步调整这里的显式 test DB 识别规则。
+# 潜在风险：若团队未来新增新的 protected DB 命名约定，需要同步调整这里的显式 test DB 识别规则；shared/prod DB 下的 backend tests 会直接失败。
 get_repo_root() {
   (cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 }
@@ -109,10 +108,6 @@ is_protected_db() {
   return 0
 }
 
-has_shared_db_test_unlock() {
-  [[ "${ALLOW_SHARED_DB_TESTS:-}" == "${_SHARED_DB_TEST_UNLOCK_VALUE}" ]]
-}
-
 assert_shared_db_test_allowed() {
   local operation="$1"
   local database_url
@@ -122,13 +117,14 @@ assert_shared_db_test_allowed() {
 
   if [[ -z "$database_url" || -z "$database_name" ]]; then
     _lib_error "Refusing to ${operation}: DATABASE_URL is missing or unreadable."
-    _lib_error "  Configure DATABASE_URL explicitly before running backend Vitest."
+    _lib_error "  Point DATABASE_URL to an explicit *_test / *_ci / *_spec database before running backend Vitest."
     return 1
   fi
 
-  if is_protected_db "$database_name" && ! has_shared_db_test_unlock; then
+  if is_protected_db "$database_name"; then
     _lib_error "Refusing to ${operation} against protected database '${database_name}'."
-    _lib_error "  Export ${_SHARED_DB_TEST_UNLOCK_ENV}=${_SHARED_DB_TEST_UNLOCK_VALUE} only for a deliberate shared-DB test run."
+    _lib_error "  Backend Vitest is permanently disabled on shared/prod DB."
+    _lib_error "  Point DATABASE_URL to an explicit *_test / *_ci / *_spec database before running backend tests."
     return 1
   fi
 

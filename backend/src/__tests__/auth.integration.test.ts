@@ -48,6 +48,11 @@ describe('POST /api/v1/auth/register', () => {
     expect(res.body.data.user.role).toBe('user');
     expect(res.body.data.tokens.accessToken).toBeTruthy();
     expect(res.body.data.tokens.refreshToken).toBeTruthy();
+    expect(
+      ([] as string[]).concat(res.headers['set-cookie'] ?? []).some((cookie) =>
+        cookie.includes('refresh_token='),
+      ),
+    ).toBe(true);
 
     accessToken = res.body.data.tokens.accessToken;
     refreshToken = res.body.data.tokens.refreshToken;
@@ -140,6 +145,29 @@ describe('POST /api/v1/auth/refresh', () => {
     expect(res.body.data.refreshToken).toBeTruthy();
 
     accessToken = res.body.data.accessToken;
+  });
+
+  it('should refresh tokens with shared refresh_token cookie when body token is omitted', async () => {
+    const loginRes = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: testUser.email, password: testUser.password })
+      .expect(200);
+
+    const refreshCookie = ([] as string[])
+      .concat(loginRes.headers['set-cookie'] ?? [])
+      .find((cookie) => cookie.startsWith('refresh_token='));
+
+    expect(refreshCookie).toBeTruthy();
+
+    const res = await request(app)
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', refreshCookie!)
+      .send({})
+      .expect(200);
+
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.accessToken).toBeTruthy();
+    expect(res.body.data.refreshToken).toBeTruthy();
   });
 
   it('should reject invalid refresh token', async () => {

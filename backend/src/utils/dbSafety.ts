@@ -1,19 +1,20 @@
 /**
  * Shared DB 安全辅助
  * 2026-04-16 新增 — Batch B shared DB hardening
- * 变更类型：新增/安全/运维/测试
- * 功能描述：统一识别当前 DATABASE_URL 是否指向受保护数据库，并为 Vitest / 集成测试 helper 提供显式解锁常量与 fail-fast 断言。
+ * 2026-04-22 更新 — 共享生产库事故后的永久止血
+ * 变更类型：修复/安全/运维/测试
+ * 功能描述：统一识别当前 DATABASE_URL 是否指向受保护数据库，并把 backend Vitest / 集成测试 helper 永久限制在显式 test/ci/spec 库上运行。
  * 设计思路：
  *   1. 保留“本地可直连正常数据库”的工作流，不把 shared/prod DB 连接本身视为非法。
- *   2. 仅对高风险入口（Vitest、测试清理）增加显式 unlock，避免误跑测试再次批量清表。
- *   3. 判断策略保持保守：凡不是显式 `*_test` / `*_ci` / `*_spec` 的库，都视为受保护数据库，宁可多拦一次也不放过 destructive 入口。
+ *   2. backend tests 的根因不是“缺少口令”，而是“允许 shared/prod DB 被人为解锁后继续跑测试”，因此直接取消该后门。
+ *   3. 判断策略保持保守：凡不是显式 `*_test` / `*_ci` / `*_spec` 的库，都视为受保护数据库，backend tests 一律拒绝执行。
  * 参数与返回值：parseDatabaseName/getDatabaseTargetInfo 返回规范化数据库目标信息；assertSharedDb* 在危险场景抛出 Error。
  * 影响范围：backend Vitest setup、集成测试 helper、shared-DB 风险提示口径。
- * 潜在风险：若确需在 shared/prod DB 上跑后端测试，必须显式设置 unlock 环境变量；这是预期安全门。
+ * 潜在风险：共享/prod DB 上的 backend tests 将无法再通过环境变量强行解锁；若确需执行，必须显式切换到 dedicated test DB。
  */
 
-export const SHARED_DB_TEST_UNLOCK_ENV = 'ALLOW_SHARED_DB_TESTS';
-export const SHARED_DB_TEST_UNLOCK_VALUE = 'I_ACK_SHARED_DB_TEST_MUTATIONS';
+export const TEST_DATABASE_REQUIREMENT_HINT =
+  'Point DATABASE_URL to an explicit *_test / *_ci / *_spec database before running backend Vitest.';
 
 const EXPLICIT_TEST_DB_PATTERN = /(^|[_-])(test|ci|spec)([_-]|$)/i;
 
@@ -64,10 +65,6 @@ export function getDatabaseTargetInfo(
   };
 }
 
-export function hasSharedDbTestUnlock(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env[SHARED_DB_TEST_UNLOCK_ENV] === SHARED_DB_TEST_UNLOCK_VALUE;
-}
-
 export function assertSharedDbTestExecutionAllowed(
   operation: string,
   env: NodeJS.ProcessEnv = process.env,
@@ -76,7 +73,7 @@ export function assertSharedDbTestExecutionAllowed(
 
   if (!target.databaseUrl || !target.databaseName) {
     throw new Error(
-      `[TEST_DB_GUARD] Refusing to ${operation}: DATABASE_URL is missing or unreadable. Configure DATABASE_URL explicitly before running backend Vitest.`,
+      `[TEST_DB_GUARD] Refusing to ${operation}: DATABASE_URL is missing or unreadable. ${TEST_DATABASE_REQUIREMENT_HINT}`,
     );
   }
 
@@ -84,12 +81,8 @@ export function assertSharedDbTestExecutionAllowed(
     return;
   }
 
-  if (hasSharedDbTestUnlock(env)) {
-    return;
-  }
-
   throw new Error(
-    `[TEST_DB_GUARD] Refusing to ${operation} against protected database "${target.databaseName}". This repo now keeps shared/prod DB backend tests locked by default. Export ${SHARED_DB_TEST_UNLOCK_ENV}=${SHARED_DB_TEST_UNLOCK_VALUE} only for a deliberate run.`,
+    `[TEST_DB_GUARD] Refusing to ${operation} against protected database "${target.databaseName}". Backend Vitest and destructive integration helpers are permanently disabled on shared/prod DB. ${TEST_DATABASE_REQUIREMENT_HINT}`,
   );
 }
 

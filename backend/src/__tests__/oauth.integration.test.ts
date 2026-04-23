@@ -81,6 +81,7 @@ async function seedZhizState(nonce: string, overrides: Partial<Record<string, st
       clientState: overrides.clientState ?? 'outer-sso-state',
       webReturnTo: overrides.webReturnTo ?? '/dashboard',
       frontendRedirect: overrides.frontendRedirect ?? '',
+      postBindTarget: overrides.postBindTarget ?? null,
     }),
   );
 }
@@ -155,10 +156,10 @@ beforeAll(async () => {
   config.OAUTH_ZHIZ_CLIENT_SECRET = 'test-zhiz-client-secret';
   config.OAUTH_GOOGLE_CLIENT_ID = 'test-google-client-id';
   config.OAUTH_GOOGLE_CLIENT_SECRET = 'test-google-client-secret';
-  config.OAUTH_ZHIZ_BASE_URL = 'https://8060.zhiz.chat';
-  config.OAUTH_ZHIZ_AUTH_PAGE_URL = 'https://3001.zhiz.chat/#/oauth/authorize';
+  config.OAUTH_ZHIZ_BASE_URL = 'https://zhiz.com.cn/tpt-infinity';
+  config.OAUTH_ZHIZ_AUTH_PAGE_URL = 'https://zhiz.me/#/oauth/authorize';
   config.OAUTH_CALLBACK_BASE_URL = 'https://api.zhiz.chat';
-  config.AUTH_WEB_BASE_URL = 'https://3000.zhiz.chat';
+  config.AUTH_WEB_BASE_URL = 'https://zhiz.chat';
   if (!config.OAUTH_TOKEN_ENCRYPTION_KEY) {
     config.OAUTH_TOKEN_ENCRYPTION_KEY = config.PROVIDER_ENCRYPTION_KEY;
   }
@@ -213,14 +214,14 @@ describe('GET /api/v1/auth/oauth/zhiz', () => {
    * 2026-04-14 修复 — Zhiz hash-route 截断回归测试
    * 变更类型：新增/测试
    * 功能描述：模拟 `.env` 中未给 `#` 路由加引号而被截成根域名的配置值，确认 start 跳转会自动恢复到 `#/oauth/authorize`。
-   * 设计思路：直接覆写运行时 config 值为 `https://3001.zhiz.chat/`，避免测试绕过 normalize 分支。
+   * 设计思路：直接覆写运行时 config 值为 `https://zhiz.me/`，避免测试绕过 normalize 分支。
    * 参数与返回值：本测试无外部参数；断言 302 Location 的 hash 与 query 均落在授权页 hash-route 中。
    * 影响范围：`GET /api/v1/auth/oauth/zhiz` 的生产配置容错。
    * 潜在风险：若 Zhiz 授权页未来不再使用 hash-route，需要同步调整断言。
    */
   it('should normalize a truncated Zhiz auth page root URL back to the authorize hash-route', async () => {
     const previousAuthPageUrl = config.OAUTH_ZHIZ_AUTH_PAGE_URL;
-    config.OAUTH_ZHIZ_AUTH_PAGE_URL = 'https://3001.zhiz.chat/';
+    config.OAUTH_ZHIZ_AUTH_PAGE_URL = 'https://zhiz.me/';
 
     try {
       const res = await request(app)
@@ -229,7 +230,7 @@ describe('GET /api/v1/auth/oauth/zhiz', () => {
         .expect(302);
 
       const location = new URL(res.headers.location as string);
-      expect(location.origin).toBe('https://3001.zhiz.chat');
+      expect(location.origin).toBe('https://zhiz.me');
       expect(location.hash.startsWith('#/oauth/authorize?')).toBe(true);
 
       const params = getZhizAuthorizeParams(res.headers.location);
@@ -300,6 +301,94 @@ describe('GET /api/v1/auth/oauth/zhiz', () => {
       config.AUTH_WEB_BASE_URL = previousAuthWebBaseUrl;
     }
   });
+
+  /**
+   * 2026-04-22 新增 — Zhiz start postBindTarget 白名单回归测试
+   * 变更类型：新增/测试
+   * 功能描述：确认 Zhiz OAuth start 仅接受 `skills-manager` 作为受控 postBindTarget，非法值不会进入 Redis state。
+   * 设计思路：直接请求真实 start 路由并断言 400，避免仅靠 link-status 路由校验导致直接访问 start 时漏过非法值。
+   * 参数与返回值：无；断言 HTTP 400 与统一错误码。
+   * 影响范围：`GET /api/v1/auth/oauth/zhiz` query 校验、state 入库边界。
+   * 潜在风险：若未来增加新的 postBindTarget 枚举，需要同步更新本断言。
+   */
+  it('should reject unsupported Zhiz postBindTarget values during OAuth start', async () => {
+    const res = await request(app)
+      .get('/api/v1/auth/oauth/zhiz')
+      .query({
+        clientRedirectUri: 'vscode://easy-prompt/callback',
+        postBindTarget: 'unexpected-target',
+      })
+      .expect(400);
+
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.code).toBe('VALIDATION_FAILED');
+  });
+
+  /**
+   * 2026-04-22 新增 — Zhiz postBindTarget 透传回归测试
+   * 变更类型：新增/测试
+   * 功能描述：验证 `postBindTarget=skills-manager` 会从 OAuth start state 透传到 Zhiz continuation ticket，并出现在 status 响应中。
+   * 设计思路：走真实 start → callback → status 闭环，分别检查 Redis state、Redis ticket 与 HTTP status 返回，避免只覆盖单层存储。
+   * 参数与返回值：无；断言 start 302、callback 302、status 200 与 postBindTarget 字段。
+   * 影响范围：OAuth start state、Zhiz callback ticket payload、`GET /api/v1/auth/oauth/zhiz/status`。
+   * 潜在风险：若未来 status 响应重命名字段，前端与本测试都需要同步更新。
+   */
+  it('should carry a supported Zhiz postBindTarget through state, ticket, and status payloads', async () => {
+    const startRes = await request(app)
+      .get('/api/v1/auth/oauth/zhiz')
+      .query({
+        clientRedirectUri: 'vscode://easy-prompt/callback',
+        clientState: 'outer-client-state',
+        webReturnTo: '/pricing',
+        postBindTarget: 'skills-manager',
+      })
+      .expect(302);
+
+    const state = getZhizAuthorizeParams(startRes.headers.location).get('state');
+    expect(state).toBeTruthy();
+
+    const storedState = await redis.get(`oauth:state:${state}`);
+    expect(storedState).toBeTruthy();
+    expect(JSON.parse(storedState || '{}')).toMatchObject({
+      provider: 'zhiz',
+      oauthNonce: state,
+      postBindTarget: 'skills-manager',
+    });
+
+    fetchMock.mockResolvedValueOnce(
+      mockJsonResponse({
+        access_token: 'zhiz-post-bind-target-token',
+        openid: 'zhiz-openid-post-bind-target',
+        nickname: 'Post Bind Target User',
+        avatar_url: 'https://avatar.example/post-bind-target.png',
+      }),
+    );
+
+    const callbackRes = await request(app)
+      .get('/api/v1/auth/oauth/zhiz/callback')
+      .query({ code: 'post-bind-target-code', state, nonce: state })
+      .expect(302);
+
+    const ticket = new URL(callbackRes.headers.location as string).searchParams.get('ticket');
+    expect(ticket).toBeTruthy();
+
+    const storedTicket = await redis.get(`oauth:zhiz:ticket:${ticket}`);
+    expect(storedTicket).toBeTruthy();
+    expect(JSON.parse(storedTicket || '{}')).toMatchObject({
+      postBindTarget: 'skills-manager',
+    });
+
+    const statusRes = await request(app)
+      .get('/api/v1/auth/oauth/zhiz/status')
+      .query({ ticket })
+      .expect(200);
+
+    expect(statusRes.body.data).toMatchObject({
+      status: 'needs_email',
+      postBindTarget: 'skills-manager',
+      webReturnTo: '/pricing',
+    });
+  });
 });
 
 /**
@@ -325,7 +414,7 @@ describe('GET /api/v1/auth/oauth/google/callback', () => {
         clientRedirectUri: '',
         clientState: '',
         webReturnTo: '',
-        frontendRedirect: 'https://3000.zhiz.chat/post-auth',
+        frontendRedirect: 'https://zhiz.chat/post-auth',
         initiatingUserId: '',
       }),
     );
@@ -360,7 +449,7 @@ describe('GET /api/v1/auth/oauth/google/callback', () => {
       expect(setCookie.length).toBeGreaterThan(0);
       expect(setCookie.some((cookie) => cookie.includes('refresh_token='))).toBe(true);
       expect(setCookie.some((cookie) => /domain=/i.test(cookie))).toBe(false);
-      expect(res.headers.location).toContain('https://3000.zhiz.chat/post-auth');
+      expect(res.headers.location).toContain('https://zhiz.chat/post-auth');
     } finally {
       config.COOKIE_DOMAIN = previousCookieDomain;
     }
@@ -994,6 +1083,101 @@ describe('Zhiz password setup mail flow', () => {
 });
 
 describe('GET /api/v1/auth/oauth/zhiz/callback', () => {
+  /**
+   * 2026-04-22 修复 — 共享 refresh 会话触发的已登录直绑回归测试
+   * 变更类型：新增/测试
+   * 功能描述：验证当用户已登录 PromptHub、但 Zhiz 绑定入口以顶级跳转方式直接命中 backend start URL 时，后端仍会通过共享 `refresh_token` cookie 识别 initiatingUserId，并在 callback 后直接绑定 Zhiz，不再错误进入补邮箱流程。
+   * 设计思路：走真实 `login -> GET /oauth/zhiz -> callback` 链路，避免只通过手工 seed state 掩盖“start 路由拿不到本地 localStorage token”的线上问题。
+   * 参数与返回值：无；断言 start state 中包含 initiatingUserId，callback ticket 为 `ready`，并且 OAuthAccount 落到当前已登录用户上。
+   * 影响范围：Profile Zhiz 绑定专区、slash 编辑入口的“已登录但未绑定”跳转链路、backend OAuth start/callback。
+   * 潜在风险：若后续共享会话 cookie 名称或 start query 契约调整，需要同步更新测试中的 Cookie/断言。
+   */
+  it('should directly bind Zhiz for a logged-in user when start is initiated with only the shared refresh_token cookie', async () => {
+    const unique = Date.now();
+    const password = 'SharedBind123';
+    const user = await prisma.user.create({
+      data: {
+        email: `shared-bind-${unique}@integration.test`,
+        username: `shared_bind_${unique}`,
+        passwordHash: await hashPassword(password),
+        displayName: 'Shared Bind User',
+      },
+    });
+
+    const loginRes = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: user.email, password })
+      .expect(200);
+
+    const refreshCookie = ([] as string[])
+      .concat(loginRes.headers['set-cookie'] ?? [])
+      .find((cookie) => cookie.startsWith('refresh_token='));
+
+    expect(refreshCookie).toBeTruthy();
+
+    const startRes = await request(app)
+      .get('/api/v1/auth/oauth/zhiz')
+      .set('Cookie', refreshCookie!)
+      .query({
+        webReturnTo: '/profile?connect=zhiz&postBindTarget=skills-manager',
+        postBindTarget: 'skills-manager',
+      })
+      .expect(302);
+
+    const state = getZhizAuthorizeParams(startRes.headers.location as string).get('state');
+    expect(state).toBeTruthy();
+
+    const storedState = await redis.get(`oauth:state:${state}`);
+    expect(storedState).toBeTruthy();
+    expect(JSON.parse(storedState || '{}')).toMatchObject({
+      provider: 'zhiz',
+      oauthNonce: state,
+      initiatingUserId: user.id,
+      postBindTarget: 'skills-manager',
+    });
+
+    fetchMock.mockResolvedValueOnce(
+      mockJsonResponse({
+        access_token: 'zhiz-access-token-shared-bind',
+        openid: `zhiz-openid-shared-bind-${unique}`,
+        nickname: 'Shared Bind Zhiz User',
+        avatar_url: 'https://avatar.example/shared-bind.png',
+      }),
+    );
+
+    const callbackRes = await request(app)
+      .get('/api/v1/auth/oauth/zhiz/callback')
+      .query({ code: `shared-bind-code-${unique}`, state, nonce: state })
+      .expect(302);
+
+    const ticket = new URL(callbackRes.headers.location as string).searchParams.get('ticket');
+    expect(ticket).toBeTruthy();
+
+    const storedTicket = await redis.get(`oauth:zhiz:ticket:${ticket}`);
+    expect(storedTicket).toBeTruthy();
+    expect(JSON.parse(storedTicket || '{}')).toMatchObject({
+      provider: 'zhiz',
+      status: 'ready',
+      linkedUserId: user.id,
+      providerId: `zhiz-openid-shared-bind-${unique}`,
+      displayName: 'Shared Bind Zhiz User',
+      avatarUrl: 'https://avatar.example/shared-bind.png',
+      webReturnTo: '/profile?connect=zhiz&postBindTarget=skills-manager',
+      postBindTarget: 'skills-manager',
+    });
+
+    const linkedAccount = await prisma.oAuthAccount.findUnique({
+      where: {
+        provider_providerId: {
+          provider: 'zhiz',
+          providerId: `zhiz-openid-shared-bind-${unique}`,
+        },
+      },
+    });
+    expect(linkedAccount?.userId).toBe(user.id);
+    expect(linkedAccount?.email).toBe(user.email);
+  });
+
   it('should create a ready continuation ticket for an already linked Zhiz account', async () => {
     const user = await prisma.user.create({
       data: {
@@ -1028,7 +1212,7 @@ describe('GET /api/v1/auth/oauth/zhiz/callback', () => {
       .expect(302);
 
     const location = res.headers.location as string;
-    expect(location.startsWith('https://3000.zhiz.chat/auth/zhiz/complete?ticket=')).toBe(true);
+    expect(location.startsWith('https://zhiz.chat/auth/zhiz/complete?ticket=')).toBe(true);
     const ticket = new URL(location).searchParams.get('ticket');
     expect(ticket).toBeTruthy();
 
@@ -1115,7 +1299,7 @@ describe('GET /api/v1/auth/oauth/zhiz/callback', () => {
       .expect(302);
 
     expect(decodeURIComponent(res.headers.location as string)).toContain(
-      'https://3000.zhiz.chat/auth/login?error=Zhiz auth failed: bad code',
+      'https://zhiz.chat/auth/login?error=Zhiz auth failed: bad code',
     );
   });
 
@@ -1147,7 +1331,7 @@ describe('GET /api/v1/auth/oauth/zhiz/callback', () => {
       .expect(302);
 
     expect(decodeURIComponent(res.headers.location as string)).toContain(
-      'https://3000.zhiz.chat/auth/login?error=Zhiz auth failed: token endpoint returned text/html (status 404)',
+      'https://zhiz.chat/auth/login?error=Zhiz auth failed: token endpoint returned text/html (status 404)',
     );
   });
 
@@ -1189,7 +1373,7 @@ describe('GET /api/v1/auth/oauth/zhiz/callback', () => {
       .expect(302);
 
     expect(decodeURIComponent(failedRes.headers.location as string)).toContain(
-      'https://3000.zhiz.chat/auth/login?error=Zhiz auth failed: bad code',
+      'https://zhiz.chat/auth/login?error=Zhiz auth failed: bad code',
     );
     expect(await redis.get(`oauth:state:${nonce}`)).toBeTruthy();
 
@@ -1200,7 +1384,7 @@ describe('GET /api/v1/auth/oauth/zhiz/callback', () => {
 
     expect(
       (retryRes.headers.location as string).startsWith(
-        'https://3000.zhiz.chat/auth/zhiz/complete?ticket=',
+        'https://zhiz.chat/auth/zhiz/complete?ticket=',
       ),
     ).toBe(true);
     expect(await redis.get(`oauth:state:${nonce}`)).toBeNull();
@@ -1234,7 +1418,7 @@ describe('GET /api/v1/auth/oauth/zhiz/callback', () => {
       .expect(302);
 
     const firstLocation = firstRes.headers.location as string;
-    expect(firstLocation.startsWith('https://3000.zhiz.chat/auth/zhiz/complete?ticket=')).toBe(
+    expect(firstLocation.startsWith('https://zhiz.chat/auth/zhiz/complete?ticket=')).toBe(
       true,
     );
     expect(await redis.get(`oauth:state:${nonce}`)).toBeNull();
@@ -1256,7 +1440,7 @@ describe('GET /api/v1/auth/oauth/zhiz/callback', () => {
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(decodeURIComponent(res.headers.location as string)).toContain(
-      'https://3000.zhiz.chat/auth/login?error=Invalid or expired OAuth state',
+      'https://zhiz.chat/auth/login?error=Invalid or expired OAuth state',
     );
   });
 
@@ -1278,7 +1462,7 @@ describe('GET /api/v1/auth/oauth/zhiz/callback', () => {
 
     expect(
       (res.headers.location as string).startsWith(
-        'https://3000.zhiz.chat/auth/zhiz/complete?ticket=',
+        'https://zhiz.chat/auth/zhiz/complete?ticket=',
       ),
     ).toBe(true);
   });

@@ -29,15 +29,18 @@ import type {
   OAuthProvider,
   ZhizEmailVerificationChallengeState,
   ZhizContinuationFinishInput,
+  ZhizPostBindTarget,
   ZhizPasswordSetupCompleteInput,
   ZhizContinuationTicketState,
 } from '../services/oauth.service';
 import { redis } from '../lib/redis';
-import { optionalAuth, optionalAuthRejectInvalidToken } from '../middlewares/auth';
+import { optionalAuth, optionalAuthRejectInvalidToken, requireAuth } from '../middlewares/auth';
 import { validate } from '../middlewares/validate';
 import { AppError } from '../utils/errors';
 import { createChildLogger } from '../utils/logger';
+import { verifyTokenSafe } from '../utils/jwt';
 import { config, getCookieDomain, requireConfiguredBaseUrl } from '../config';
+import { getZhizLinkStatus } from '../services/zhiz-link.service';
 
 const log = createChildLogger('oauth');
 const router = Router();
@@ -58,6 +61,7 @@ interface OAuthStateContext {
   webReturnTo: string;
   frontendRedirect: string;
   initiatingUserId: string;
+  postBindTarget: ZhizPostBindTarget | null;
 }
 
 interface ZhizContinuationTicketPayload extends ZhizContinuationTicketState {
@@ -101,6 +105,7 @@ const zhizTicketPayloadSchema = z.object({
     .nullable()
     .optional(),
   requiresNewPassword: z.boolean().optional(),
+  postBindTarget: z.literal('skills-manager').nullable().optional(),
   consumedAt: z.string().nullable().optional(),
   clientRedirectUri: z.string(),
   clientState: z.string(),
@@ -145,6 +150,35 @@ function getQueryValue(value: unknown): string {
   return '';
 }
 
+/**
+ * 2026-04-22 新增 — Zhiz postBindTarget 白名单校验
+ * 变更类型：新增/安全/前后端契约
+ * 功能描述：仅允许 `skills-manager` 作为受控的 Zhiz 绑定后目标，并在 OAuth start 阶段把非法 query 直接挡掉。
+ * 设计思路：
+ *   1. 把白名单校验前置到 state 入库前，避免非法 target 进入 Redis state / ticket payload。
+ *   2. 对非 zhiz provider 与空值保持无感，避免扩大现有 GitHub/Google 路由影响面。
+ *   3. 错误 details 仅回传字段名与允许值，不引入开放跳转相关信息。
+ * 参数与返回值：`parseZhizPostBindTarget(provider, value)` 返回受控 target 或 null；非法值时抛出 `VALIDATION_FAILED`。
+ * 影响范围：`GET /api/v1/auth/oauth/:provider`、Zhiz continuation ticket/status payload。
+ * 潜在风险：未来若新增 target，必须同步更新这里与 query schema，否则新值会被拒绝。
+ */
+function parseZhizPostBindTarget(
+  provider: OAuthProvider,
+  value: unknown,
+): ZhizPostBindTarget | null {
+  const normalizedValue = getQueryValue(value);
+  if (provider !== 'zhiz' || !normalizedValue) {
+    return null;
+  }
+  if (normalizedValue === 'skills-manager') {
+    return normalizedValue;
+  }
+  throw new AppError('VALIDATION_FAILED', 'Unsupported Zhiz postBindTarget', {
+    field: 'postBindTarget',
+    allowedValues: ['skills-manager'],
+  });
+}
+
 function buildOAuthStateContext(
   provider: OAuthProvider,
   query: Record<string, unknown>,
@@ -159,6 +193,7 @@ function buildOAuthStateContext(
     webReturnTo: getQueryValue(query.webReturnTo),
     frontendRedirect: getQueryValue(query.redirect),
     initiatingUserId,
+    postBindTarget: parseZhizPostBindTarget(provider, query.postBindTarget),
   };
 }
 
@@ -178,6 +213,7 @@ function parseOAuthStateContext(provider: OAuthProvider, rawStateValue: string):
       webReturnTo: typeof parsed.webReturnTo === 'string' ? parsed.webReturnTo : '',
       frontendRedirect: typeof parsed.frontendRedirect === 'string' ? parsed.frontendRedirect : '',
       initiatingUserId: typeof parsed.initiatingUserId === 'string' ? parsed.initiatingUserId : '',
+      postBindTarget: parsed.postBindTarget === 'skills-manager' ? parsed.postBindTarget : null,
     };
   } catch {
     return {
@@ -188,6 +224,7 @@ function parseOAuthStateContext(provider: OAuthProvider, rawStateValue: string):
       webReturnTo: '',
       frontendRedirect: rawStateValue,
       initiatingUserId: '',
+      postBindTarget: null,
     };
   }
 }
@@ -204,6 +241,28 @@ function buildFrontendUrl(pathname: string): string {
 
 function buildZhizCompleteRedirect(ticket: string): string {
   return `${buildFrontendUrl('/auth/zhiz/complete')}?ticket=${encodeURIComponent(ticket)}`;
+}
+
+/**
+ * 2026-04-22 修复 — Zhiz 绑定起始页补读共享 refresh 会话
+ * 变更类型：fix
+ * What：当 `/api/v1/auth/oauth/zhiz` 由浏览器直接导航触发、请求里没有 Authorization/access_token，但仍带着共享 `refresh_token` cookie 时，额外从 cookie 还原 initiatingUserId。
+ * Why：Profile 里的“绑定 Zhiz”按钮是顶级跳转到 backend start URL；这条链路不会自动携带前端 localStorage 的 access token，若不补读共享会话，后端会把已登录用户误判成首次未登录用户并要求补邮箱。
+ * Params & return：`resolveInitiatingUserIdFromSharedSession(cookies)` 接收请求 cookies，命中合法 refresh_token 时返回 userId，否则返回空字符串。
+ * Impact scope：`GET /api/v1/auth/oauth/zhiz` 起始 state、Zhiz callback 的已登录直绑分支、Profile 绑定专区。
+ * Risk：仅在 OAuth start 路由把共享 refresh cookie 用作“识别当前发起绑定的用户”；不会扩大到 requireAuth 保护接口，当前无已知风险。
+ */
+function resolveInitiatingUserIdFromSharedSession(
+  cookies: Record<string, unknown> | undefined,
+): string {
+  const refreshToken =
+    typeof cookies?.refresh_token === 'string' ? cookies.refresh_token.trim() : '';
+  if (!refreshToken) {
+    return '';
+  }
+
+  const decoded = verifyTokenSafe(refreshToken);
+  return decoded?.userId ?? '';
 }
 
 /**
@@ -372,6 +431,7 @@ function buildZhizStatusResponse(
     clientRedirectUri: payload.clientRedirectUri,
     clientState: payload.clientState,
     webReturnTo: payload.webReturnTo,
+    ...(payload.postBindTarget ? { postBindTarget: payload.postBindTarget } : {}),
     ...(payload.maskedEmail ? { maskedEmail: payload.maskedEmail } : {}),
     ...(payload.verificationMode ? { verificationMode: payload.verificationMode } : {}),
     ...(typeof payload.requiresNewPassword === 'boolean'
@@ -449,11 +509,13 @@ router.get('/:provider', optionalAuth, async (req, res, next) => {
 
     const state = crypto.randomBytes(32).toString('hex');
     const oauthNonce = oauthProvider === 'zhiz' ? state : '';
+    const initiatingUserId =
+      req.user?.userId || resolveInitiatingUserIdFromSharedSession(req.cookies);
     const stateContext = buildOAuthStateContext(
       oauthProvider,
       req.query as Record<string, unknown>,
       oauthNonce,
-      req.user?.userId ?? '',
+      initiatingUserId,
     );
 
     await redis.setex(buildOAuthStateKey(state), STATE_TTL_SEC, JSON.stringify(stateContext));
@@ -569,6 +631,7 @@ router.get('/:provider/callback', async (req, res, next) => {
           clientRedirectUri: stateContext.clientRedirectUri,
           clientState: stateContext.clientState,
           webReturnTo: stateContext.webReturnTo,
+          postBindTarget: stateContext.postBindTarget,
         };
         const redirectUrl = buildZhizCompleteRedirect(ticket);
 
@@ -629,6 +692,28 @@ router.get('/:provider/callback', async (req, res, next) => {
       return res.redirect(errorRedirect);
     }
     return next(err);
+  }
+});
+
+/**
+ * GET /api/v1/auth/oauth/zhiz/link-status — 查询当前登录用户的 Zhiz 绑定状态
+ * 2026-04-22 新增
+ * 变更类型：新增/路由
+ * 功能描述：为 skills-manager 等入口返回“是否已绑定 + 最小资料快照”的显式状态真相来源。
+ * 设计思路：
+ *   1. 强制认证，避免把“当前用户是否已绑定 Zhiz”暴露给匿名请求。
+ *   2. route 仅负责认证与响应透传，数据库查询下沉到 zhiz-link.service，避免各客户端再围绕 link-status 产生多套 URL 拼装契约。
+ *   3. 对外只返回 provider/linked/profile 三个稳定字段，不改变现有 webReturnTo / normalizeWebReturnTo 的同源约束。
+ * 参数与返回值：GET /api/v1/auth/oauth/zhiz/link-status；返回 `{ provider, linked, profile }`。
+ * 影响范围：Zhiz skills-manager 绑定入口、oauth route。
+ * 潜在风险：若未来需要匿名预检查或更多跳转信息，需要新增显式字段或新接口，而不是继续把 `link-status` 扩展成多用途载体。
+ */
+router.get('/zhiz/link-status', requireAuth, async (req, res, next) => {
+  try {
+    const result = await getZhizLinkStatus(req.user!.userId);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    next(err);
   }
 });
 

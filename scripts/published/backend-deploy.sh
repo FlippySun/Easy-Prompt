@@ -71,7 +71,7 @@ REMOTE_DIR="${VPS_BACKEND_PATH:-/www/wwwroot/api.zhiz.chat}"
 HEALTH_URL="${BACKEND_HEALTH_URL:-https://api.zhiz.chat/health}"
 SSH_TARGET="${VPS_USER}@${VPS_HOST}"
 REMOTE_ENV_FILE="${REMOTE_DIR}/.env"
-LOCAL_ENV_EXAMPLE="${BACKEND_DIR}/.env.example"
+LOCAL_PRODUCTION_ENV_TEMPLATE="${BACKEND_DIR}/.env.production"
 SSH_CMD=(ssh -i "$VPS_KEY" -p "$VPS_PORT" -o StrictHostKeyChecking=accept-new "$SSH_TARGET")
 RSYNC_SSH="ssh -i ${VPS_KEY} -p ${VPS_PORT} -o StrictHostKeyChecking=accept-new"
 
@@ -82,27 +82,34 @@ fi
 
 # 2026-04-15 新增 — Backend 发布前关键 env 漂移 guard
 # 变更类型：新增 / 加固
-# 功能描述：在后端发布开始前只读校验远端 `.env` 中的 `OAUTH_ZHIZ_BASE_URL` 是否与仓库示例值一致，提前拦截“代码已更新但运行态配置仍旧值”的事故。
+# 功能描述：在后端发布开始前只读校验远端 `.env` 中的关键 OAuth 公共 URL 是否与仓库生产模板一致，提前拦截“代码已更新但运行态配置仍旧值”的事故。
 # 设计思路：
 #   1. 只检查已发生过生产事故的关键非敏感 URL，避免把发布脚本扩展成全量 env 审计器。
 #   2. 在 build/rsync 之前执行，尽量把问题暴露在最早阶段，减少无意义构建与上传。
-#   3. 保留 `--skip-env-guard` 作为显式逃生阀，确保 intentional drift 不会被脚本永久锁死。
-# 参数与返回值：无新增函数参数；默认检查 `OAUTH_ZHIZ_BASE_URL`，不一致时退出 1。
+#   3. 读取 `backend/.env.production` 而不是 `.env.example`，避免本地 development 示例值误拦生产发布。
+#   4. 保留 `--skip-env-guard` 作为显式逃生阀，确保 intentional drift 不会被脚本永久锁死。
+# 参数与返回值：无新增函数参数；默认检查 4 个关键 OAuth URL，不一致时退出 1。
 # 影响范围：scripts/published/backend-deploy.sh 的发布前校验阶段。
-# 潜在风险：若 `backend/.env.example` 中该公开 URL 未同步更新，guard 会阻塞发布，需先修正示例文件或显式跳过。
+# 潜在风险：若 `backend/.env.production` 中这些公开 URL 未同步更新，guard 会阻塞发布，需先修正模板文件或显式跳过。
 if [[ "$SKIP_ENV_GUARD" == "true" ]]; then
   published_warn "已跳过远端关键 env 漂移检查 (--skip-env-guard)"
 else
   published_info "执行远端关键 env 漂移检查..."
-  published_assert_remote_env_key_matches_example \
-    "Backend env guard" \
-    "$LOCAL_ENV_EXAMPLE" \
-    "$REMOTE_ENV_FILE" \
-    "OAUTH_ZHIZ_BASE_URL" \
-    "$VPS_HOST" \
-    "$VPS_PORT" \
-    "$VPS_USER" \
-    "$VPS_KEY"
+  for env_key in \
+    OAUTH_ZHIZ_BASE_URL \
+    OAUTH_ZHIZ_AUTH_PAGE_URL \
+    OAUTH_CALLBACK_BASE_URL \
+    AUTH_WEB_BASE_URL; do
+    published_assert_remote_env_key_matches_example \
+      "Backend env guard" \
+      "$LOCAL_PRODUCTION_ENV_TEMPLATE" \
+      "$REMOTE_ENV_FILE" \
+      "$env_key" \
+      "$VPS_HOST" \
+      "$VPS_PORT" \
+      "$VPS_USER" \
+      "$VPS_KEY"
+  done
 fi
 
 echo "Mode: ${DEPLOY_MODE}"
@@ -186,8 +193,18 @@ if [[ "$DRY_RUN" == "true" ]]; then
   exit 0
 fi
 
-REMOTE_CODE_ONLY_CMD='export NVM_DIR=$HOME/.nvm && . $NVM_DIR/nvm.sh && pm2 reload easy-prompt-api'
-REMOTE_FULL_CMD="export NVM_DIR=\$HOME/.nvm && . \$NVM_DIR/nvm.sh && cd '${REMOTE_DIR}' && npm ci --omit=dev && npx prisma generate --no-hints && npx prisma migrate deploy && pm2 reload easy-prompt-api"
+# 2026-04-23 修复 — 生产发布后显式沿用 PM2 production env
+# 变更类型：修复/配置/运维
+# 功能描述：把代码发布后的 PM2 reload 从“按进程名直接 reload”改成“基于 ecosystem.config.js 且显式 `--env production` reload”，避免运行态继续卡在 development。
+# 设计思路：
+#   1. 远端 `.env` 仍由 dotenv 负责读取，但 PM2 自带的 `NODE_ENV` 必须与 production 对齐，否则 dotenv 不会覆盖已有 development 值。
+#   2. 统一在 `${REMOTE_DIR}` 下执行 reload，确保 PM2 读取的是部署目录中的最新 ecosystem.config.js。
+#   3. full/code-only 两条发布路径共用同一 reload 语义，避免只有首次 `pm2 start ... --env production` 正确、后续 reload 漂移。
+# 参数与返回值：`REMOTE_CODE_ONLY_CMD` / `REMOTE_FULL_CMD` 均返回远端 shell exit code；成功时完成 production reload。
+# 影响范围：scripts/published/backend-deploy.sh、线上 backend NODE_ENV、OAuth dev/prod 默认值生效边界。
+# 潜在风险：若远端 `ecosystem.config.js` 缺失或 PM2 进程名漂移，reload 会显式失败；这是比静默继续跑 development 更安全的行为。
+REMOTE_CODE_ONLY_CMD="export NVM_DIR=\$HOME/.nvm && . \$NVM_DIR/nvm.sh && cd '${REMOTE_DIR}' && pm2 reload ecosystem.config.js --env production"
+REMOTE_FULL_CMD="export NVM_DIR=\$HOME/.nvm && . \$NVM_DIR/nvm.sh && cd '${REMOTE_DIR}' && npm ci --omit=dev && npx prisma generate --no-hints && npx prisma migrate deploy && pm2 reload ecosystem.config.js --env production"
 
 if [[ "$DEPLOY_MODE" == "full" ]]; then
   published_info "执行远端完整更新：npm ci + prisma generate + migrate deploy + pm2 reload"

@@ -71,7 +71,7 @@ function mockTextResponse(
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubGlobal('fetch', fetchMock);
-  config.OAUTH_ZHIZ_BASE_URL = 'https://8060.zhiz.chat';
+  config.OAUTH_ZHIZ_BASE_URL = 'https://zhiz.com.cn/tpt-infinity';
   mockFindFirst.mockResolvedValue(null);
   mockDecryptOAuthToken.mockReset();
   fetchMock.mockReset();
@@ -109,7 +109,7 @@ describe('fetchZhizSkills', () => {
     expect(mockDecryptOAuthToken).toHaveBeenCalledWith('encrypted-token');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://8060.zhiz.chat/oauth2/userSkill?access_token=decrypted-token',
+      'https://zhiz.com.cn/tpt-infinity/oauth2/userSkill?access_token=decrypted-token',
       expect.objectContaining({ method: 'GET' }),
     );
     expect(result).toMatchObject({
@@ -144,7 +144,7 @@ describe('fetchZhizSkills', () => {
     expect(mockDecryptOAuthToken).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://8060.zhiz.chat/oauth2/userSkill',
+      'https://zhiz.com.cn/tpt-infinity/oauth2/userSkill',
       expect.objectContaining({ method: 'GET' }),
     );
     expect(result).toMatchObject({
@@ -177,7 +177,7 @@ describe('fetchZhizSkills', () => {
 
     expect(mockFindFirst).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://8060.zhiz.chat/oauth2/userSkill',
+      'https://zhiz.com.cn/tpt-infinity/oauth2/userSkill',
       expect.objectContaining({ method: 'GET' }),
     );
     expect(result).toMatchObject({
@@ -226,9 +226,9 @@ describe('fetchZhizSkills', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      'https://8060.zhiz.chat/oauth2/userSkill?access_token=decrypted-token',
+      'https://zhiz.com.cn/tpt-infinity/oauth2/userSkill?access_token=decrypted-token',
     );
-    expect(fetchMock.mock.calls[1]?.[0]).toBe('https://8060.zhiz.chat/oauth2/userSkill');
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('https://zhiz.com.cn/tpt-infinity/oauth2/userSkill');
     expect(result).toMatchObject({
       source: 'anonymous',
       usedToken: false,

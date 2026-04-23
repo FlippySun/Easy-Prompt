@@ -16,7 +16,7 @@
 
 import crypto from 'crypto';
 import { prisma } from '../lib/prisma';
-import { config, requireConfiguredBaseUrl } from '../config';
+import { config, getDefaultZhizAuthPageUrl, requireConfiguredBaseUrl } from '../config';
 import { PASSWORD_POLICY } from '../config/constants';
 import { AppError } from '../utils/errors';
 import { createChildLogger } from '../utils/logger';
@@ -29,7 +29,6 @@ import type { AuthResult } from './auth.service';
 import type { UserRole } from '../types/user';
 
 const log = createChildLogger('oauth');
-const ZHIZ_AUTH_PAGE_FALLBACK = 'https://3001.zhiz.chat/#/oauth/authorize';
 type ZhizPasswordPolicyField = 'password' | 'newPassword';
 type ZhizRequiredField = 'email' | 'code' | 'newPassword';
 
@@ -87,6 +86,16 @@ export type ZhizContinuationStep =
   | 'verify_email'
   | 'verify_email_and_set_password';
 export type ZhizVerificationMode = 'create_user' | 'bind_existing_user' | 'set_password_and_bind';
+/**
+ * 2026-04-22 新增 — Zhiz 绑定后跳转目标枚举
+ * 变更类型：新增/前后端契约
+ * 功能描述：为绑定入口与 continuation 状态快照补充受控的 post-bind target，当前仅允许 skills-manager。
+ * 设计思路：把允许值收口为字面量联合类型，避免 route / service / 测试各自散落硬编码字符串。
+ * 参数与返回值：`ZhizPostBindTarget` 为类型别名，无运行时返回值。
+ * 影响范围：Zhiz link-status、OAuth start state、Zhiz ticket/status payload。
+ * 潜在风险：若未来增加新的 post-bind 目标，需要同步更新 route 校验与前端消费方。
+ */
+export type ZhizPostBindTarget = 'skills-manager';
 
 export interface ZhizContinuationTicketState {
   provider: 'zhiz';
@@ -103,6 +112,7 @@ export interface ZhizContinuationTicketState {
   maskedEmail?: string | null;
   verificationMode?: ZhizVerificationMode | null;
   requiresNewPassword?: boolean;
+  postBindTarget?: ZhizPostBindTarget | null;
   consumedAt?: string | null;
 }
 
@@ -327,7 +337,7 @@ function appendQueryString(baseUrl: string, params: URLSearchParams): string {
  * 变更类型：修复/加固
  * 功能描述：当 `.env` 中未给带 `#` 的 URL 加引号，导致 dotenv 将 hash-route 截断成根域名时，自动恢复 Zhiz 授权页默认 hash 路由。
  * 设计思路：
- *   1. 仅在配置值退化为 `https://3001.zhiz.chat/` 且缺少 hash 时触发，避免误改其他自定义授权页。
+ *   1. 仅在配置值退化为当前环境默认授权页根域（如 `https://sit.zhiz.me/` / `https://zhiz.me/`）且缺少 hash 时触发，避免误改其他自定义授权页。
  *   2. 保持返回字符串 URL，继续复用 appendQueryString 对 hash-route SPA 的安全追加策略。
  * 参数与返回值：normalizeZhizAuthPageUrl(rawUrl) 接收原始配置值，返回可安全追加 query 的授权页 URL。
  * 影响范围：GET /api/v1/auth/oauth/zhiz 起始跳转、生产 `.env` 配置容错。
@@ -340,8 +350,10 @@ function normalizeZhizAuthPageUrl(rawUrl: string): string {
   }
 
   try {
+    const zhizAuthPageFallback = getDefaultZhizAuthPageUrl(config.NODE_ENV);
     const parsed = new URL(trimmed);
-    const isDefaultZhizOrigin = parsed.origin === 'https://3001.zhiz.chat';
+    const fallbackOrigin = new URL(zhizAuthPageFallback).origin;
+    const isDefaultZhizOrigin = parsed.origin === fallbackOrigin;
     const isRootPath = parsed.pathname === '/' || parsed.pathname === '';
     const isMissingHashRoute = !parsed.hash || parsed.hash === '#' || parsed.hash === '#/';
 
@@ -349,11 +361,11 @@ function normalizeZhizAuthPageUrl(rawUrl: string): string {
       log.warn(
         {
           configuredAuthPageUrl: trimmed,
-          normalizedAuthPageUrl: ZHIZ_AUTH_PAGE_FALLBACK,
+          normalizedAuthPageUrl: zhizAuthPageFallback,
         },
         'Zhiz auth page URL missing hash-route; normalized to default authorize page',
       );
-      return ZHIZ_AUTH_PAGE_FALLBACK;
+      return zhizAuthPageFallback;
     }
   } catch {
     return trimmed;

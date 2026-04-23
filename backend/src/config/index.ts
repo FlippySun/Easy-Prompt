@@ -104,8 +104,8 @@ const configSchema = z.object({
   // 潜在风险：若生产环境遗漏新变量，相关 Zhiz/邮件分支将在运行时按“未配置”处理。
   OAUTH_ZHIZ_CLIENT_ID: z.string().default(''),
   OAUTH_ZHIZ_CLIENT_SECRET: z.string().default(''),
-  OAUTH_ZHIZ_BASE_URL: z.string().default('https://8060.zhiz.chat'),
-  OAUTH_ZHIZ_AUTH_PAGE_URL: z.string().default('https://3001.zhiz.chat/#/oauth/authorize'),
+  OAUTH_ZHIZ_BASE_URL: optionalUrlString,
+  OAUTH_ZHIZ_AUTH_PAGE_URL: optionalUrlString,
   OAUTH_TOKEN_ENCRYPTION_KEY: optionalHex64String,
   AUTH_WEB_BASE_URL: optionalUrlString,
   TENCENTCLOUD_SECRET_ID: z.string().default(''),
@@ -132,7 +132,47 @@ if (!parsed.success) {
   process.exit(1);
 }
 
-export const config: Config = parsed.data;
+/**
+ * 2026-04-23 调整 — Zhiz OAuth 上游地址按环境收口默认值
+ * 变更类型：配置/修复
+ * 功能描述：把 Zhiz OAuth 授权页与 token/skill 上游地址改成“非 production 走 sit，production 走正式域名”的统一默认值，同时保留显式环境变量覆盖能力。
+ * 设计思路：
+ *   1. schema 层允许为空字符串，保持 `.env` / 启动脚本 / 部署环境三种注入方式兼容。
+ *   2. `development` 与 `test` 共用 sit 上游，避免本地联调或测试链路意外命中正式 Zhiz 服务。
+ *   3. `production` 独占正式上游，且仍允许通过显式 env 覆盖以支持非常规回放或临时排障。
+ * 参数与返回值：`getDefaultZhizBaseUrl(nodeEnv)` / `getDefaultZhizAuthPageUrl(nodeEnv)` 返回对应环境的默认基准 URL。
+ * 影响范围：Zhiz OAuth start/callback、skill 拉取、backend env 默认值、相关测试夹具。
+ * 潜在风险：若部署环境误把 `NODE_ENV` 留在 development/test，将默认命中 sit 地址；因此生产环境仍应显式写入正式值。
+ */
+const zhizBaseUrlByNodeEnv: Record<Config['NODE_ENV'], string> = {
+  development: 'https://sit.zhiz.com.cn/tpt-infinity',
+  test: 'https://sit.zhiz.com.cn/tpt-infinity',
+  production: 'https://zhiz.com.cn/tpt-infinity',
+};
+
+const zhizAuthPageUrlByNodeEnv: Record<Config['NODE_ENV'], string> = {
+  development: 'https://sit.zhiz.me/#/oauth/authorize',
+  test: 'https://sit.zhiz.me/#/oauth/authorize',
+  production: 'https://zhiz.me/#/oauth/authorize',
+};
+
+export function getDefaultZhizBaseUrl(nodeEnv: Config['NODE_ENV']): string {
+  return zhizBaseUrlByNodeEnv[nodeEnv];
+}
+
+export function getDefaultZhizAuthPageUrl(nodeEnv: Config['NODE_ENV']): string {
+  return zhizAuthPageUrlByNodeEnv[nodeEnv];
+}
+
+export const config: Config = {
+  ...parsed.data,
+  OAUTH_ZHIZ_BASE_URL:
+    normalizeOptionalEnvValue(parsed.data.OAUTH_ZHIZ_BASE_URL) ||
+    getDefaultZhizBaseUrl(parsed.data.NODE_ENV),
+  OAUTH_ZHIZ_AUTH_PAGE_URL:
+    normalizeOptionalEnvValue(parsed.data.OAUTH_ZHIZ_AUTH_PAGE_URL) ||
+    getDefaultZhizAuthPageUrl(parsed.data.NODE_ENV),
+};
 
 function normalizeOptionalEnvValue(value: string): string {
   return value.trim();
