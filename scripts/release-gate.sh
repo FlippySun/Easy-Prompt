@@ -112,7 +112,15 @@ scan_dir_for_localhost_leaks() {
     return 1
   fi
 
+  # 2026-04-23 修复 — Release gate 忽略 Browser/WXT 的 dev 工件目录
+  # 变更类型：修复/测试/发布
+  # 功能描述：在 localhost 泄漏扫描时排除 `*-dev` 目录，避免旧的 WXT 开发态工件把生产构建门禁误判为失败。
+  # 设计思路：真正需要阻断的是当前准备发布的 production dist；dev 工件允许保留 localhost 合约，不应参与发布门禁。
+  # 参数与返回值：保持 scan_dir_for_localhost_leaks(label, dir) 原签名不变；命中生产泄漏时返回 1，忽略 `*-dev` 目录。
+  # 影响范围：scripts/release-gate.sh、Browser localhost gate、全端发布前统一门禁结果。
+  # 潜在风险：若未来生产工件目录误命名为 `*-dev`，该目录会被跳过；当前 WXT 约定下无已知风险。
   if grep -RInE \
+    --exclude-dir='*-dev' \
     --include='*.js' \
     --include='*.mjs' \
     --include='*.cjs' \

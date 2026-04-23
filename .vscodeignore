@@ -24,6 +24,7 @@ deploy/**
 
 # 项目规划文件（不属于 VSCode 插件）
 .planning/**
+.planing/**
 .continue-here.md
 
 # 旧的 VSCode 子目录（已迁移到根目录）
@@ -62,6 +63,8 @@ doc/**
 .mcp.json
 .mcp.json.bak*
 secrets.json
+config.toml
+.windsurf/**
 
 # 环境变量文件（不得打包）
 **/.env

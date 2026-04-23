@@ -33,7 +33,14 @@ echo "Version: $VERSION"
 echo ""
 
 echo "📋 Packaging VS Code extension..."
-npx @vscode/vsce package
+# 2026-04-23 修复 — 非交互发布链路自动确认 npx 安装
+# 变更类型：修复/发布/配置
+# 功能描述：在本地 gate 与发布脚本中显式使用 `npx --yes`，避免首轮安装 `@vscode/vsce` 时卡在交互确认提示。
+# 设计思路：VS Code 打包脚本应可在无人值守环境运行；把自动确认固化在脚本内，比依赖外层 shell 管道或人工输入更稳。
+# 参数与返回值：保留原 CLI 形态，仅把 `npx @vscode/vsce package` 替换为 `npx --yes @vscode/vsce package --allow-missing-repository`。
+# 影响范围：scripts/vscode-package.sh、release-gate VS Code package 阶段、本地/CI 非交互打包。
+# 潜在风险：首次执行会自动下载 `@vscode/vsce`；这是预期行为，无已知额外风险。
+npx --yes @vscode/vsce package --allow-missing-repository
 
 VSIX_FILE=$(ls -t easy-prompt-*.vsix 2>/dev/null | head -1)
 if [ -n "$VSIX_FILE" ]; then

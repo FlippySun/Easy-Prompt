@@ -34,8 +34,7 @@ function normalizeZhizSkillsManagerUrl(value: unknown): string {
   try {
     const parsed = new URL(normalizedValue);
     const normalizedPath = parsed.pathname.replace(/\/+$/, '');
-    const isZhizSkillsHost =
-      parsed.origin === 'https://sit.zhiz.me' || parsed.origin === 'https://zhiz.me';
+    const isZhizSkillsHost = parsed.origin === 'https://sit.zhiz.me' || parsed.origin === 'https://zhiz.me';
 
     if (isZhizSkillsHost && normalizedPath === '/chat-flow' && parsed.hash !== '#/skills/index') {
       return `${parsed.origin}/chat-flow/#/skills/index`;
