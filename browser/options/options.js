@@ -436,8 +436,20 @@ async function updateSsoStatus() {
 
   if (!loggedInEl || !loggedOutEl || !usernameEl) return;
 
-  const user = await Sso.getSsoUser();
-  const token = await Sso.getAccessToken();
+  // 2026-04-22 修复 — 扩展 options 先尝试接住共享会话
+  // 变更类型：fix
+  // What：在 options 页判断“是否已登录”前，若本地 storage 为空则先尝试用共享 refresh cookie 静默恢复一次。
+  // Why：否则用户刚在 Web / Web-Hub 里登录完，回到扩展 options 仍会被误显示成未登录，违背多端共享登录态预期。
+  // Params & return：复用 `Sso.bootstrapSessionFromCookie()`；成功时继续走既有 user/token 展示分支，无额外返回值。
+  // Impact scope：browser/options/options.js 登录状态区域。
+  // Risk：No known risks.
+  let user = await Sso.getSsoUser();
+  let token = await Sso.getAccessToken();
+  if (!user || !token) {
+    const bootstrappedUser = await Sso.bootstrapSessionFromCookie();
+    user = bootstrappedUser || (await Sso.getSsoUser());
+    token = await Sso.getAccessToken();
+  }
 
   if (user && token) {
     // 已登录

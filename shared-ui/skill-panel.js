@@ -82,6 +82,7 @@
    *   folder-icon     — string，分类标题前的 folder 图标 SVG
    *   visible         — boolean，控制显隐
    *   filter          — string，搜索关键词
+   *   show-edit       — boolean，是否显示右上角“编辑技能”操作
    *
    * JS 属性:
    *   .skills         — Array，技能数据
@@ -90,6 +91,7 @@
    *   .folderIcon     — string，分类标题前的 folder 图标 SVG
    *   .visible        — boolean
    *   .filter         — string
+   *   .showEdit       — boolean，是否显示右上角编辑按钮
    *
    * 静态方法:
    *   EpSkillPanel.injectCss(cssText) — 预注入 CSS 文本（供打包环境使用）
@@ -97,6 +99,7 @@
    * 事件:
    *   skill-select    — CustomEvent({ detail: skill })
    *   panel-close     — CustomEvent()
+   *   panel-edit      — CustomEvent()
    *
    * 键盘导航: ↑↓ 移动高亮、Enter 选中、ESC 关闭
    */
@@ -117,11 +120,14 @@
       this._folderIcon = ""; // 分类标题前的 folder 图标 SVG
       this._filter = "";
       this._visible = false;
+      this._showEdit = false;
       this._activeIndex = -1; // 当前键盘高亮的 item 索引（在 filteredItems 中）
       this._filteredItems = []; // 扁平化的过滤后 skill 列表（用于键盘导航）
       this._animateOnNextRender = false;
       this._styleNode = null;
       this._containerNode = null;
+      this._headerNode = null;
+      this._editButtonNode = null;
       this._scrollNode = null;
       this._onContainerAnimationEnd = () => {
         if (this._containerNode) {
@@ -177,6 +183,7 @@
         "folder-icon",
         "visible",
         "filter",
+        "show-edit",
       ];
     }
 
@@ -226,6 +233,10 @@
           }
           this._filter = newVal || "";
           this._activeIndex = -1;
+          this._render();
+          break;
+        case "show-edit":
+          this._showEdit = newVal !== null && newVal !== "false";
           this._render();
           break;
       }
@@ -284,6 +295,14 @@
     }
     set folderIcon(val) {
       this._folderIcon = val || "";
+      this._render();
+    }
+
+    get showEdit() {
+      return this._showEdit;
+    }
+    set showEdit(val) {
+      this._showEdit = !!val;
       this._render();
     }
 
@@ -438,6 +457,28 @@
       return style;
     }
 
+    /**
+     * 2026-04-22 新增 — Skill 浮窗编辑按钮图标同步
+     * 变更类型：新增/交互
+     * 功能描述：为右上角“编辑技能”按钮同步共享图标映射中的 edit SVG，
+     *   保证 Web 与 Browser 两端都复用同一套图标资源而不是各自硬编码。
+     * 设计思路：
+     *   1. 按钮节点在 _ensureStructure() 中稳定复用，图标更新单独收口到此 helper，
+     *      避免 iconMap 后到达时整块 toolbar 重建。
+     *   2. 优先走共享 edit 图标；若当前 iconMap 尚未准备好，则安全降级为空按钮内容，
+     *      保持点击能力与 aria 文案不受影响。
+     * 参数与返回值：无参数；直接更新 this._editButtonNode 的子节点；无返回值。
+     * 影响范围：shared-ui/skill-panel.js 的 toolbar 渲染链路。
+     * 潜在风险：无已知风险。
+     */
+    _syncEditButtonIcon() {
+      if (!this._editButtonNode) {
+        return;
+      }
+      const iconNode = this._createMaskIconNode(this._iconMap.edit || "", 14);
+      this._editButtonNode.replaceChildren(...(iconNode ? [iconNode] : []));
+    }
+
     // 2026-04-14 重构：保持 Shadow DOM 外壳稳定，只更新列表滚动区内容，
     //   避免每次 filter 变化都重建整块 panel 导致 backdrop/filter/shadow 整窗闪烁。
     // [参数与返回值] 无参数；返回复用后的 container/scroll 节点引用。
@@ -462,13 +503,45 @@
         );
       }
 
+      if (!this._headerNode) {
+        this._headerNode = document.createElement("div");
+        this._headerNode.className = "skill-toolbar";
+      }
+
+      if (!this._editButtonNode) {
+        this._editButtonNode = document.createElement("button");
+        this._editButtonNode.className = "skill-toolbar__edit";
+        this._editButtonNode.type = "button";
+        this._editButtonNode.title = "编辑技能";
+        this._editButtonNode.setAttribute("aria-label", "编辑技能");
+        this._editButtonNode.addEventListener("click", (event) => {
+          event.stopPropagation();
+          this.dispatchEvent(
+            new CustomEvent("panel-edit", {
+              bubbles: true,
+              composed: true,
+            }),
+          );
+        });
+      }
+
+      if (!this._headerNode.contains(this._editButtonNode)) {
+        this._headerNode.replaceChildren(this._editButtonNode);
+      }
+
       if (!this._scrollNode) {
         this._scrollNode = document.createElement("div");
         this._scrollNode.className = "skill-scroll";
       }
 
+      if (!this._containerNode.contains(this._headerNode)) {
+        this._containerNode.appendChild(this._headerNode);
+      }
       if (!this._containerNode.contains(this._scrollNode)) {
         this._containerNode.appendChild(this._scrollNode);
+      }
+      if (this._containerNode.firstChild !== this._headerNode) {
+        this._containerNode.insertBefore(this._headerNode, this._scrollNode);
       }
 
       if (
@@ -592,6 +665,13 @@
       }
 
       container.hidden = false;
+      this._syncEditButtonIcon();
+      if (this._headerNode) {
+        this._headerNode.hidden = !this._showEdit;
+      }
+      if (this._editButtonNode) {
+        this._editButtonNode.tabIndex = this._showEdit ? 0 : -1;
+      }
 
       const filtered = this._getFilteredSkills();
       const grouped = this._groupByType(filtered);

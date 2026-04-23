@@ -4,6 +4,12 @@ import {
 } from "../../core/skill-fetch-client.mjs";
 import { Sso } from "../shared/sso.js";
 import { BACKEND_API_BASE } from "../shared/env.js";
+import {
+  buildZhizBindingProfileUrl,
+  fetchZhizLinkStatus,
+  openZhizSkillsManager,
+} from "../shared/zhiz.js";
+import { showZhizBindingConfirmDialog } from "../../shared-ui/zhiz-binding-confirm.js";
 
 /**
  * Easy Prompt Browser Extension — Content Script
@@ -344,8 +350,16 @@ import { BACKEND_API_BASE } from "../shared/env.js";
   const SKILL_FETCH_TIMEOUT_MS = 15000;
   const SSO_ACCESS_TOKEN_KEY = "ep-sso-access-token";
   const SSO_USER_KEY = "ep-sso-user";
+  const PENDING_ZHIZ_EDITOR_INTENT_KEY = "ep-zhiz-skill-editor-intent";
+  const PENDING_ZHIZ_EDITOR_INTENT_TTL_MS = 10 * 60 * 1000;
+  const ZHIZ_BINDING_CONFIRM_COPY =
+    "当前账号尚未绑定 Zhiz。\n将前往 PromptHub 个人主页的第三方 OAuth 授权专区完成绑定，绑定成功后会自动进入 Zhiz 技能管理页。是否继续？";
+  const ZHIZ_BINDING_CONFIRM_TITLE = "先完成 Zhiz 授权";
+  const ZHIZ_BINDING_CONFIRM_NOTE =
+    "确认后会在新标签页打开 PromptHub 个人页绑定专区；绑定完成后，系统会自动把你带回 Zhiz 技能管理页。";
   let _skillDataLoadPromise = null;
   let _skillDataSource = "mock";
+  let _isHandlingPendingZhizEditorIntent = false;
 
   /**
    * 2026-04-16 新增 — Browser Skill Proxy 拉取超时信号
@@ -502,15 +516,225 @@ import { BACKEND_API_BASE } from "../shared/env.js";
     return Boolean(tokenChange.oldValue) !== Boolean(tokenChange.newValue);
   }
 
+  /**
+   * 2026-04-22 新增 — Browser 端 Zhiz 技能管理 pending intent 存储
+   * 变更类型：新增/交互
+   * 功能描述：在未登录用户点击 skill 面板“编辑技能”时，把“登录后继续打开 Zhiz 技能管理页”的意图写入扩展本地存储，并在读取时执行 TTL 与 schema 校验。
+   * 设计思路：
+   *   1. 仅保存 type + createdAt 最小状态，不写任何 token、用户输入或外部 URL。
+   *   2. 使用 chrome.storage.local，确保 launchWebAuthFlow 与 Safari/tab redirect 两条 SSO 路径都能被当前内容脚本感知并恢复。
+   * 参数与返回值：_savePendingZhizEditorIntent()/_clearPendingZhizEditorIntent() 返回 Promise<void>；_readPendingZhizEditorIntent() 返回 Promise<object|null>。
+   * 影响范围：browser/content/content.js 编辑入口与 storage 恢复流程。
+   * 潜在风险：若用户在 TTL 内通过其他入口完成登录，也会恢复最近一次编辑意图；这是产品允许的续接行为。
+   */
+  async function _savePendingZhizEditorIntent() {
+    await chrome.storage.local.set({
+      [PENDING_ZHIZ_EDITOR_INTENT_KEY]: {
+        type: "open-skills-manager",
+        createdAt: Date.now(),
+      },
+    });
+  }
+
+  async function _readPendingZhizEditorIntent() {
+    try {
+      const stored = await chrome.storage.local.get(
+        PENDING_ZHIZ_EDITOR_INTENT_KEY,
+      );
+      const pendingIntent = stored[PENDING_ZHIZ_EDITOR_INTENT_KEY];
+      const createdAt =
+        typeof pendingIntent?.createdAt === "number"
+          ? pendingIntent.createdAt
+          : NaN;
+      const isExpired =
+        !Number.isFinite(createdAt) ||
+        Date.now() - createdAt > PENDING_ZHIZ_EDITOR_INTENT_TTL_MS;
+
+      if (
+        pendingIntent?.type !== "open-skills-manager" ||
+        isExpired
+      ) {
+        await chrome.storage.local.remove(PENDING_ZHIZ_EDITOR_INTENT_KEY);
+        return null;
+      }
+
+      return {
+        type: "open-skills-manager",
+        createdAt,
+      };
+    } catch {
+      await chrome.storage.local.remove(PENDING_ZHIZ_EDITOR_INTENT_KEY);
+      return null;
+    }
+  }
+
+  async function _clearPendingZhizEditorIntent() {
+    await chrome.storage.local.remove(PENDING_ZHIZ_EDITOR_INTENT_KEY);
+  }
+
+  /**
+   * 2026-04-22 新增 — Browser 未绑定用户确认跳转
+   * 变更类型：新增/交互
+   * 功能描述：统一弹出“未绑定 Zhiz”压窗确认组件，并在用户确认后打开 PromptHub 个人页中的 Zhiz OAuth 授权专区。
+   * 设计思路：让点击编辑按钮与 storage 恢复都复用同一套 Shadow DOM 压窗与深链构造，避免内容脚本落回原生 confirm 导致视觉割裂。
+   * 参数与返回值：_confirmZhizBindingRedirect() 无参数；返回 Promise<boolean> 表示用户是否确认继续。
+   * 影响范围：browser/content/content.js 编辑按钮与 pending intent 恢复流程。
+   * 潜在风险：若页面站点拦截新标签页，用户需手动放行；不影响当前输入框注入能力。
+   */
+  async function _confirmZhizBindingRedirect() {
+    const confirmed = await showZhizBindingConfirmDialog({
+      theme: _skillPanel?.classList.contains("dark") ? "dark" : "light",
+      title: ZHIZ_BINDING_CONFIRM_TITLE,
+      message: ZHIZ_BINDING_CONFIRM_COPY.replace(/\n是否继续？$/, ""),
+      noteText: ZHIZ_BINDING_CONFIRM_NOTE,
+    });
+    if (confirmed) {
+      window.open(
+        buildZhizBindingProfileUrl(),
+        "_blank",
+        "noopener,noreferrer",
+      );
+    }
+    return confirmed;
+  }
+
+  /**
+   * 2026-04-22 新增 — Browser Skill 面板编辑入口恢复判定
+   * 变更类型：新增/交互
+   * 功能描述：判断某次 chrome.storage 登录态变化是否值得尝试恢复 pending Zhiz 编辑意图。
+   * 设计思路：只在 user/access token 从无到有或值发生变化且 newValue 为真时触发，避免 logout 或无关存储变更误拉起绑定弹框。
+   * 参数与返回值：_shouldResumeZhizEditorIntent(changes) 接收 storage change map；返回 boolean。
+   * 影响范围：browser/content/content.js 的 storage.onChanged 监听。
+   * 潜在风险：token 刷新也会触发恢复尝试，但 _readPendingZhizEditorIntent() 会把无效/已清理 intent 直接拦住，额外成本可接受。
+   */
+  function _shouldResumeZhizEditorIntent(changes) {
+    const userChange = changes[SSO_USER_KEY];
+    if (
+      userChange &&
+      userChange.newValue &&
+      userChange.newValue !== userChange.oldValue
+    ) {
+      return true;
+    }
+
+    const tokenChange = changes[SSO_ACCESS_TOKEN_KEY];
+    return Boolean(tokenChange?.newValue) &&
+      tokenChange?.newValue !== tokenChange?.oldValue;
+  }
+
+  /**
+   * 2026-04-22 新增 — Browser SSO 成功后的 Zhiz 编辑意图恢复
+   * 变更类型：新增/交互
+   * 功能描述：在 launchWebAuthFlow 或 Safari/tab redirect 完成登录后，继续执行“打开技能管理页”的原始编辑意图。
+   * 设计思路：
+   *   1. 读取到 pending intent 后，统一依赖 link-status 接口分流到技能管理页或绑定专区。
+   *   2. 成功拿到 link-status 后先清理 intent，确保 confirm 取消或技能页已打开都不会重复执行。
+   *   3. 出错时只给最小 alert 反馈，不在 content script 中额外引入 toast 系统。
+   * 参数与返回值：_handlePendingZhizEditorIntent() 无参数；返回 Promise<void>。
+   * 影响范围：browser/content/content.js 的登录恢复流程。
+   * 潜在风险：若 link-status 暂时不可用，会保守提示重试而不是误判为“未绑定”。
+   */
+  async function _handlePendingZhizEditorIntent() {
+    if (_isHandlingPendingZhizEditorIntent) {
+      return;
+    }
+    _isHandlingPendingZhizEditorIntent = true;
+
+    const pendingIntent = await _readPendingZhizEditorIntent();
+    if (!pendingIntent) {
+      _isHandlingPendingZhizEditorIntent = false;
+      return;
+    }
+
+    let accessToken = await Sso.getAccessToken();
+    if (!accessToken) {
+      await Sso.bootstrapSessionFromCookie();
+      accessToken = await Sso.getAccessToken();
+    }
+    if (!accessToken) {
+      _isHandlingPendingZhizEditorIntent = false;
+      return;
+    }
+
+    try {
+      const status = await fetchZhizLinkStatus();
+      await _clearPendingZhizEditorIntent();
+
+      if (status.linked) {
+        openZhizSkillsManager();
+        return;
+      }
+
+      await _confirmZhizBindingRedirect();
+    } catch {
+      await _clearPendingZhizEditorIntent();
+      window.alert("暂时无法确认当前账号是否已绑定 Zhiz，请稍后重试。");
+    } finally {
+      _isHandlingPendingZhizEditorIntent = false;
+    }
+  }
+
+  /**
+   * 2026-04-22 新增 — Browser Skill 面板编辑按钮主处理器
+   * 变更类型：新增/交互
+   * 功能描述：响应 `panel-edit` 事件，根据登录态与 Zhiz 绑定状态分流到 SSO 登录、技能管理页或 PromptHub 绑定专区。
+ * 设计思路：
+ *   1. shared skill panel 只负责抛出编辑意图；所有扩展特有的登录恢复与新标签页跳转都收口在 content script。
+ *   2. 在判定“未登录”前，先尝试用共享 refresh cookie 静默恢复一次，尽量接住已经在 Web / Web-Hub 完成的登录会话。
+ *   3. 若仍未登录，则先保存 pending intent，再调用 Sso.ssoLogin()；launchWebAuthFlow 成功时立即恢复，Safari/tab redirect 交由 storage.onChanged 恢复。
+ *   4. 已登录场景依赖显式 link-status 接口，不复用 skill proxy fallbackReason 做模糊推断。
+   * 参数与返回值：_handleSkillPanelEdit() 无参数；返回 Promise<void>。
+   * 影响范围：browser/content/content.js、browser/shared/zhiz.js、browser/shared/sso.js。
+   * 潜在风险：若用户在登录窗口中取消授权，pending intent 会保留到 TTL 过期或下次成功登录；这是当前产品闭环接受的行为。
+   */
+  async function _handleSkillPanelEdit() {
+    _hideSkillPanel();
+
+    let accessToken = await Sso.getAccessToken();
+    if (!accessToken) {
+      await Sso.bootstrapSessionFromCookie();
+      accessToken = await Sso.getAccessToken();
+    }
+    if (!accessToken) {
+      try {
+        await _savePendingZhizEditorIntent();
+        const user = await Sso.ssoLogin();
+        if (user) {
+          await _handlePendingZhizEditorIntent();
+        }
+      } catch {
+        await _clearPendingZhizEditorIntent();
+      }
+      return;
+    }
+
+    try {
+      const status = await fetchZhizLinkStatus();
+      await _clearPendingZhizEditorIntent();
+
+      if (status.linked) {
+        openZhizSkillsManager();
+        return;
+      }
+
+      await _confirmZhizBindingRedirect();
+    } catch {
+      await _clearPendingZhizEditorIntent();
+      window.alert("暂时无法确认当前账号是否已绑定 Zhiz，请稍后重试。");
+    }
+  }
+
   if (chrome.storage?.onChanged?.addListener) {
     chrome.storage.onChanged.addListener((changes, areaName) => {
-      if (areaName !== "local" || !_skillDepsLoaded) {
+      if (areaName !== "local") {
         return;
       }
-      if (!_shouldRefreshSkillsForSsoChange(changes)) {
-        return;
+      if (_skillDepsLoaded && _shouldRefreshSkillsForSsoChange(changes)) {
+        void _refreshSkillPanelSkills({ forceRefresh: true });
       }
-      void _refreshSkillPanelSkills({ forceRefresh: true });
+      if (_shouldResumeZhizEditorIntent(changes)) {
+        void _handlePendingZhizEditorIntent();
+      }
     });
   }
 
@@ -1292,6 +1516,7 @@ import { BACKEND_API_BASE } from "../shared/env.js";
     _skillPanel.setAttribute("skill-type-map", JSON.stringify(_SKILL_TYPE_MAP));
     _skillPanel.setAttribute("icon-map", JSON.stringify(_SKILL_ICON_MAP));
     _skillPanel.setAttribute("folder-icon", _FOLDER_ICON_SVG || "");
+    _skillPanel.setAttribute("show-edit", "true");
 
     // 固定定位，避免页面 CSS 干扰
     _skillPanel.style.cssText =
@@ -1360,6 +1585,9 @@ import { BACKEND_API_BASE } from "../shared/env.js";
 
     _skillPanel.addEventListener("panel-close", () => {
       _hideSkillPanel();
+    });
+    _skillPanel.addEventListener("panel-edit", () => {
+      void _handleSkillPanelEdit();
     });
 
     document.body.appendChild(_skillPanel);

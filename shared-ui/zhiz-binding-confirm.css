@@ -1,0 +1,341 @@
+/* ========================== 变更记录 ==========================
+ * [日期]     2026-04-22
+ * [类型]     新增
+ * [描述]     Zhiz 未绑定确认弹框共享样式，供 Web 与 Browser 共用的压窗确认组件使用。
+ * [思路]     参考 Material / Ant / Radix 的确认弹框信息层级：标题、说明、操作区清晰分离，
+ *            同时融合 Easy Prompt 现有紫色主题、毛玻璃表面、柔和渐变高光，让确认动作更像产品内建 UI。
+ * [影响范围] shared-ui/zhiz-binding-confirm.js；Web slash skill 面板与 Browser content script 的 Zhiz 未绑定提示。
+ * [潜在风险] 若未来产品主色大改，需要同步更新这里的默认 token；当前无已知功能风险。
+ * ============================================================== */
+
+:host {
+  --ep-confirm-overlay:
+    radial-gradient(circle at top, rgba(139, 92, 246, 0.28), transparent 34%),
+    rgba(3, 6, 18, 0.72);
+  --ep-confirm-surface: rgba(18, 18, 28, 0.94);
+  --ep-confirm-surface-strong: rgba(30, 31, 44, 0.92);
+  --ep-confirm-border: rgba(255, 255, 255, 0.1);
+  --ep-confirm-border-strong: rgba(139, 92, 246, 0.28);
+  --ep-confirm-title: #fafafa;
+  --ep-confirm-text: rgba(250, 250, 250, 0.78);
+  --ep-confirm-muted: rgba(228, 228, 231, 0.56);
+  --ep-confirm-accent-start: #8b5cf6;
+  --ep-confirm-accent-end: #6366f1;
+  --ep-confirm-accent-soft: rgba(139, 92, 246, 0.14);
+  --ep-confirm-accent-ring: rgba(139, 92, 246, 0.26);
+  --ep-confirm-shadow:
+    0 28px 80px rgba(6, 8, 20, 0.5),
+    0 12px 24px rgba(0, 0, 0, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+:host([theme="light"]) {
+  --ep-confirm-overlay:
+    radial-gradient(circle at top, rgba(139, 92, 246, 0.16), transparent 34%),
+    rgba(15, 23, 42, 0.28);
+  --ep-confirm-surface: rgba(255, 255, 255, 0.96);
+  --ep-confirm-surface-strong: rgba(248, 250, 252, 0.96);
+  --ep-confirm-border: rgba(15, 23, 42, 0.08);
+  --ep-confirm-border-strong: rgba(139, 92, 246, 0.2);
+  --ep-confirm-title: #111827;
+  --ep-confirm-text: rgba(17, 24, 39, 0.74);
+  --ep-confirm-muted: rgba(55, 65, 81, 0.58);
+  --ep-confirm-accent-soft: rgba(139, 92, 246, 0.08);
+  --ep-confirm-accent-ring: rgba(139, 92, 246, 0.16);
+  --ep-confirm-shadow:
+    0 24px 60px rgba(15, 23, 42, 0.16),
+    0 10px 18px rgba(15, 23, 42, 0.08),
+    0 0 0 1px rgba(15, 23, 42, 0.04);
+}
+
+.ep-confirm-root {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--ep-confirm-overlay);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  opacity: 0;
+  transition: opacity 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ep-confirm-root[data-open="true"] {
+  opacity: 1;
+}
+
+.ep-confirm-dialog {
+  position: relative;
+  width: min(468px, calc(100vw - 32px));
+  border-radius: 24px;
+  border: 1px solid var(--ep-confirm-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
+    var(--ep-confirm-surface);
+  box-shadow: var(--ep-confirm-shadow);
+  color: var(--ep-confirm-title);
+  overflow: hidden;
+  transform: translateY(18px) scale(0.97);
+  opacity: 0;
+  transition:
+    transform 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 180ms ease;
+}
+
+.ep-confirm-root[data-open="true"] .ep-confirm-dialog {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+.ep-confirm-dialog::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.45),
+    transparent
+  );
+}
+
+.ep-confirm-dialog::after {
+  content: "";
+  position: absolute;
+  inset: -72px auto auto -72px;
+  width: 180px;
+  height: 180px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.22), transparent 68%);
+  pointer-events: none;
+}
+
+.ep-confirm-content {
+  position: relative;
+  padding: 24px 24px 20px;
+}
+
+.ep-confirm-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.ep-confirm-icon-shell {
+  position: relative;
+  flex: 0 0 auto;
+  width: 52px;
+  height: 52px;
+  border-radius: 18px;
+  background: linear-gradient(
+    135deg,
+    var(--ep-confirm-accent-start),
+    var(--ep-confirm-accent-end)
+  );
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow:
+    0 16px 32px rgba(99, 102, 241, 0.28),
+    0 6px 14px rgba(139, 92, 246, 0.26);
+}
+
+.ep-confirm-icon-shell::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: inherit;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.3), transparent 70%);
+  z-index: -1;
+}
+
+.ep-confirm-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--ep-confirm-border-strong);
+  background: var(--ep-confirm-accent-soft);
+  color: var(--ep-confirm-accent-start);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.ep-confirm-title {
+  margin: 12px 0 0;
+  font-size: 22px;
+  line-height: 1.24;
+  font-weight: 700;
+  color: var(--ep-confirm-title);
+}
+
+.ep-confirm-body {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--ep-confirm-text);
+  white-space: pre-line;
+}
+
+.ep-confirm-highlight {
+  margin-top: 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid var(--ep-confirm-border-strong);
+  background:
+    linear-gradient(180deg, rgba(139, 92, 246, 0.12), rgba(99, 102, 241, 0.08)),
+    var(--ep-confirm-surface-strong);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.ep-confirm-highlight-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ep-confirm-title);
+}
+
+.ep-confirm-highlight-text {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ep-confirm-muted);
+}
+
+.ep-confirm-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 20px 24px 24px;
+}
+
+.ep-confirm-button {
+  appearance: none;
+  border: none;
+  border-radius: 14px;
+  min-width: 124px;
+  height: 44px;
+  padding: 0 18px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+.ep-confirm-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--ep-confirm-accent-ring);
+}
+
+.ep-confirm-button:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.ep-confirm-button--ghost {
+  border: 1px solid var(--ep-confirm-border);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--ep-confirm-title);
+}
+
+.ep-confirm-button--ghost:hover {
+  border-color: var(--ep-confirm-border-strong);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ep-confirm-button--primary {
+  position: relative;
+  color: #fff;
+  background: linear-gradient(
+    135deg,
+    var(--ep-confirm-accent-start),
+    var(--ep-confirm-accent-end)
+  );
+  box-shadow:
+    0 12px 24px rgba(99, 102, 241, 0.26),
+    0 6px 14px rgba(139, 92, 246, 0.2);
+}
+
+.ep-confirm-button--primary::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.22),
+    rgba(255, 255, 255, 0.04)
+  );
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.ep-confirm-button--primary:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 16px 28px rgba(99, 102, 241, 0.3),
+    0 8px 16px rgba(139, 92, 246, 0.24);
+}
+
+.ep-confirm-button-label {
+  position: relative;
+  z-index: 1;
+}
+
+.ep-confirm-icon {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  flex-shrink: 0;
+  background: currentColor;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+.ep-confirm-highlight-icon {
+  color: var(--ep-confirm-accent-start);
+  margin-top: 1px;
+}
+
+@media (max-width: 560px) {
+  .ep-confirm-root {
+    padding: 16px;
+    align-items: flex-end;
+  }
+
+  .ep-confirm-dialog {
+    width: min(100%, 100%);
+    border-radius: 24px 24px 18px 18px;
+  }
+
+  .ep-confirm-content {
+    padding: 20px 20px 16px;
+  }
+
+  .ep-confirm-footer {
+    flex-direction: column-reverse;
+    padding: 16px 20px 20px;
+  }
+
+  .ep-confirm-button {
+    width: 100%;
+  }
+}

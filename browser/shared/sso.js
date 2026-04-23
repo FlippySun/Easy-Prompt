@@ -174,6 +174,94 @@ async function clearSsoTokens() {
   ]);
 }
 
+/**
+ * 2026-04-22 修复 — Browser auth token 响应格式归一化
+ * 变更类型：fix
+ * What：兼容 backend `/api/v1/auth/refresh` 返回 flat `data.accessToken` 与旧客户端仍在读取 `data.tokens` 的两种形状。
+ * Why：扩展端若把合法 refresh 响应误判为空，会在“共享会话静默恢复”与正常 token 轮换时错误清空登录态。
+ * Params & return：`extractAuthTokens(payload)` 接收 refresh JSON，返回 `{ accessToken, refreshToken, expiresIn }`；非法响应时抛出 Error。
+ * Impact scope：browser/shared/sso.js 的 refresh 流程、静默会话恢复、content/options 登录态判断。
+ * Risk：No known risks.
+ */
+function extractAuthTokens(payload) {
+  const candidate = payload?.data?.tokens ?? payload?.data ?? null;
+  if (
+    typeof candidate?.accessToken !== "string" ||
+    typeof candidate?.refreshToken !== "string"
+  ) {
+    throw new Error("认证响应缺少 token");
+  }
+
+  return {
+    accessToken: candidate.accessToken,
+    refreshToken: candidate.refreshToken,
+    expiresIn:
+      typeof candidate.expiresIn === "number" ? candidate.expiresIn : 3600,
+  };
+}
+
+/**
+ * 2026-04-22 修复 — Browser 共享会话静默恢复
+ * 变更类型：fix
+ * What：当扩展本地 `chrome.storage.local` 没有 token 时，尝试利用浏览器 profile 中共享的 `refresh_token` cookie 静默换回新 token 与用户资料。
+ * Why：多端登录共享的目标不是“只有登录页里复用”，而是尽量让扩展端在正常操作前先尝试接住已存在的站点会话。
+ * Params & return：`bootstrapSessionFromCookie()` 无参数；成功返回用户对象，失败返回 null。
+ * Impact scope：browser/options/options.js 登录状态展示、browser/content/content.js skill 面板编辑分流、browser/background/service-worker.js 的后续 refresh。
+ * Risk：扩展环境是否允许带站点 cookie 由浏览器策略决定；失败时本函数会安全返回 null，不影响原登录兜底路径。
+ */
+async function bootstrapSessionFromCookie() {
+  const existingToken = await getAccessToken();
+  if (existingToken) {
+    return await getSsoUser();
+  }
+
+  const refreshResp = await fetch(`${BACKEND_API_BASE}/api/v1/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({}),
+    signal: AbortSignal.timeout(15000),
+  });
+
+  let refreshPayload = {};
+  try {
+    refreshPayload = await refreshResp.json();
+  } catch {
+    refreshPayload = {};
+  }
+
+  if (!refreshResp.ok || !refreshPayload?.success) {
+    return null;
+  }
+
+  const tokens = extractAuthTokens(refreshPayload);
+  const meResp = await fetch(`${BACKEND_API_BASE}/api/v1/auth/me`, {
+    credentials: "include",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${tokens.accessToken}`,
+    },
+    signal: AbortSignal.timeout(15000),
+  });
+
+  let mePayload = {};
+  try {
+    mePayload = await meResp.json();
+  } catch {
+    mePayload = {};
+  }
+
+  if (!meResp.ok || !mePayload?.success || !mePayload?.data) {
+    return null;
+  }
+
+  await saveSsoTokens({
+    user: mePayload.data,
+    tokens,
+  });
+  return mePayload.data;
+}
+
 /* ─── Token Refresh ─── */
 
 /**
@@ -191,6 +279,7 @@ async function refreshAccessToken() {
   const resp = await fetch(`${BACKEND_API_BASE}/api/v1/auth/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({ refreshToken }),
     signal: AbortSignal.timeout(15000),
   });
@@ -203,7 +292,7 @@ async function refreshAccessToken() {
   }
 
   // 保存新 tokens（refresh token 也会轮转）
-  const tokens = result.data.tokens;
+  const tokens = extractAuthTokens(result);
   const expiresAt = Date.now() + (tokens.expiresIn || 3600) * 1000;
   await chrome.storage.local.set({
     [SSO_KEYS.ACCESS_TOKEN]: tokens.accessToken,
@@ -345,6 +434,7 @@ const Sso = {
   getExpiresAt,
   clearSsoTokens,
   refreshAccessToken,
+  bootstrapSessionFromCookie,
   ssoLogin,
   ssoLogout,
   migrateLegacyToken,

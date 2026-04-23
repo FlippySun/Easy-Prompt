@@ -25,6 +25,8 @@
   --ep-scrollbar-thumb: #d1d5db;
   --ep-icon-stroke: #000;
   --ep-separator-color: #e5e7eb;
+  --ep-toolbar-button-color: #4b5563;
+  --ep-toolbar-button-hover-bg: #f3f4f6;
 }
 
 :host(.dark) {
@@ -42,17 +44,64 @@
   --ep-scrollbar-thumb: #4b5563;
   --ep-icon-stroke: #fff;
   --ep-separator-color: rgba(255, 255, 255, 0.08);
+  --ep-toolbar-button-color: #d1d5db;
+  --ep-toolbar-button-hover-bg: rgba(255, 255, 255, 0.1);
 }
 
 /* --- 浮窗外层容器：圆角 + overflow:hidden 裁剪滚动条 --- */
 .skill-container {
   width: 300px;
   overflow: hidden;
+  position: relative;
   background: var(--ep-panel-bg);
   border: 1px solid var(--ep-panel-border);
   border-radius: 16px;
   box-shadow: var(--ep-panel-shadow);
   box-sizing: border-box;
+}
+
+/* 2026-04-22 修复：将右上角“编辑技能”按钮改为绝对定位，脱离文档流固定在浮窗右上角，
+ *   避免 toolbar 独占一行把分组标题整体向下挤。
+ * [类型]     修复
+ * [描述]     toolbar 改为 absolute 覆盖在 panel 右上角，仅按钮自身响应交互。
+ * [思路]     保持 DOM 结构与 shared-ui 稳定外壳不变，只通过定位把按钮从流式布局改成浮层，
+ *            这样 Web / Browser 两端都能同步回到设计稿里的右上角悬浮效果。
+ * [参数与返回值] 无新增参数；仅调整 `.skill-container/.skill-toolbar/.skill-toolbar__edit` 布局样式。
+ * [影响范围] shared-ui/skill-panel.css + shared-ui/skill-panel.js 的顶部操作区样式。
+ * [潜在风险] 无已知风险。
+ */
+.skill-toolbar {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.skill-toolbar__edit {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ep-toolbar-button-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.skill-toolbar__edit:hover,
+.skill-toolbar__edit:focus-visible {
+  background: var(--ep-toolbar-button-hover-bg);
+}
+
+.skill-toolbar__edit:focus-visible {
+  outline: none;
 }
 
 /* 2026-04-14 修复：过滤输入时 skill-panel.js 会重建容器，若默认容器类始终携带

@@ -62,6 +62,7 @@ import {
   SKILL_ICON_MAP,
   FOLDER_ICON_SVG,
 } from "../skill.js";
+import { showZhizBindingConfirmDialog } from "../../../shared-ui/zhiz-binding-confirm.js";
 
 import { testApiConfig, fetchModels, detectApiMode } from "../api.js";
 
@@ -70,9 +71,16 @@ import {
   ssoLogin,
   ssoLogout,
   openProfilePage,
+  fetchZhizLinkStatus,
+  bootstrapSsoSessionFromCookie,
   handleSsoCallbackOnLoad,
   onSsoStateChange,
   onSsoStorageChange,
+  readPendingZhizEditorIntent,
+  savePendingZhizEditorIntent,
+  clearPendingZhizEditorIntent,
+  openZhizSkillsManager,
+  openZhizBindingProfilePage,
   updateSsoUI,
   SSO_KEYS,
   scheduleSsoRefresh,
@@ -91,6 +99,11 @@ let _skillPanel = null; // <ep-skill-panel> 实例引用
 let _skillSlashIndex = -1; // 2026-04-13 修复：记录触发 "/" 在文本中的位置（光标感知）
 let _disposeSkillSsoSync = null;
 let _disposeSkillStorageSync = null;
+const ZHIZ_BINDING_CONFIRM_COPY =
+  "当前账号尚未绑定 Zhiz。\n将前往 PromptHub 个人主页的第三方 OAuth 授权专区完成绑定，绑定成功后会自动进入 Zhiz 技能管理页。是否继续？";
+const ZHIZ_BINDING_CONFIRM_TITLE = "先完成 Zhiz 授权";
+const ZHIZ_BINDING_CONFIRM_NOTE =
+  "确认后会在新标签页打开 PromptHub 个人页绑定专区；绑定完成后，系统会自动把你带回 Zhiz 技能管理页。";
 
 /* ─── Init ─── */
 
@@ -142,19 +155,23 @@ export function initApp() {
  * 功能描述：在页面初始化时统一处理 SSO 回调恢复、登录 UI 恢复、定时刷新恢复与 skill 数据同步；未登录时保留本地 mock，避免本地/匿名访问每次启动都强刷后端 skill proxy 产生 502 噪音。
  * 设计思路：
  *   1. 继续保持 initApp 同步入口不变，异步部分单独收敛到 bootstrapSsoStateAndSkills()。
- *   2. handleSsoCallbackOnLoad() 完成 code exchange 后，复用同一 skill 刷新逻辑更新面板数据。
- *   3. 仅在已登录（或刚完成 code exchange）后触发真实 skill 刷新，匿名态直接保留 mock 首屏，减少后端 provider 未就绪时的启动噪音。
+ *   2. handleSsoCallbackOnLoad() 完成 code exchange 后，若当前 origin 仍无本地 token，再尝试用共享 refresh cookie 静默 bootstrap 一次。
+ *   3. 复用同一 skill 刷新逻辑更新面板数据；仅在已登录（或刚完成 code exchange / cookie bootstrap）后触发真实 skill 刷新，匿名态直接保留 mock 首屏，减少后端 provider 未就绪时的启动噪音。
  * 参数与返回值：bootstrapSsoStateAndSkills() 无参数；返回 Promise<void>。
  * 影响范围：web/src/ui/index.js 的 Skill 面板初始化、SSO 回调恢复、登录态切换后的数据刷新。
  * 潜在风险：无已知风险。
  */
 async function bootstrapSsoStateAndSkills() {
   await handleSsoCallbackOnLoad();
+  if (!isAuthenticated()) {
+    await bootstrapSsoSessionFromCookie();
+  }
   updateSsoUI();
   const savedExpiry = localStorage.getItem(SSO_KEYS.EXPIRES_AT);
   if (savedExpiry) {
     scheduleSsoRefresh(Number(savedExpiry));
   }
+  await handlePendingZhizEditorIntent();
   if (isAuthenticated()) {
     await refreshSkillPanelSkills({ forceRefresh: true });
   }
@@ -362,6 +379,116 @@ async function refreshSkillPanelSkills(options = {}) {
   }
 }
 
+/**
+ * 2026-04-22 新增 — Skill 面板未绑定用户确认跳转
+ * 变更类型：新增/交互
+ * 功能描述：在 Web 宿主侧统一展示“未绑定 Zhiz”压窗确认层，并在用户确认后打开 PromptHub 个人页的 Zhiz OAuth 绑定专区。
+ * 设计思路：把 confirm 文案、主题感知与 Shadow DOM 压窗调用收口到一个 helper，避免点击编辑按钮和 SSO 回跳恢复两条路径各自维护一份交互样式。
+ * 参数与返回值：confirmZhizBindingRedirect() 无参数；返回 Promise<boolean> 表示用户是否确认继续。
+ * 影响范围：web/src/ui/index.js 的编辑按钮点击与 pending intent 恢复链路。
+ * 潜在风险：若浏览器拦截新标签页，函数仍会返回 true；这是浏览器限制，不影响当前页状态。
+ */
+async function confirmZhizBindingRedirect() {
+  const confirmed = await showZhizBindingConfirmDialog({
+    theme:
+      document.documentElement.getAttribute("data-theme") === "light"
+        ? "light"
+        : "dark",
+    title: ZHIZ_BINDING_CONFIRM_TITLE,
+    message: ZHIZ_BINDING_CONFIRM_COPY.replace(/\n是否继续？$/, ""),
+    noteText: ZHIZ_BINDING_CONFIRM_NOTE,
+  });
+  if (confirmed) {
+    openZhizBindingProfilePage();
+  }
+  return confirmed;
+}
+
+/**
+ * 2026-04-22 新增 — Web Skill 面板编辑按钮主处理器
+ * 变更类型：新增/交互
+ * 功能描述：处理 `panel-edit` 事件，根据登录态与 Zhiz 绑定状态，将用户分流到 SSO 登录、技能管理页或 PromptHub 绑定专区。
+ * 设计思路：
+ *   1. shared-ui 只抛出编辑意图，不承担业务判断；登录与绑定状态全部在 Web 宿主侧集中决策。
+ *   2. 未登录时先写入 pending intent，再跳现有 SSO 登录页，确保回跳后能继续执行原动作。
+ *   3. 已登录时强依赖显式 link-status 接口，避免沿用 skill proxy fallbackReason 做近似判断。
+ * 参数与返回值：handleSkillPanelEdit() 无参数；返回 Promise<void>。
+ * 影响范围：web/src/ui/index.js、web/src/backend.js、web-hub Zhiz 绑定闭环。
+ * 潜在风险：link-status 异常时当前入口会提示重试而不是误导用户去绑定页；这是有意选择的保守失败模式。
+ */
+async function handleSkillPanelEdit() {
+  if (!_skillPanel) {
+    return;
+  }
+
+  _skillPanel.visible = false;
+
+  if (!isAuthenticated()) {
+    savePendingZhizEditorIntent();
+    ssoLogin();
+    return;
+  }
+
+  try {
+    const status = await fetchZhizLinkStatus();
+    clearPendingZhizEditorIntent();
+
+    if (status.linked) {
+      openZhizSkillsManager();
+      return;
+    }
+
+    await confirmZhizBindingRedirect();
+  } catch (err) {
+    clearPendingZhizEditorIntent();
+    showToast(
+      err instanceof Error && err.message
+        ? err.message
+        : "无法确认 Zhiz 绑定状态，请稍后重试",
+      "error",
+    );
+  }
+}
+
+/**
+ * 2026-04-22 新增 — Web SSO 回跳后的 Zhiz 编辑意图恢复
+ * 变更类型：新增/交互
+ * 功能描述：在未登录用户通过 skill 面板编辑入口进入 SSO 后，于当前页完成 code exchange 时自动恢复“打开 Zhiz 技能管理”的原始意图。
+ * 设计思路：
+ *   1. 只在 pending intent 存在且当前已登录时执行，避免普通刷新或匿名访问误触发。
+ *   2. 读取到 link-status 后立即清理 pending intent，确保 confirm 取消或技能页已打开都不会重复执行。
+ *   3. 与手动点击编辑共享同一套 confirm 文案和跳转 helper，避免两条链路出现产品分叉。
+ * 参数与返回值：handlePendingZhizEditorIntent() 无参数；返回 Promise<void>。
+ * 影响范围：web/src/ui/index.js 的启动阶段 SSO 恢复逻辑。
+ * 潜在风险：若用户在 TTL 内通过其他入口完成登录，也会恢复最近一次编辑意图；这是当前闭环设计接受的行为。
+ */
+async function handlePendingZhizEditorIntent() {
+  const pendingIntent = readPendingZhizEditorIntent();
+  if (!pendingIntent || !isAuthenticated()) {
+    return;
+  }
+
+  try {
+    const status = await fetchZhizLinkStatus();
+    clearPendingZhizEditorIntent();
+
+    if (status.linked) {
+      openZhizSkillsManager();
+      return;
+    }
+
+    await confirmZhizBindingRedirect();
+  } catch (err) {
+    clearPendingZhizEditorIntent();
+    showToast(
+      err instanceof Error && err.message
+        ? err.message
+        : "无法确认 Zhiz 绑定状态，请稍后重试",
+      "error",
+    );
+  }
+}
+
 // --- 2026-04-13 Skill 浮窗初始化 ---
 // [类型]     新增
 // [描述]     创建 <ep-skill-panel> 实例，设置数据，绑定事件，定位在输入框上方。
@@ -380,6 +507,7 @@ function initSkillPanel() {
   _skillPanel.skillTypeMap = SKILL_TYPE_MAP;
   _skillPanel.iconMap = SKILL_ICON_MAP;
   _skillPanel.folderIcon = FOLDER_ICON_SVG;
+  _skillPanel.showEdit = true;
 
   // 2026-04-13 修复：绝对定位到输入框左上角，不挤占文档流
   // z-index 足够高以盖住页面文字（hero 标题等）
@@ -478,6 +606,9 @@ function initSkillPanel() {
   // 监听 panel-close
   _skillPanel.addEventListener("panel-close", () => {
     // 浮窗已自行隐藏，无需额外操作
+  });
+  _skillPanel.addEventListener("panel-edit", () => {
+    void handleSkillPanelEdit();
   });
 }
 

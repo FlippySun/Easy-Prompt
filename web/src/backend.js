@@ -39,6 +39,42 @@ function normalizeViteBaseUrl(value) {
   return typeof value === "string" ? value.trim().replace(/\/+$/, "") : "";
 }
 
+/**
+ * 2026-04-23 修复 — Web 端 Skills Manager hash-route 容错归一化
+ * 变更类型：fix
+ * What：当 `.env` 里的 Skills Manager URL 因未加引号、被 dotenv 在 `#` 处截断成 `/chat-flow/` 根路径时，自动补回 `#/skills/index`。
+ * Why：slash skill 浮窗“编辑”按钮依赖这条地址；若 hash-route 丢失，用户会被带到 sit/prod 站点根页而不是技能管理页。
+ * Params & return：`normalizeZhizSkillsManagerUrl(value)` 接收原始 env 值，返回可直接用于 `window.open()` 的完整 Skills Manager URL。
+ * Impact scope：web/src/ui/index.js 的“编辑技能”入口、SSO 恢复后自动打开 Skills Manager 的链路。
+ * Risk：仅对 `sit.zhiz.me` / `zhiz.me` 的 `/chat-flow` 根路径做定向修复，不影响其它环境变量读取。
+ */
+function normalizeZhizSkillsManagerUrl(value) {
+  const normalizedValue = normalizeViteBaseUrl(value);
+  if (!normalizedValue) {
+    return "";
+  }
+
+  try {
+    const parsed = new URL(normalizedValue);
+    const normalizedPath = parsed.pathname.replace(/\/+$/, "");
+    const isZhizSkillsHost =
+      parsed.origin === "https://sit.zhiz.me" ||
+      parsed.origin === "https://zhiz.me";
+
+    if (
+      isZhizSkillsHost &&
+      normalizedPath === "/chat-flow" &&
+      parsed.hash !== "#/skills/index"
+    ) {
+      return `${parsed.origin}/chat-flow/#/skills/index`;
+    }
+  } catch {
+    return normalizedValue;
+  }
+
+  return normalizedValue;
+}
+
 function requireViteBaseUrl(primaryKey, usage, fallbackKey) {
   const primaryValue = normalizeViteBaseUrl(viteEnv[primaryKey]);
   if (primaryValue) {
@@ -55,6 +91,15 @@ function requireViteBaseUrl(primaryKey, usage, fallbackKey) {
   throw new Error(
     `[EP_WEB_ENV] ${primaryKey} is required for ${usage}${fallbackKey ? ` (fallback ${fallbackKey} also missing)` : ""}`,
   );
+}
+
+function requireZhizSkillsManagerUrl(envKey, usage) {
+  const resolvedValue = normalizeZhizSkillsManagerUrl(viteEnv[envKey]);
+  if (resolvedValue) {
+    return resolvedValue;
+  }
+
+  throw new Error(`[EP_WEB_ENV] ${envKey} is required for ${usage}`);
 }
 
 export const BACKEND_API_BASE = requireViteBaseUrl(
@@ -94,6 +139,10 @@ export const SSO_HUB_BASE = requireViteBaseUrl(
   "Web SSO login and profile links",
   "VITE_WEB_HUB_PUBLIC_BASE_URL",
 );
+export const ZHIZ_SKILLS_MANAGER_URL = requireZhizSkillsManagerUrl(
+  "VITE_ZHIZ_SKILLS_MANAGER_URL",
+  "Web Zhiz skills manager entry",
+);
 export const SSO_KEYS = {
   ACCESS_TOKEN: "ep-sso-access-token",
   REFRESH_TOKEN: "ep-sso-refresh-token",
@@ -101,6 +150,9 @@ export const SSO_KEYS = {
   USER: "ep-sso-user",
   STATE: "ep-sso-state",
 };
+const ZHIZ_LINK_STATUS_URL = `${BACKEND_API_BASE}/api/v1/auth/oauth/zhiz/link-status`;
+const PENDING_ZHIZ_EDITOR_INTENT_KEY = "ep-zhiz-skill-editor-intent";
+const PENDING_ZHIZ_EDITOR_INTENT_TTL_MS = 10 * 60 * 1000;
 
 let _ssoRefreshTimer = null;
 export const SSO_STATE_CHANGE_EVENT = "ep:sso-state-change";
@@ -255,6 +307,91 @@ export function clearSsoTokens() {
   dispatchSsoStateChange({ reason: "tokens_cleared", user: null });
 }
 
+/**
+ * 2026-04-22 修复 — Web auth token 响应格式归一化
+ * 变更类型：fix
+ * What：兼容后端 `/api/v1/auth/refresh` 的 flat `data.accessToken` 与旧调用方仍在使用的 `data.tokens` 两种形状。
+ * Why：当前 Web/Browser 刷新逻辑误以为 refresh 响应总是嵌套在 `data.tokens`，会在 token 轮换或静默登录恢复时把正常响应误判为空。
+ * Params & return：`extractAuthTokens(payload)` 接收 refresh/exchange JSON，返回标准化 `{ accessToken, refreshToken, expiresIn }`；非法形状时抛出 Error。
+ * Impact scope：`refreshSsoToken()`、`bootstrapSsoSessionFromCookie()` 与 Web 端所有依赖 refresh 的鉴权恢复路径。
+ * Risk：No known risks.
+ */
+function extractAuthTokens(payload) {
+  const candidate = payload?.data?.tokens ?? payload?.data ?? null;
+  if (
+    typeof candidate?.accessToken !== "string" ||
+    typeof candidate?.refreshToken !== "string"
+  ) {
+    throw new Error("认证响应缺少 token");
+  }
+
+  return {
+    accessToken: candidate.accessToken,
+    refreshToken: candidate.refreshToken,
+    expiresIn:
+      typeof candidate.expiresIn === "number" ? candidate.expiresIn : 3600,
+  };
+}
+
+/**
+ * 2026-04-22 修复 — Web 静默共享会话 bootstrap
+ * 变更类型：fix
+ * What：在当前页没有本地 `ep-sso-*` token 时，尝试用共享 `refresh_token` cookie 静默换取新 token 与用户信息。
+ * Why：多端登录共享的真相来源不应只依赖各自 origin 的 localStorage；有共享会话 cookie 时，Web 应能在首次加载或新开页时自动恢复登录态。
+ * Params & return：`bootstrapSsoSessionFromCookie()` 无参数；成功时返回当前用户对象，失败时返回 null。
+ * Impact scope：web/src/ui/index.js 启动阶段、Web header 登录态展示、skill 面板“编辑技能”登录前分流。
+ * Risk：匿名访问会额外产生一次 cookie-based refresh 探测请求，但该请求只命中 `/auth/refresh`，不会泄露敏感信息。
+ */
+export async function bootstrapSsoSessionFromCookie() {
+  if (getSsoToken()) {
+    return getSsoUser();
+  }
+
+  const refreshResponse = await fetch(`${BACKEND_API_BASE}/api/v1/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({}),
+  });
+
+  let refreshPayload = {};
+  try {
+    refreshPayload = await refreshResponse.json();
+  } catch {
+    refreshPayload = {};
+  }
+
+  if (!refreshResponse.ok || !refreshPayload?.success) {
+    return null;
+  }
+
+  const tokens = extractAuthTokens(refreshPayload);
+  const profileResponse = await fetch(`${BACKEND_API_BASE}/api/v1/auth/me`, {
+    credentials: "include",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${tokens.accessToken}`,
+    },
+  });
+
+  let profilePayload = {};
+  try {
+    profilePayload = await profileResponse.json();
+  } catch {
+    profilePayload = {};
+  }
+
+  if (!profileResponse.ok || !profilePayload?.success || !profilePayload?.data) {
+    return null;
+  }
+
+  saveSsoTokens({
+    user: profilePayload.data,
+    tokens,
+  });
+  return profilePayload.data;
+}
+
 /** SSO 登录 — 跳转到统一 SSO Hub 登录页 */
 export function ssoLogin() {
   const state = crypto.randomUUID();
@@ -291,12 +428,13 @@ export async function refreshSsoToken() {
   const resp = await fetch(`${BACKEND_API_BASE}/api/v1/auth/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({ refreshToken }),
   });
   const data = await resp.json();
   if (!data.success) throw new Error(data.error?.message || "Token 刷新失败");
 
-  const tokens = data.data.tokens;
+  const tokens = extractAuthTokens(data);
   const expiresAt = Date.now() + (tokens.expiresIn || 3600) * 1000;
   localStorage.setItem(SSO_KEYS.ACCESS_TOKEN, tokens.accessToken);
   localStorage.setItem(SSO_KEYS.REFRESH_TOKEN, tokens.refreshToken);
@@ -409,6 +547,158 @@ export function updateSsoUI() {
  */
 export function openProfilePage() {
   window.open(`${SSO_HUB_BASE}/profile`, "_blank", "noopener,noreferrer");
+}
+
+/**
+ * 2026-04-22 新增 — Web 端 Zhiz 绑定状态请求
+ * 变更类型：新增/交互/安全
+ * 功能描述：查询当前已登录用户是否已绑定 Zhiz OAuth 账号，并在 access token 过期时自动刷新一次后重试。
+ * 设计思路：
+ *   1. skill 面板“编辑技能”要求区分“未登录 / 已登录已绑定 / 已登录未绑定”三态，因此补一个显式 link-status 读取入口。
+ *   2. 沿用既有 SSO refresh 语义：首次 401 时刷新一次 token，再以新 token 重试，避免页面侧误把“token 过期”当成“未绑定”。
+ *   3. 响应只接收 provider/linked/profile 这些最小安全字段，不让 UI 层依赖后端内部 ticket/rawProfile 结构。
+ * 参数与返回值：fetchZhizLinkStatus() 无参数；返回 Promise<{ provider:'zhiz', linked:boolean, profile:{displayName:string|null, avatarUrl:string|null} }>。
+ * 影响范围：web/src/ui/index.js 的 skill 面板编辑入口与登录恢复链路。
+ * 潜在风险：若后端 link-status 契约字段名变化，此处会显式抛错并在 UI 层提示重试，不会静默误判为“未绑定”。
+ */
+export async function fetchZhizLinkStatus() {
+  async function requestLinkStatus(tokenOverride) {
+    const accessToken = tokenOverride ?? getSsoToken();
+    if (!accessToken) {
+      throw new Error("当前未登录");
+    }
+
+    const response = await fetch(ZHIZ_LINK_STATUS_URL, {
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      signal:
+        typeof AbortSignal !== "undefined" &&
+        typeof AbortSignal.timeout === "function"
+          ? AbortSignal.timeout(15000)
+          : undefined,
+    });
+
+    let payload = {};
+    try {
+      payload = await response.json();
+    } catch {
+      payload = {};
+    }
+
+    return { response, payload };
+  }
+
+  let { response, payload } = await requestLinkStatus();
+
+  if (response.status === 401) {
+    const refreshedTokens = await refreshSsoToken();
+    ({ response, payload } = await requestLinkStatus(
+      refreshedTokens?.accessToken || null,
+    ));
+  }
+
+  if (!response.ok || !payload?.success) {
+    throw new Error(payload?.error?.message || "获取 Zhiz 绑定状态失败");
+  }
+
+  if (
+    payload?.data?.provider !== "zhiz" ||
+    typeof payload?.data?.linked !== "boolean"
+  ) {
+    throw new Error("Zhiz 绑定状态响应无效");
+  }
+
+  return {
+    provider: "zhiz",
+    linked: payload.data.linked,
+    profile: {
+      displayName:
+        typeof payload.data.profile?.displayName === "string"
+          ? payload.data.profile.displayName
+          : null,
+      avatarUrl:
+        typeof payload.data.profile?.avatarUrl === "string"
+          ? payload.data.profile.avatarUrl
+          : null,
+    },
+  };
+}
+
+/**
+ * 2026-04-22 新增 — Web 端待恢复的 Zhiz 技能管理意图
+ * 变更类型：新增/交互
+ * 功能描述：在未登录用户点击 skill 面板“编辑技能”时保存一个 10 分钟有效的待办意图，以便完成 SSO 回跳后继续分流到 Zhiz 绑定或技能管理页。
+ * 设计思路：
+ *   1. 仅保存 `type + createdAt` 最小状态，避免把用户输入、token 或跳转外链写进 localStorage。
+ *   2. read 时同时做 schema 校验与 TTL 回收，防止无关登录在未来某次误触发自动跳转。
+ * 参数与返回值：savePendingZhizEditorIntent()/clearPendingZhizEditorIntent() 无返回值；readPendingZhizEditorIntent() 返回 payload 或 null。
+ * 影响范围：web/src/ui/index.js 的登录前点击编辑流程、SSO 回跳恢复。
+ * 潜在风险：若用户在 10 分钟内主动登录其他页面，仍会恢复最近一次编辑意图；这是当前产品闭环的预期行为。
+ */
+export function savePendingZhizEditorIntent() {
+  localStorage.setItem(
+    PENDING_ZHIZ_EDITOR_INTENT_KEY,
+    JSON.stringify({
+      type: "open-skills-manager",
+      createdAt: Date.now(),
+    }),
+  );
+}
+
+export function readPendingZhizEditorIntent() {
+  const rawValue = localStorage.getItem(PENDING_ZHIZ_EDITOR_INTENT_KEY);
+  if (!rawValue) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    const createdAt =
+      typeof parsed?.createdAt === "number" ? parsed.createdAt : NaN;
+    const isExpired =
+      !Number.isFinite(createdAt) ||
+      Date.now() - createdAt > PENDING_ZHIZ_EDITOR_INTENT_TTL_MS;
+    if (parsed?.type !== "open-skills-manager" || isExpired) {
+      localStorage.removeItem(PENDING_ZHIZ_EDITOR_INTENT_KEY);
+      return null;
+    }
+    return {
+      type: "open-skills-manager",
+      createdAt,
+    };
+  } catch {
+    localStorage.removeItem(PENDING_ZHIZ_EDITOR_INTENT_KEY);
+    return null;
+  }
+}
+
+export function clearPendingZhizEditorIntent() {
+  localStorage.removeItem(PENDING_ZHIZ_EDITOR_INTENT_KEY);
+}
+
+/**
+ * 2026-04-22 新增 — Web 端 Zhiz 技能管理 / 绑定页跳转 helpers
+ * 变更类型：新增/交互
+ * 功能描述：统一封装从 skill 面板发起的外部跳转：已绑定用户进入 Zhiz 技能管理页，未绑定用户进入 PromptHub 个人页的 Zhiz OAuth 绑定专区。
+ * 设计思路：
+ *   1. Skills Manager URL 走环境变量，避免 Web 端运行时代码硬编码 sit/prod 域名。
+ *   2. 绑定入口使用受控 query `connect=zhiz&postBindTarget=skills-manager#zhiz-oauth`，由 web-hub 个人页继续引导用户发起授权。
+ * 参数与返回值：openZhizSkillsManager()/openZhizBindingProfilePage() 无参数；通过新标签页打开目标地址。
+ * 影响范围：web/src/ui/index.js 的编辑入口分流。
+ * 潜在风险：若浏览器拦截新标签页，用户需手动放行弹窗；不影响登录态或 skill 面板状态本身。
+ */
+export function openZhizSkillsManager() {
+  window.open(ZHIZ_SKILLS_MANAGER_URL, "_blank", "noopener,noreferrer");
+}
+
+export function openZhizBindingProfilePage() {
+  const profileUrl = new URL(`${SSO_HUB_BASE}/profile`);
+  profileUrl.searchParams.set("connect", "zhiz");
+  profileUrl.searchParams.set("postBindTarget", "skills-manager");
+  profileUrl.hash = "zhiz-oauth";
+  window.open(profileUrl.toString(), "_blank", "noopener,noreferrer");
 }
 
 /**

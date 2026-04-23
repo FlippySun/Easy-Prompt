@@ -16,8 +16,53 @@ function normalizeEnvBaseUrl(value) {
   return typeof value === "string" ? value.trim().replace(/\/+$/, "") : "";
 }
 
+/**
+ * 2026-04-23 修复 — Browser 端 Skills Manager hash-route 容错归一化
+ * 变更类型：fix
+ * What：当扩展构建读取到的 `WXT_ZHIZ_SKILLS_MANAGER_URL` 因 `.env` 中未给 `#` 路由加引号而被截断成 `/chat-flow/` 根路径时，自动补回 `#/skills/index`。
+ * Why：浏览器插件端 skill 浮窗“编辑技能”入口依赖这条外跳地址；若 hash 被吞掉，用户会被带到站点首页而不是技能管理页。
+ * Params & return：`normalizeZhizSkillsManagerUrl(value)` 接收原始 build-time env 值，返回规范化后的 Skills Manager URL。
+ * Impact scope：browser/content/content.js、browser/shared/zhiz.js 的 Skills Manager 外跳。
+ * Risk：仅在 `sit.zhiz.me` / `zhiz.me` 的 `/chat-flow` 根路径命中修复，不影响其它 Browser env 常量。
+ */
+function normalizeZhizSkillsManagerUrl(value) {
+  const normalizedValue = normalizeEnvBaseUrl(value);
+  if (!normalizedValue) {
+    return "";
+  }
+
+  try {
+    const parsed = new URL(normalizedValue);
+    const normalizedPath = parsed.pathname.replace(/\/+$/, "");
+    const isZhizSkillsHost =
+      parsed.origin === "https://sit.zhiz.me" ||
+      parsed.origin === "https://zhiz.me";
+
+    if (
+      isZhizSkillsHost &&
+      normalizedPath === "/chat-flow" &&
+      parsed.hash !== "#/skills/index"
+    ) {
+      return `${parsed.origin}/chat-flow/#/skills/index`;
+    }
+  } catch {
+    return normalizedValue;
+  }
+
+  return normalizedValue;
+}
+
 function requireEnvBaseUrl(envKey, usage) {
   const resolvedValue = normalizeEnvBaseUrl(browserEnv[envKey]);
+  if (resolvedValue) {
+    return resolvedValue;
+  }
+
+  throw new Error(`[EP_BROWSER_ENV] ${envKey} is required for ${usage}`);
+}
+
+function requireZhizSkillsManagerUrl(envKey, usage) {
+  const resolvedValue = normalizeZhizSkillsManagerUrl(browserEnv[envKey]);
   if (resolvedValue) {
     return resolvedValue;
   }
@@ -46,3 +91,17 @@ export const SSO_HUB_BASE = requireEnvBaseUrl(
 );
 
 export const SSO_PROFILE_URL = `${WEB_HUB_BASE_URL}/profile`;
+
+/**
+ * 2026-04-22 新增 — Browser 端 Zhiz 技能管理入口环境变量
+ * 变更类型：新增/配置
+ * 功能描述：导出浏览器扩展运行时使用的 Zhiz Skills Manager 基准地址，供 slash skill 面板“编辑技能”入口按环境打开 sit/prod 技能管理页。
+ * 设计思路：继续沿用集中 env 解析，避免 content script 再次硬编码 `sit.zhiz.me` / `zhiz.me`，保持 Browser 与 Web / Web-Hub 的环境切换一致。
+ * 参数与返回值：`ZHIZ_SKILLS_MANAGER_URL` 为字符串常量，来自 `WXT_ZHIZ_SKILLS_MANAGER_URL`。
+ * 影响范围：browser/shared/zhiz.js、browser/content/content.js。
+ * 潜在风险：若构建环境缺失该变量，扩展会按既有 fail-closed 策略在导入阶段显式失败。
+ */
+export const ZHIZ_SKILLS_MANAGER_URL = requireZhizSkillsManagerUrl(
+  "WXT_ZHIZ_SKILLS_MANAGER_URL",
+  "Browser extension Zhiz skills manager entry",
+);
