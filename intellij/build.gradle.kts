@@ -5,7 +5,14 @@ plugins {
 }
 
 group = "com.easyprompt"
-version = "5.3.8"
+// 2026-04-23 发版同步 — IntelliJ 插件版本升级到 5.3.9
+// 变更类型：配置/发布
+// 功能描述：同步 JetBrains Marketplace 发布版本与本轮 5.3.9 变更说明，确保构建产物、Marketplace 与 CHANGELOG 口径一致。
+// 设计思路：保持 Gradle version 与 changeNotes 在同一文件维护，避免跨文件发布文案漂移。
+// 参数与返回值：影响 buildPlugin / publishPlugin 产物版本号与 Marketplace 展示，无额外返回值。
+// 影响范围：intellij/build.gradle.kts、JetBrains Marketplace、ZIP 构建产物命名。
+// 潜在风险：后续发版若遗漏此处，会导致 Marketplace 版本与仓库版本不一致。
+version = "5.3.9"
 
 repositories {
     mavenCentral()
@@ -161,6 +168,16 @@ intellijPlatform {
             sinceBuild = "243"
         }
         changeNotes = """
+            <h3>v5.3.9 — 后端支持完善 + Zhiz Skill / OAuth 全链路</h3>
+            <b>补齐 Zhiz OAuth / Skill / 绑定校验与多端环境分流，继续完善统一后端支撑能力</b>
+            <ul>
+                <li><b>Zhiz OAuth 全链路</b>：后端补齐 Zhiz OAuth、密码设置邮件、link-status / status / finish，并在 PromptHub 增加 auth completion 与 continuation flow</li>
+                <li><b>Zhiz Skill 真正打通</b>：Browser / Web / Backend / Core 统一接入真实 skill fetch，Skill Panel 从静态展示升级为真实拉取</li>
+                <li><b>绑定校验前置</b>：Skill 编辑前先检查 Zhiz link-status，并补齐续绑引导、Profile 连接卡与跳转链路</li>
+                <li><b>环境区分完善</b>：OAuth 上游、SSO Hub、Web / PromptHub / Backend 继续按 development / production 分流</li>
+                <li><b>发布链路加固</b>：新增 env-aware release gate、backend env guard 与 production PM2 reload，降低发版串环境风险</li>
+                <li><b>全端版本同步</b>：VSCode / IntelliJ / Browser / Web 统一升级至 5.3.9</li>
+            </ul>
             <h3>v5.3.8 — 统一后端上线（Backend Phase 1-4）</h3>
             <b>正式引入 Easy Prompt 统一后端服务（api.zhiz.chat），完成 Phase 1 ~ Phase 4 共约 80 项任务</b>
             <ul>

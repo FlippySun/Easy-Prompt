@@ -16,13 +16,21 @@ export const MAX_RETRIES = 3;
 export const RETRY_DELAYS = [2000, 4000, 8000];
 
 // 2026-04-13 新增 — 客户端元数据（供后端日志记录）
+
+// 2026-04-23 发版同步 — Web 客户端版本升级到 5.3.9
+// 变更类型：配置/发布
+// 功能描述：同步前端上报给 backend 的 clientVersion，保证 Zhiz Skill / OAuth / enhance 请求日志能准确对应 5.3.9 发布物。
+// 设计思路：继续使用显式常量，避免把 package.json 注入到浏览器运行时代码，维持 Vite 构建链简单稳定。
+// 参数与返回值：影响 callBackendEnhance 请求体中的 clientVersion，无额外返回值。
+// 影响范围：web/src/constants.js、backend AiRequestLog、线上排障与发布观测。
+// 潜在风险：后续发版若遗漏此处，会造成日志版本漂移。
 // 变更类型：新增
 // 功能描述：定义客户端版本和平台标识，随增强请求发送至后端
 // 设计思路：后端 AiRequestLog 中 clientVersion / clientPlatform 始终为空，
 //   因为客户端从未在请求中携带这些字段。此处补充定义并在 fetch body 中传递。
 // 影响范围：callBackendEnhance 请求体
 // 潜在风险：版本号需随发版同步更新（deploy.sh --bump 已覆盖 index.html，此处需手动对齐）
-export const CLIENT_VERSION = "5.3.8";
+export const CLIENT_VERSION = "5.3.9";
 export const CLIENT_PLATFORM = "web";
 
 // 场景分类（用于 Browser 和 Picker）

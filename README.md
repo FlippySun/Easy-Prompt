@@ -2,13 +2,21 @@
 
 > 两步 AI 意图识别 + 97 个专业场景 + 10 大用户画像，将你的简单描述自动扩写为大师级 Prompt。
 
-![Version](https://img.shields.io/badge/version-5.3.8-blue)
+![Version](https://img.shields.io/badge/version-5.3.9-blue)
 ![VSCode](https://img.shields.io/badge/VSCode-1.85%2B-blue)
 ![IntelliJ](https://img.shields.io/badge/IntelliJ-2024.1%2B-orange)
 ![Browser](https://img.shields.io/badge/Browser-Chrome%20%7C%20Firefox%20%7C%20Safari%20%7C%20Edge-yellow)
 ![Web](https://img.shields.io/badge/Web-Online-brightgreen)
 ![PromptHub](https://img.shields.io/badge/PromptHub-zhiz.chat-purple)
 ![License](https://img.shields.io/badge/license-MIT-green)
+
+
+## 🆕 5.3.9 版本亮点
+
+- **后端支持继续完善**：统一后端补齐 Zhiz OAuth、link-status、密码设置邮件与生产发布 env guard，线上 backend 发布链路更稳。
+- **Zhiz Skill 正式打通**：Browser / Web / PromptHub / Backend 统一接入真实 Zhiz Skill 拉取与绑定校验，不再停留在静态展示。
+- **多端账号体验升级**：VS Code、IntelliJ、Browser、Web / PromptHub 均补齐 Zhiz 登录、绑定与 continuation flow，跨端回流更顺畅。
+- **环境区分更清晰**：OAuth 上游、SSO Hub、Web / PromptHub / Backend 地址继续按 development / production 分流，降低调试与生产串环境风险。
 
 ## ✨ 核心功能
 
@@ -105,7 +113,7 @@ cd browser && node build.js chrome   # 仅构建 Chrome
 
 # 方式 2：本地打包安装
 npx @vscode/vsce package --allow-missing-repository
-code --install-extension easy-prompt-ai-5.3.8.vsix
+code --install-extension easy-prompt-ai-5.3.9.vsix
 
 # 方式 3：开发调试
 code .  # 按 F5 启动调试
@@ -120,7 +128,7 @@ code .  # 按 F5 启动调试
 # 方式 2：本地构建安装（需要 JDK 21）
 cd intellij && ./gradlew buildPlugin
 # Settings → Plugins → ⚙️ → Install Plugin from Disk
-# 选择 intellij/build/distributions/easy-prompt-intellij-5.3.8.zip
+# 选择 intellij/build/distributions/easy-prompt-intellij-5.3.9.zip
 ```
 
 ## 📦 Installation (English)
@@ -168,7 +176,7 @@ A standalone AI prompt curated library web app:
 
 ```bash
 npx @vscode/vsce package --allow-missing-repository
-code --install-extension easy-prompt-ai-5.3.8.vsix
+code --install-extension easy-prompt-ai-5.3.9.vsix
 ```
 
 ### IntelliJ IDEA
@@ -180,7 +188,7 @@ code --install-extension easy-prompt-ai-5.3.8.vsix
 cd intellij && ./gradlew buildPlugin
 ```
 
-Then: Settings → Plugins → ⚙️ → Install Plugin from Disk → select `intellij/build/distributions/easy-prompt-intellij-5.3.8.zip`
+Then: Settings → Plugins → ⚙️ → Install Plugin from Disk → select `intellij/build/distributions/easy-prompt-intellij-5.3.9.zip`
 
 ## ⚙️ 配置
 

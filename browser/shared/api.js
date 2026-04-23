@@ -14,12 +14,20 @@ const MAX_RETRIES = 3;
 const RETRY_DELAYS = [2000, 4000, 8000];
 
 // 2026-04-13 新增 — 客户端元数据（供后端日志记录）
+
+// 2026-04-23 发版同步 — Browser 客户端版本升级到 5.3.9
+// 变更类型：配置/发布
+// 功能描述：同步浏览器扩展上报给 backend 的 clientVersion，保证 Zhiz Skill / OAuth / enhance 链路日志能准确标记当前发布物。
+// 设计思路：继续沿用显式版本常量，不把 package.json 动态读取带入扩展运行时，减少 MV3 构建链复杂度。
+// 参数与返回值：影响 callBackendEnhance 与相关 backend 请求头/请求体中的 clientVersion，无额外返回值。
+// 影响范围：browser/shared/api.js、backend AiRequestLog、线上排障与版本观测。
+// 潜在风险：后续发版若遗漏本处，会造成浏览器扩展日志版本漂移。
 // 变更类型：新增
 // 功能描述：定义客户端版本和平台标识，随增强请求发送至后端
 // 设计思路：后端 AiRequestLog 中 clientVersion / clientPlatform 始终为空，此处补充
 // 影响范围：callBackendEnhance 请求体 + 请求头
 // 潜在风险：版本号需随发版同步更新
-const CLIENT_VERSION = "5.3.8";
+const CLIENT_VERSION = "5.3.9";
 
 /** 支持的 API 模式 */
 const API_MODES = {

@@ -552,8 +552,18 @@ kbd {
 <body>
 <div class="container">
     <!-- Hero -->
+
+<!--
+  2026-04-23 发版同步 — Welcome 页面版本展示升级到 5.3.9
+  变更类型：配置/发布
+  功能描述：同步 VS Code Welcome 页中的版本徽标与页脚版本号，确保发布物展示和 Marketplace / changelog 一致。
+  设计思路：继续使用静态版本文案，避免 Welcome Webview 额外读取 package.json 带来的上下文耦合。
+  参数与返回值：无运行时参数；仅影响 Welcome Webview HTML 展示。
+  影响范围：welcomeView.js、首次安装欢迎页、手动打开欢迎页场景。
+  潜在风险：后续发版若遗漏本处，Welcome 页面会与真实发布版本漂移。
+-->
     <div class="hero">
-        <div class="version-badge">v5.3.8</div>
+        <div class="version-badge">v5.3.9</div>
         <h1>Welcome to <span>Easy Prompt</span></h1>
         <p>AI 驱动的智能 Prompt 工程工具包 — 写一句大白话，生成专业级 Prompt，97 个场景 + 10 大画像覆盖你的全部开发与创作痛点</p>
     </div>
@@ -665,7 +675,7 @@ kbd {
 
     <!-- Footer -->
     <div class="footer">
-        <p>Easy Prompt v5.3.8 · Made with ❤️ · <a href="https://github.com/FlippySun/Easy-Prompt">GitHub</a> · <a href="${_esc(webAppBaseUrl)}">Web 在线版</a> · <a href="${_esc(webHubBaseUrl)}">PromptHub 精选库</a></p>
+        <p>Easy Prompt v5.3.9 · Made with ❤️ · <a href="https://github.com/FlippySun/Easy-Prompt">GitHub</a> · <a href="${_esc(webAppBaseUrl)}">Web 在线版</a> · <a href="${_esc(webHubBaseUrl)}">PromptHub 精选库</a></p>
         <p style="margin-top:8px;">💡 状态栏右侧 ✨ 图标可随时打开快捷菜单</p>
     </div>
 </div>

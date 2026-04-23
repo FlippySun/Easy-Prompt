@@ -26,7 +26,7 @@
 
 ### IntelliJ 插件
 
-- [x] build.gradle.kts 配置完整（需 JDK 17）
+- [x] build.gradle.kts 配置完整（需 JDK 21）
 - [x] plugin.xml 配置完整（8 个 Action + 7 快捷键）
 - [x] ScratchRootType 替代 LightVirtualFile
 - [x] WriteCommandAction 支持撤销
@@ -95,13 +95,13 @@
 
    ```bash
    npm install
-   npx vsce package
+   ./scripts/vscode-package.sh
    ```
 
 3. **测试安装**
 
    ```bash
-   code --install-extension easy-prompt-ai-5.3.8.vsix
+   code --install-extension easy-prompt-ai-5.3.9.vsix
    ```
 
 4. **发布途径**
@@ -133,9 +133,8 @@
 1. **构建插件（需 JDK 21）**
 
    ```bash
-   cd intellij
-   JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew buildPlugin
-   # 输出：build/distributions/easy-prompt-intellij-5.3.8.zip
+   ./scripts/intellij-build.sh
+   # 输出：build/distributions/easy-prompt-intellij-5.3.9.zip
    ```
 
 2. **测试安装**
@@ -171,20 +170,21 @@
 1. **构建**
 
    ```bash
-   cd browser && node build.js chrome firefox
-   # 输出：dist/easy-prompt-chrome.zip / easy-prompt-firefox.zip
+   ./scripts/browser-build.sh --browser=all --zip
+   # 输出：browser/dist/ 或 browser/.output/ 下的 chrome / firefox / safari / edge 构建与 zip 产物
    ```
 
 2. **Chrome Web Store**
    - 访问 https://chrome.google.com/webstore/devconsole
-   - 上传 `dist/easy-prompt-chrome.zip`
+   - 上传 `browser/dist/easy-prompt-browser-5.3.9-chrome.zip`
 
 3. **Firefox Add-ons**
    - 访问 https://addons.mozilla.org/developers/
-   - 上传 `dist/easy-prompt-firefox.zip`
+   - 上传 `browser/dist/easy-prompt-browser-5.3.9-firefox.zip`
 
-4. **Safari Extensions（本次 5.3.8 不包含）**
-   - 本轮发版不打包 Safari，不提交 App Store Connect
+4. **Safari Extensions（本次 5.3.9 包含构建产物）**
+   - 构建命令统一走 `./scripts/browser-build.sh --browser=all --zip`
+   - 如需提交 App Store Connect，先执行 `cd browser && npm run safari:convert` 生成 Safari Xcode 工程
 
 ## 🌐 Task 8 — 环境区分发布门禁（2026-04-17）
 

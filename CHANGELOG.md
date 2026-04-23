@@ -5,8 +5,84 @@ All notable changes to the Easy Prompt project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
 ## [Unreleased]
 
+## [5.3.9] - 2026-04-23
+
+### 后端支持完善 + Zhiz Skill / OAuth 全链路落地
+
+#### 新增
+
+- **新增：Zhiz OAuth 全链路能力** — 后端补齐 Zhiz OAuth、密码设置邮件与 link-status/finish/status 能力；Web-Hub 增加 auth completion、密码设置完成与 continuation flow，覆盖“登录 / 绑定 / 设密 / 回流”关键链路。
+- **新增：Zhiz Skill 真实拉取能力** — Browser / Web / Backend / Core 打通真实 skill fetch，Skill Panel 不再停留在静态占位，支持多端统一展示 Zhiz Skills。
+- **新增：多端 Zhiz 登录入口** — VS Code、IntelliJ、Browser Options 与 Web / PromptHub 补齐 Zhiz 登录 / 绑定入口，降低跨端账号联动成本。
+
+#### 变更
+
+- **变更：OAuth 上游与运行时环境区分** — Zhiz 授权页、token / skill upstream 与 SSO / Web / Backend 公网地址继续按 development / production 分流，避免本地调试与生产部署串环境。
+- **变更：Skill 编辑前置绑定校验** — Web / Browser 在进入 Skill 编辑前先检查 Zhiz link-status，并提供续绑引导；PromptHub Profile 补齐绑定卡片与后续跳转。
+- **变更：发布链路与发布门禁** — 引入 env-aware release gate、backend deploy env guard、各端 published 脚本与文档同步，降低发版漏项与运行态 env 漂移风险。
+
+#### 修复
+
+- **修复：后端运行稳定性** — 补齐 AiRequestLog 关键字段、保留错误链路诊断信息，并增强生产环境 `core/scenes.js` 多路径探测，提升后端可观测性与兼容性。
+- **修复：生产部署环境歧义** — Backend 发布脚本显式使用 PM2 production reload，避免线上继续沿用 development 环境默认值。
+
+## [5.3.8] - 2026-04-10
+
+### 统一后端上线（Backend Phase 1-4）
+
+本版本正式引入 Easy Prompt **统一后端服务**（`api.zhiz.chat`），完成 Phase 1 ~ Phase 4 共约 80 项任务，为全端客户端提供集中式 AI 增强代理、认证、PromptHub 数据层和内容管理能力。
+
+#### 新增
+
+- **新增：统一后端服务** — 基于 Express 5 + TypeScript + Prisma + PostgreSQL 16 + Redis 的全栈后端，部署在 `api.zhiz.chat`（PM2 cluster × 2）
+- **新增：AI 代理网关** — `POST /api/v1/ai/enhance` 统一增强接口，支持 4 种 API 协议（openai / openai-responses / claude / gemini），路由超时 30s、生成超时 90s
+- **新增：认证系统** — 邮箱注册/登录 + JWT Access/Refresh Token + SSO 授权码交换，支持匿名和认证两种访问模式
+- **新增：多维黑名单** — IP / 用户 / 指纹三维度封禁检查，Redis 缓存 + CRUD 管理接口
+- **新增：滑动窗口限流** — Redis ZSET 实现，BAN_LADDER 阶梯升级封禁策略
+- **新增：Provider 管理** — API Key 加密存储（AES-256-CBC）、多 Provider CRUD、权重轮询选择
+- **新增：PromptHub 数据层（Phase 3）** — Prompt CRUD + PostgreSQL 全文检索（tsvector + pg_trgm）+ 用户交互（点赞/收藏/复制）+ Collection 管理 + 成就系统
+- **新增：Trending 与内容管理（Phase 4）** — 热门排行算法（时间衰减加权评分）+ 每日精选 + 分类趋势 + Admin 内容审核流程
+- **新增：请求分析与审计（Phase 2）** — AI 增强专用日志 + 管理员操作审计日志 + Pino 日志轮转（app / audit / ai-request 三通道）
+- **新增：定时任务** — Cron 定时刷新 Trending 缓存、清理过期 Token、Featured 精选刷新
+- **新增：全端 SSO 登录入口** — VS Code welcomeView + IntelliJ ToolWindow + Welcome Screen 均新增 zhiz.chat 登录 CTA
+- **新增：全端 backendMode 配置** — VS Code / IntelliJ / Browser / Web 新增 `auto` / `backend-only` / `local-only` 三模式开关
+
+#### 修复
+
+- **修复：AI 增强 504 超时** — 后端 ai-gateway 路由超时上限 30s、生成超时下限 90s，Provider 默认超时从 30s 提升至 90s
+- **修复：Web 端后端超时对齐** — `web/app.js` 后端请求超时从 30s 对齐到 90s，与 Browser 端一致
+
+#### 基础设施
+
+- **Prisma Schema**：18 个数据模型（users / prompts / collections / ai_providers / ai_request_logs / blacklist_rules 等）
+- **数据库迁移**：PostgreSQL 16 + Docker 容器，Prisma migrate deploy
+- **Redis**：Docker 容器，用于限流/黑名单缓存/SSO code/Trending 缓存
+- **Nginx**：宝塔面板管理，HTTPS + 反向代理 + SSE 支持 + Gzip
+- **PM2**：cluster × 2 实例，graceful reload 零停机部署
+- **测试**：55 项通过（20 单元 + 35 集成），`tsc --noEmit` 0 errors
+
+#### API 端点一览
+
+| Method              | Path                       | Auth     |
+| ------------------- | -------------------------- | -------- |
+| POST                | /api/v1/auth/register      | —        |
+| POST                | /api/v1/auth/login         | —        |
+| POST                | /api/v1/auth/refresh       | —        |
+| GET                 | /api/v1/auth/me            | required |
+| POST                | /api/v1/auth/sso/authorize | required |
+| POST                | /api/v1/auth/sso/token     | —        |
+| POST                | /api/v1/ai/enhance         | optional |
+| GET                 | /api/v1/meta/categories    | —        |
+| GET                 | /api/v1/meta/models        | —        |
+| GET/POST/PUT/DELETE | /api/v1/prompts            | varies   |
+| GET                 | /api/v1/collections        | —        |
+| GET                 | /api/v1/trending/\*        | —        |
+| GET/POST/DELETE     | /api/v1/admin/blacklist    | admin    |
+| GET/POST/PUT/DELETE | /api/v1/admin/providers    | admin    |
+| GET                 | /health                    | —        |
 ## [5.3.6] - 2026-03-20
 
 ### Fast / Deep 双模式（全端统一口径）

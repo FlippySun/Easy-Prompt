@@ -409,8 +409,16 @@ assert(
 );
 assert(extCode.includes("🔥"), "场景列表含小火苗标记");
 
+
+// 2026-04-23 发版校验 — 锁定 5.3.9 版本字符串
+// 变更类型：配置/测试
+// 功能描述：校验 Welcome 页与 package.json 已同步到 5.3.9，避免发布物版本文案漂移。
+// 设计思路：沿用字符串断言，不引入额外 fixture，确保发版回归脚本成本最低。
+// 参数与返回值：无；断言失败时直接抛错终止测试。
+// 影响范围：test-full.js、手动发布前版本一致性检查。
+// 潜在风险：若未来版本来自动态注入，需要同步调整这些断言入口。
 // Welcome 页面更新
-assert(welcomeCode.includes("v5.3.8"), "Welcome 页面版本更新到 v5.3.8");
+assert(welcomeCode.includes("v5.3.9"), "Welcome 页面版本更新到 v5.3.9");
 assert(
   welcomeCode.includes("使用教程") && welcomeCode.includes("Alt</kbd>+<kbd>H"),
   "Welcome 含 Ctrl+Alt+H 快捷键",
@@ -418,7 +426,7 @@ assert(
 assert(welcomeCode.includes("状态栏"), "Welcome 提到状态栏功能");
 
 // package.json 版本
-assert(pkg.version === "5.3.8", "package.json 版本 = 5.3.8");
+assert(pkg.version === "5.3.9", "package.json 版本 = 5.3.9");
 assert(
   declaredCommands.includes("easy-prompt.statusBarMenu"),
   "package.json 声明 statusBarMenu 命令",
